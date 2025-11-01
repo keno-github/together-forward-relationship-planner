@@ -5,9 +5,10 @@ import CostBreakdown from './CostBreakdown';
 import TipsSection from './TipsSection';
 import ChallengesSection from './ChallengesSection';
 import ChatPanel from './ChatPanel';
+import OverviewSection from './Components/OverviewSection';
 
-const DeepDiveModal = ({ deepDiveData, activeTab, onClose, chatProps }) => {
-  const [activeDeepDiveTab, setActiveDeepDiveTab] = useState(activeTab || 'cost');
+const DeepDiveModal = ({ deepDiveData, activeTab, onClose, chatProps, userContext }) => {
+  const [activeDeepDiveTab, setActiveDeepDiveTab] = useState(activeTab || 'overview');
 
   if (!deepDiveData) return null;
 
@@ -27,25 +28,40 @@ const DeepDiveModal = ({ deepDiveData, activeTab, onClose, chatProps }) => {
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Title */}
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">{deepDiveData.title}</h2>
+
           {/* Tabs */}
-          <div className="flex gap-4 mb-6">
-            {['cost', 'steps', 'tips', 'challenges', 'chat'].map(tab => (
+          <div className="flex gap-2 mb-6 overflow-x-auto">
+            {['overview', 'cost', 'steps', 'tips', 'challenges', 'chat'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveDeepDiveTab(tab)}
-                className={`px-4 py-2 rounded-xl font-medium ${activeDeepDiveTab === tab ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
+                className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap transition-all ${
+                  activeDeepDiveTab === tab
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'overview' ? '📊 Overview' :
+                 tab === 'cost' ? '💰 Cost' :
+                 tab === 'steps' ? '📋 Steps' :
+                 tab === 'tips' ? '💡 Tips' :
+                 tab === 'challenges' ? '⚠️ Challenges' :
+                 '💬 Chat'}
               </button>
             ))}
           </div>
 
           {/* Content */}
-          {activeDeepDiveTab === 'cost' && <CostBreakdown totalCostBreakdown={deepDiveData.totalCostBreakdown} hiddenCosts={deepDiveData.hiddenCosts} locationSpecific={deepDiveData.locationSpecific} />}
-          {activeDeepDiveTab === 'steps' && <StepsList steps={deepDiveData.detailedSteps} />}
-          {activeDeepDiveTab === 'tips' && <TipsSection expertTips={deepDiveData.expertTips} commonMistakes={deepDiveData.commonMistakes} successMetrics={deepDiveData.successMetrics} />}
-          {activeDeepDiveTab === 'challenges' && <ChallengesSection challenges={deepDiveData.challenges} warningFlags={deepDiveData.warningFlags} locationSpecific={deepDiveData.locationSpecific} />}
-          {activeDeepDiveTab === 'chat' && <ChatPanel {...chatProps} />}
+          <div className="max-h-[70vh] overflow-y-auto">
+            {activeDeepDiveTab === 'overview' && <OverviewSection deepDiveData={deepDiveData} userContext={userContext} />}
+            {activeDeepDiveTab === 'cost' && <CostBreakdown totalCostBreakdown={deepDiveData.totalCostBreakdown} hiddenCosts={deepDiveData.hiddenCosts} locationSpecific={deepDiveData.locationSpecific} />}
+            {activeDeepDiveTab === 'steps' && <StepsList steps={deepDiveData.detailedSteps} />}
+            {activeDeepDiveTab === 'tips' && <TipsSection expertTips={deepDiveData.expertTips} commonMistakes={deepDiveData.commonMistakes} successMetrics={deepDiveData.successMetrics} />}
+            {activeDeepDiveTab === 'challenges' && <ChallengesSection challenges={deepDiveData.challenges} warningFlags={deepDiveData.warningFlags} locationSpecific={deepDiveData.locationSpecific} />}
+            {activeDeepDiveTab === 'chat' && <ChatPanel {...chatProps} />}
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>

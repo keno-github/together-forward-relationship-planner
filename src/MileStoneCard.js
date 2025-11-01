@@ -1,16 +1,18 @@
 // MileStoneCard.js
-import React, { useState } from 'react';
-import { CheckCircle, Circle, Clock, DollarSign, ChevronRight, Maximize2, Brain } from 'lucide-react';
+import React from 'react';
+import { Clock, DollarSign, ChevronRight, Maximize2, Brain, Heart } from 'lucide-react';
 import TaskItem from './TaskItem';
-import DeepDiveModal from './DeepDiveModal';
 
 const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roadmap, setRoadmap, openDeepDive, addAchievement }) => {
+  // Safely get the icon component
+  const IconComponent = milestone.icon || Heart;
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all">
       <div className="flex items-start gap-4">
         {/* Milestone Icon */}
         <div className={`${milestone.color} w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 shadow-md relative`}>
-          {milestone.icon && <milestone.icon className="w-6 h-6 text-white" />}
+          {IconComponent && <IconComponent className="w-6 h-6 text-white" />}
           {milestone.aiGenerated && (
             <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
               <Brain className="w-3 h-3 text-white" />
@@ -70,16 +72,25 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
           {/* Tasks */}
           {selectedMilestone === milestone.id && milestone.tasks && milestone.tasks.length > 0 && (
             <div className="mt-4 space-y-2 border-t pt-4">
-              {milestone.tasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  milestone={milestone}
-                  roadmap={roadmap}
-                  setRoadmap={setRoadmap}
-                  addAchievement={addAchievement}
-                />
-              ))}
+              {milestone.tasks.map((task) => {
+                // Function to update this specific milestone
+                const updateMilestone = (updatedMilestone) => {
+                  const updatedRoadmap = roadmap.map(m =>
+                    m.id === updatedMilestone.id ? updatedMilestone : m
+                  );
+                  setRoadmap(updatedRoadmap);
+                };
+
+                return (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    milestone={milestone}
+                    updateMilestone={updateMilestone}
+                    addAchievement={addAchievement}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
