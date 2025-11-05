@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Brain, Sparkles, Target, Calendar, TrendingUp, Users, CheckCircle, ArrowRight, Loader, Mic, MicOff, Send } from 'lucide-react';
 import { getLunaOnboardingResponse, extractUserDataFromConversation } from '../services/claudeAPI';
+import GoalSelectionHub from './GoalSelectionHub';
+import TemplateGallery from './TemplateGallery';
+import CustomGoalCreator from './CustomGoalCreator';
 
 // Mock location data for different cities
 const LOCATION_DATA = {
@@ -51,7 +54,7 @@ const EXAMPLE_ROADMAP = [
 ];
 
 const LandingPage = ({ onComplete }) => {
-  const [stage, setStage] = useState('hero'); // hero, pathChoice, loading, detected, onboarding
+  const [stage, setStage] = useState('hero'); // hero, pathChoice, goalSelection, templateGallery, customCreator, loading, detected, onboarding
   const [chosenPath, setChosenPath] = useState(null); // 'ready' or 'compatibility'
   const [loadingSteps, setLoadingSteps] = useState([
     { text: 'Connecting to AI brain', done: false },
@@ -67,6 +70,11 @@ const LandingPage = ({ onComplete }) => {
   const [canCreateRoadmap, setCanCreateRoadmap] = useState(false);
   const recognitionRef = useRef(null);
   const chatEndRef = useRef(null);
+
+  // Goal selection state
+  const [selectedTemplates, setSelectedTemplates] = useState([]);
+  const [customGoal, setCustomGoal] = useState(null);
+  const [needsLunaRefinement, setNeedsLunaRefinement] = useState(false);
 
   // Store extracted user data
   const [extractedData, setExtractedData] = useState({
@@ -156,12 +164,54 @@ const LandingPage = ({ onComplete }) => {
           setTimeout(async () => {
             setLocation(mockLocation);
             setLocationData(LOCATION_DATA[mockLocation]);
+
+            // NEW: Check if templates were selected without Luna refinement
+            if (selectedTemplates.length > 0 && !needsLunaRefinement) {
+              // Skip Luna, go straight to roadmap
+              const userData = {
+                partner1: 'Partner 1',
+                partner2: 'Partner 2',
+                goals: selectedTemplates.map(t => t.title),
+                goalDetails: {},
+                timeline: '',
+                priorities: [],
+                location: mockLocation,
+                locationData: LOCATION_DATA[mockLocation],
+                selectedTemplates: selectedTemplates,
+                skipLuna: true
+              };
+              onComplete(userData);
+              return;
+            }
+
+            // NEW: Check if custom goal was created without Luna refinement
+            if (customGoal && !needsLunaRefinement) {
+              // Skip Luna, go straight to roadmap
+              const userData = {
+                partner1: 'Partner 1',
+                partner2: 'Partner 2',
+                goals: [customGoal.title],
+                goalDetails: {},
+                timeline: customGoal.duration,
+                priorities: [],
+                location: mockLocation,
+                locationData: LOCATION_DATA[mockLocation],
+                customGoal: customGoal,
+                skipLuna: true
+              };
+              onComplete(userData);
+              return;
+            }
+
+            // Continue with Luna conversation (existing flow or Luna refinement)
             setStage('detected');
 
             // Get Luna's intelligent opening from AI
             setIsLunaTyping(true);
             const openingMessage = await getLunaOnboardingResponse([], {
-              location: mockLocation
+              location: mockLocation,
+              selectedTemplates: selectedTemplates.length > 0 ? selectedTemplates : undefined,
+              customGoal: customGoal || undefined
             });
             setIsLunaTyping(false);
 
@@ -216,13 +266,51 @@ const LandingPage = ({ onComplete }) => {
   const handlePathChoice = (path) => {
     setChosenPath(path);
     if (path === 'ready') {
-      // Go straight to Luna chat (existing flow)
-      setStage('loading');
+      // NEW: Go to Goal Selection Hub instead of directly to Luna
+      setStage('goalSelection');
     } else {
       // Go to compatibility assessment (new flow)
       // This will be handled by App.js routing
       onComplete({ chosenPath: 'compatibility', skipLuna: true });
     }
+  };
+
+  // NEW: Handle goal selection path choice
+  const handleGoalSelectionPath = (pathId) => {
+    if (pathId === 'luna') {
+      // Go directly to Luna chat
+      setStage('loading');
+    } else if (pathId === 'templates') {
+      // Show template gallery
+      setStage('templateGallery');
+    } else if (pathId === 'custom') {
+      // Show custom goal creator
+      setStage('customCreator');
+    }
+  };
+
+  // NEW: Handle template selection complete
+  const handleTemplateComplete = (templates) => {
+    setSelectedTemplates(templates);
+    setNeedsLunaRefinement(false);
+    // Skip Luna, go straight to loading then roadmap
+    setStage('loading');
+  };
+
+  // NEW: Handle template refinement with Luna
+  const handleTemplateRefineWithLuna = (templates) => {
+    setSelectedTemplates(templates);
+    setNeedsLunaRefinement(true);
+    // Go to Luna for refinement
+    setStage('loading');
+  };
+
+  // NEW: Handle custom goal complete
+  const handleCustomGoalComplete = (goal) => {
+    setCustomGoal(goal);
+    setNeedsLunaRefinement(goal.needsLunaRefinement);
+    // Go to loading then Luna or roadmap
+    setStage('loading');
   };
 
   const handleVoiceToggle = () => {
@@ -306,8 +394,29 @@ const LandingPage = ({ onComplete }) => {
           ...extracted
         }));
 
-        // Enable roadmap creation if we have enough data
-        if (extracted.partner1 && extracted.goals && extracted.goals.length > 0) {
+        // Check if Luna's last response signals readiness for roadmap
+        const lastLunaMessage = conversationHistory
+          .filter(msg => msg.role === 'assistant')
+          .pop()?.content?.toLowerCase() || '';
+
+        const readinessSignals = [
+          'shall we start building',
+          'ready to see your roadmap',
+          'shall we create',
+          'ready to see your plan',
+          'start building your plan',
+          'let\'s create your',
+          'ready for your roadmap'
+        ];
+
+        const lunaSignalsReady = readinessSignals.some(signal =>
+          lastLunaMessage.includes(signal)
+        );
+
+        // Enable roadmap creation if:
+        // 1. We have basic data (names + goals), AND
+        // 2. Luna has signaled readiness
+        if (extracted.partner1 && extracted.goals && extracted.goals.length > 0 && lunaSignalsReady) {
           setCanCreateRoadmap(true);
         }
       }
@@ -665,6 +774,32 @@ const LandingPage = ({ onComplete }) => {
               </motion.p>
             </motion.div>
           </motion.div>
+        )}
+
+        {/* NEW: Goal Selection Hub */}
+        {stage === 'goalSelection' && (
+          <GoalSelectionHub
+            partner1={extractedData.partner1 || 'Partner 1'}
+            partner2={extractedData.partner2 || 'Partner 2'}
+            onSelectPath={handleGoalSelectionPath}
+          />
+        )}
+
+        {/* NEW: Template Gallery */}
+        {stage === 'templateGallery' && (
+          <TemplateGallery
+            onBack={() => setStage('goalSelection')}
+            onComplete={handleTemplateComplete}
+            onRefineWithLuna={handleTemplateRefineWithLuna}
+          />
+        )}
+
+        {/* NEW: Custom Goal Creator */}
+        {stage === 'customCreator' && (
+          <CustomGoalCreator
+            onBack={() => setStage('goalSelection')}
+            onComplete={handleCustomGoalComplete}
+          />
         )}
 
         {/* Loading Stage */}

@@ -4,15 +4,20 @@ import { Clock, DollarSign, ChevronRight, Maximize2, Brain, Heart } from 'lucide
 import TaskItem from './TaskItem';
 
 const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roadmap, setRoadmap, openDeepDive, addAchievement }) => {
-  // Safely get the icon component
+  // Handle both emoji strings and React components for icon
   const IconComponent = milestone.icon || Heart;
+  const isEmojiIcon = typeof IconComponent === 'string';
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all">
       <div className="flex items-start gap-4">
         {/* Milestone Icon */}
         <div className={`${milestone.color} w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 shadow-md relative`}>
-          {IconComponent && <IconComponent className="w-6 h-6 text-white" />}
+          {isEmojiIcon ? (
+            <span className="text-2xl">{IconComponent}</span>
+          ) : (
+            IconComponent && <IconComponent className="w-6 h-6 text-white" />
+          )}
           {milestone.aiGenerated && (
             <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
               <Brain className="w-3 h-3 text-white" />

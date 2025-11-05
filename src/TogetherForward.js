@@ -6,7 +6,16 @@ import MileStoneCard from './MileStoneCard';
 import SampleData from './SampleData'; // contains roadmap, coupleData, etc.
 import AIAnalysisModal from './Components/AIAnalysisModal';
 
-const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversationHistory = [] }) => {
+import { convertGoalsToMilestones } from './utils/goalMappings';
+
+const TogetherForward = ({
+  coupleData: propCoupleData,
+  userGoals = [],
+  conversationHistory = [],
+  selectedTemplates = [], // NEW: Templates from gallery
+  customGoal = null, // NEW: Custom goal
+  instantGoals = [] // NEW: Instant goals from compatibility transition
+}) => {
   // Load from localStorage or use default sample data
   const loadFromStorage = (key, defaultValue) => {
     try {
@@ -20,6 +29,21 @@ const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversat
 
   // Generate roadmap based on user goals
   const generateRoadmapFromGoals = (goals) => {
+    // NEW: If instant goals from compatibility transition, convert them
+    if (instantGoals && instantGoals.length > 0) {
+      return convertGoalsToMilestones(instantGoals);
+    }
+
+    // NEW: If templates were selected, use them directly
+    if (selectedTemplates.length > 0) {
+      return selectedTemplates;
+    }
+
+    // NEW: If custom goal was created, use it
+    if (customGoal) {
+      return [customGoal];
+    }
+
     if (!goals || goals.length === 0) return SampleData.roadmap || [];
 
     const roadmapTemplates = {
@@ -197,7 +221,7 @@ const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversat
     const enhancedMilestone = {
       ...milestone,
 
-      // AI Analysis Summary
+      // AI Analysis Summary (Bug #7 fix - softer tone)
       aiAnalysis: {
         basedOn: [
           `${partner1} & ${partner2}`,
@@ -205,7 +229,7 @@ const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversat
           `Goal: ${milestone.title}`,
           `Timeline: ${milestone.duration}`
         ],
-        summary: `Based on your situation in ${location}, here's what's REALLY involved in ${milestone.title.toLowerCase()}...`
+        summary: `I've created a personalized plan for ${milestone.title.toLowerCase()} based on your unique situation in ${location}. Let's explore what this journey looks like for you both! 💕`
       },
 
       // Enhanced cost breakdown
@@ -497,7 +521,11 @@ const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversat
   };
 
   const getLocalRegulations = (goalId, location) => {
-    if (location.includes('Paris') || location.includes('France')) {
+    // Bug #6 fix - Support multiple locations dynamically
+    const locationLower = location?.toLowerCase() || '';
+
+    // France regulations
+    if (locationLower.includes('paris') || locationLower.includes('france')) {
       const regulations = {
         'marry': 'Must publish banns 10 days before civil ceremony at mairie',
         'home': 'Notary fees (frais de notaire) are 7-8% of purchase price and legally required',
@@ -505,7 +533,39 @@ const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversat
       };
       return regulations[goalId] || regulations['default'];
     }
-    return 'Check local government requirements';
+
+    // Italy regulations
+    if (locationLower.includes('italy') || locationLower.includes('como') || locationLower.includes('rome') || locationLower.includes('florence')) {
+      const regulations = {
+        'marry': 'Nulla osta (certificate of no impediment) required; residency requirement may apply',
+        'home': 'Rogito (deed) must be signed before a notaio; cadastral registration mandatory',
+        'default': 'Check comune (municipality) website for local requirements'
+      };
+      return regulations[goalId] || regulations['default'];
+    }
+
+    // US regulations
+    if (locationLower.includes('united states') || locationLower.includes('usa') || locationLower.includes('new york') || locationLower.includes('california')) {
+      const regulations = {
+        'marry': 'Marriage license required; waiting period varies by state (24hrs-3 days)',
+        'home': 'Title insurance recommended; inspection contingencies vary by state',
+        'default': 'Check state and county regulations'
+      };
+      return regulations[goalId] || regulations['default'];
+    }
+
+    // UK regulations
+    if (locationLower.includes('london') || locationLower.includes('uk') || locationLower.includes('england')) {
+      const regulations = {
+        'marry': 'Give notice 29 days before ceremony at local register office',
+        'home': 'Solicitor/conveyancer required; stamp duty applies on properties over £250,000',
+        'default': 'Check gov.uk for local council requirements'
+      };
+      return regulations[goalId] || regulations['default'];
+    }
+
+    // Default for any location
+    return 'Check local government website for specific requirements';
   };
 
   const openDeepDive = (milestone) => {
@@ -519,6 +579,20 @@ const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversat
       setDeepDiveData(enhancedMilestone);
       setAnalyzingMilestone(null);
     }, 2500); // 2.5 second analysis animation
+  };
+
+  const handleUpdateMilestone = (updatedMilestoneData) => {
+    // Update the deep dive data
+    setDeepDiveData(updatedMilestoneData);
+
+    // ALSO update the roadmap state so changes persist
+    setRoadmap(prevRoadmap =>
+      prevRoadmap.map(milestone =>
+        milestone.id === updatedMilestoneData.id
+          ? { ...milestone, ...updatedMilestoneData }
+          : milestone
+      )
+    );
   };
 
   const sendChatMessage = (message) => {
@@ -595,6 +669,7 @@ const TogetherForward = ({ coupleData: propCoupleData, userGoals = [], conversat
         deepDiveData={deepDiveData}
         activeTab="overview"
         onClose={() => setDeepDiveData(null)}
+        onUpdateMilestone={handleUpdateMilestone}
         chatProps={{ chatMessages, sendChatMessage, isChatLoading, chatInput, setChatInput }}
         userContext={userContext}
       />

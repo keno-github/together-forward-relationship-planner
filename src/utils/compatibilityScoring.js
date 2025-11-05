@@ -10,7 +10,12 @@ export const calculateCompatibilityScore = (partner1Answers, partner2Answers, qu
     timeline: { matched: 0, total: 0 },
     financial: { matched: 0, total: 0 },
     lifestyle: { matched: 0, total: 0 },
-    communication: { matched: 0, total: 0 }
+    communication: { matched: 0, total: 0 },
+    values: { matched: 0, total: 0 },
+    family: { matched: 0, total: 0 },
+    career: { matched: 0, total: 0 },
+    parenting: { matched: 0, total: 0 },
+    future: { matched: 0, total: 0 }
   };
 
   const strongAlignments = [];
@@ -112,6 +117,66 @@ const getAlignmentInsight = (question, option) => {
     'balanced': "You both balance saving and enjoying - a healthy middle ground!",
     'yolo': "You both prioritize experiences now - just watch your emergency fund!",
 
+    // Religion/Spirituality
+    'very_important': "You both hold faith as central - this shared foundation can strengthen your relationship.",
+    'somewhat_important': "You're aligned on occasional practice - room for both tradition and flexibility.",
+    'not_important': "You both value respect over religious practice - shared openness is key.",
+    'not_religious': "You're both secular - this alignment avoids potential conflicts around faith.",
+
+    // Family involvement
+    'very_involved': "You both value family input deeply - your families will be active partners in your journey.",
+    'consult_but_decide': "Perfect balance! You both honor family while maintaining autonomy.",
+    'inform_after': "You're aligned on independence - decisions are yours to make as a couple.",
+    'private': "You both value privacy in decision-making - a clear boundary you share.",
+
+    // Career priorities
+    'career_first': "You both prioritize career growth - mutual support for ambitions will be crucial.",
+    'discuss_together': "Great alignment! You both believe in collaborative decision-making.",
+    'relationship_first': "You both put relationship above career - a strong foundation for navigating life together.",
+    'depends': "You're both flexible and situational - adaptability is your shared strength.",
+
+    // Social preferences
+    'very_social': "You're both extroverts! Shared social energy will keep your life vibrant.",
+    'balanced_social': "Perfect mix! You both enjoy friends and couple time equally.",
+    'mostly_couple': "You both prefer quality time together - intimacy is your priority.",
+    'alone_time': "You both need space to recharge - mutual understanding of introversion.",
+
+    // Parenting style
+    'structured': "You're both aligned on clear routines - consistency will be your parenting strength.",
+    'balanced': "Great match! You both value structure with room for spontaneity.",
+    'free_range': "You both believe in independence - your kids will have freedom to explore.",
+    'still_figuring': "You're both open to learning - flexibility as you grow together.",
+
+    // Household division
+    'equal_split': "You both value equality - fairness will guide your home life.",
+    'by_strength': "Smart alignment! You'll both play to your strengths at home.",
+    'by_schedule': "You're both flexible and practical - adaptability is your approach.",
+    'hire_help': "You both prefer outsourcing - more time for what matters most to you.",
+
+    // Debt tolerance
+    'no_debt': "You're both debt-averse - financial peace will be your shared priority.",
+    'strategic_debt': "Great alignment! You both see debt as a tool when used wisely.",
+    'comfortable_debt': "You're both pragmatic about borrowing - shared risk tolerance.",
+    'not_worried': "You both prioritize living now - just ensure you're on the same page about limits.",
+
+    // Independence vs togetherness
+    'very_independent': "You both value autonomy - mutual respect for individual pursuits will thrive.",
+    'balanced': "Perfect balance! You both maintain 'me' and 'we' identities.",
+    'mostly_together': "You're both team-oriented - your partnership is the priority.",
+    'merged': "You're both all-in on 'we' - complete unity is your relationship style.",
+
+    // Retirement vision
+    'active_travel': "You both dream of adventure in retirement - start planning those bucket lists!",
+    'family_focus': "You're aligned on being near family - roots and relationships matter most.",
+    'community': "You both value settled community life - building lasting connections together.",
+    'no_plan': "You're both flexible about the future - living in the moment works for you.",
+
+    // Boundaries
+    'full_transparency': "You both value complete openness - trust through total honesty.",
+    'mostly_open': "Great balance! You both honor openness with healthy privacy.",
+    'separate_spaces': "You're aligned on clear boundaries - independence within partnership.",
+    'figuring_out': "You're both learning together - ongoing communication will be key.",
+
     // Default
     'default': "Great alignment! You see this the same way."
   };
@@ -131,7 +196,17 @@ const getDiscussionPrompt = (question, p1Option, p2Option) => {
     7: `"How do we want to manage money together? What makes each of us feel secure and respected?"`,
     8: `"How can we balance one person's need for adventure with the other's need for stability?"`,
     9: `"Where do we each see ourselves living long-term? Is there flexibility, or is this a dealbreaker?"`,
-    10: `"How do we currently handle conflict? What would make difficult conversations easier for both of us?"`
+    10: `"How do we currently handle conflict? What would make difficult conversations easier for both of us?"`,
+    11: `"How will our different views on religion/spirituality impact major life decisions? Can we respect each other's beliefs?"`,
+    12: `"What role should family play in our decisions? How do we balance family input with our autonomy as a couple?"`,
+    13: `"If one of us gets a dream job opportunity, how do we decide? What sacrifices are we each willing to make for career vs. relationship?"`,
+    14: `"How much time do we each need with friends vs. alone vs. together? How can we honor each other's social needs?"`,
+    15: `"What are our core parenting values? Can we find a middle ground between structure and freedom?"`,
+    16: `"How should we split household responsibilities? What feels fair to both of us?"`,
+    17: `"What's our comfort level with debt? How will we handle financial decisions that involve borrowing?"`,
+    18: `"How do we balance being individuals with being a couple? What does 'healthy independence' mean to each of us?"`,
+    19: `"What does retirement look like for each of us? Are these visions compatible, or do we need to compromise?"`,
+    20: `"What boundaries do we need in our relationship? How much transparency vs. privacy feels right to both of us?"`
   };
 
   return prompts[question.id] || `"Let's talk about why we answered differently and find common ground."`;

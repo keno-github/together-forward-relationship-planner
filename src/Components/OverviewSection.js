@@ -1,7 +1,7 @@
 import React from 'react';
-import { Brain, MapPin, Users, Clock, DollarSign, AlertTriangle } from 'lucide-react';
+import { Brain, MapPin, Users, Clock, DollarSign, AlertTriangle, Edit3 } from 'lucide-react';
 
-const OverviewSection = ({ deepDiveData, userContext }) => {
+const OverviewSection = ({ deepDiveData, userContext, onCustomize }) => {
   if (!deepDiveData?.aiAnalysis) return null;
 
   const { aiAnalysis, totalCostBreakdown, duration, challengescount = deepDiveData.challenges?.length || 0 } = deepDiveData;
@@ -15,18 +15,30 @@ const OverviewSection = ({ deepDiveData, userContext }) => {
             <Brain className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              🧠 AI Analysis Complete
-            </h2>
-            <p className="text-gray-700 font-medium">
-              {aiAnalysis.summary}
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                  🧠 AI Analysis Complete
+                </h2>
+                <p className="text-gray-700 font-medium">
+                  {aiAnalysis.summary}
+                </p>
+              </div>
+              {onCustomize && (
+                <button
+                  onClick={onCustomize}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-purple-300 rounded-lg text-purple-700 font-semibold hover:bg-purple-50 hover:border-purple-400 transition-all shadow-sm hover:shadow-md flex-shrink-0"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Customize
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Based On */}
-        <div className="mt-4 space-y-2">
-          <p className="text-sm font-semibold text-gray-700">Based on:</p>
+        {/* Based On - Bug #4 fix: cleaner presentation */}
+        <div className="mt-4">
           <div className="grid grid-cols-2 gap-2">
             {aiAnalysis.basedOn.map((item, index) => (
               <div
@@ -68,30 +80,41 @@ const OverviewSection = ({ deepDiveData, userContext }) => {
 
         {/* Location */}
         <div className="bg-white rounded-xl p-4 border-2 border-purple-100 hover:shadow-lg transition-shadow">
-          <div className="flex items-center gap-2 mb-2">
-            <MapPin className="w-5 h-5 text-purple-500" />
-            <h3 className="font-semibold text-gray-700 text-sm">Location</h3>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-purple-500" />
+              <h3 className="font-semibold text-gray-700 text-sm">Location</h3>
+            </div>
+            {onCustomize && (
+              <button
+                onClick={onCustomize}
+                className="text-purple-500 hover:text-purple-700 transition-colors"
+                title="Customize this milestone"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <p className="text-lg font-bold text-purple-600">{userContext?.location || 'Unknown'}</p>
           <p className="text-xs text-gray-500 mt-1">Cost level: {deepDiveData.locationSpecific?.localCosts?.includes('higher') ? 'High' : 'Moderate'}</p>
         </div>
 
-        {/* Challenges */}
+        {/* Challenges - Bug #4 fix: proper formatting */}
         <div className="bg-white rounded-xl p-4 border-2 border-orange-100 hover:shadow-lg transition-shadow">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-5 h-5 text-orange-500" />
             <h3 className="font-semibold text-gray-700 text-sm">Challenges</h3>
           </div>
           <p className="text-2xl font-bold text-orange-600">{challengescount}</p>
-          <p className="text-xs text-gray-500 mt-1">Identified & solved</p>
+          <p className="text-xs text-gray-500 mt-1">Identified with solutions</p>
         </div>
       </div>
 
-      {/* What's REALLY Involved */}
+      {/* What's Involved - Bug #7 fix: softer tone */}
       <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
         <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <Users className="w-6 h-6 text-indigo-500" />
-          What's REALLY Involved for {userContext?.partner1} & {userContext?.partner2}
+          Your Personalized Journey: {userContext?.partner1} & {userContext?.partner2}
         </h3>
 
         <div className="space-y-6">
@@ -111,8 +134,8 @@ const OverviewSection = ({ deepDiveData, userContext }) => {
                   </span>
                 </div>
               ))}
-              <p className="text-sm text-gray-500 italic mt-3">
-                See "Cost" tab for complete breakdown
+              <p className="text-sm text-purple-600 font-medium mt-3 flex items-center gap-1">
+                💰 Want to see the full cost breakdown? Check the Cost tab above!
               </p>
             </div>
           </div>
@@ -145,8 +168,8 @@ const OverviewSection = ({ deepDiveData, userContext }) => {
                   </li>
                 ))}
               </ol>
-              <p className="text-sm text-gray-500 italic mt-3">
-                See "Steps" tab for complete timeline
+              <p className="text-sm text-blue-600 font-medium mt-3 flex items-center gap-1">
+                📋 Ready for the complete step-by-step guide? Head to the Steps tab!
               </p>
             </div>
           </div>
@@ -172,8 +195,8 @@ const OverviewSection = ({ deepDiveData, userContext }) => {
                   </p>
                 </div>
               ))}
-              <p className="text-sm text-gray-500 italic mt-3">
-                See "Challenges" tab for all potential obstacles
+              <p className="text-sm text-orange-600 font-medium mt-3 flex items-center gap-1">
+                ⚠️ Want to explore all challenges with solutions? Visit the Challenges tab!
               </p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import StepsList from './StepsList';
 import CostBreakdown from './CostBreakdown';
@@ -6,9 +6,40 @@ import TipsSection from './TipsSection';
 import ChallengesSection from './ChallengesSection';
 import ChatPanel from './ChatPanel';
 import OverviewSection from './Components/OverviewSection';
+import CustomizationModal from './Components/CustomizationModal';
 
-const DeepDiveModal = ({ deepDiveData, activeTab, onClose, chatProps, userContext }) => {
+const DeepDiveModal = ({
+  deepDiveData: initialDeepDiveData,
+  activeTab,
+  onClose,
+  chatProps,
+  userContext,
+  onUpdateMilestone
+}) => {
   const [activeDeepDiveTab, setActiveDeepDiveTab] = useState(activeTab || 'overview');
+
+  // Local editable state
+  const [deepDiveData, setDeepDiveData] = useState(initialDeepDiveData);
+  const [isCustomizing, setIsCustomizing] = useState(false);
+
+  // Sync with parent when initial data changes
+  useEffect(() => {
+    setDeepDiveData(initialDeepDiveData);
+  }, [initialDeepDiveData]);
+
+  // Handle customization
+  const handleCustomize = () => {
+    setIsCustomizing(true);
+  };
+
+  // Handle customization save
+  const handleSaveCustomization = (updatedData) => {
+    setDeepDiveData(updatedData);  // Update local state (all tabs refresh)
+    if (onUpdateMilestone) {
+      onUpdateMilestone(updatedData);  // Update parent state
+    }
+    setIsCustomizing(false);
+  };
 
   if (!deepDiveData) return null;
 
@@ -54,16 +85,50 @@ const DeepDiveModal = ({ deepDiveData, activeTab, onClose, chatProps, userContex
           </div>
 
           {/* Content */}
-          <div className="max-h-[70vh] overflow-y-auto">
-            {activeDeepDiveTab === 'overview' && <OverviewSection deepDiveData={deepDiveData} userContext={userContext} />}
-            {activeDeepDiveTab === 'cost' && <CostBreakdown totalCostBreakdown={deepDiveData.totalCostBreakdown} hiddenCosts={deepDiveData.hiddenCosts} locationSpecific={deepDiveData.locationSpecific} />}
+          <div className="max-h-[70vh] overflow-y-auto pb-8">
+            {activeDeepDiveTab === 'overview' && (
+              <OverviewSection
+                deepDiveData={deepDiveData}
+                userContext={userContext}
+                onCustomize={handleCustomize}
+              />
+            )}
+            {activeDeepDiveTab === 'cost' && (
+              <CostBreakdown
+                totalCostBreakdown={deepDiveData.totalCostBreakdown}
+                hiddenCosts={deepDiveData.hiddenCosts}
+                locationSpecific={deepDiveData.locationSpecific}
+              />
+            )}
             {activeDeepDiveTab === 'steps' && <StepsList steps={deepDiveData.detailedSteps} />}
-            {activeDeepDiveTab === 'tips' && <TipsSection expertTips={deepDiveData.expertTips} commonMistakes={deepDiveData.commonMistakes} successMetrics={deepDiveData.successMetrics} />}
-            {activeDeepDiveTab === 'challenges' && <ChallengesSection challenges={deepDiveData.challenges} warningFlags={deepDiveData.warningFlags} locationSpecific={deepDiveData.locationSpecific} />}
+            {activeDeepDiveTab === 'tips' && (
+              <TipsSection
+                expertTips={deepDiveData.expertTips}
+                commonMistakes={deepDiveData.commonMistakes}
+                successMetrics={deepDiveData.successMetrics}
+              />
+            )}
+            {activeDeepDiveTab === 'challenges' && (
+              <ChallengesSection
+                challenges={deepDiveData.challenges}
+                warningFlags={deepDiveData.warningFlags}
+                locationSpecific={deepDiveData.locationSpecific}
+              />
+            )}
             {activeDeepDiveTab === 'chat' && <ChatPanel {...chatProps} />}
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Customization Modal */}
+      {isCustomizing && (
+        <CustomizationModal
+          currentData={deepDiveData}
+          onSave={handleSaveCustomization}
+          onCancel={() => setIsCustomizing(false)}
+          userContext={userContext}
+        />
+      )}
     </AnimatePresence>
   );
 };

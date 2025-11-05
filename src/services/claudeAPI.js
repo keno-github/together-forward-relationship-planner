@@ -101,9 +101,9 @@ const mockClaudeResponse = async (messages) => {
     const hasBudget = fullConversation.includes('budget') || fullConversation.match(/\$|€|£/);
     const hasPriorities = fullConversation.includes('venue') || fullConversation.includes('photography') || fullConversation.includes('photo');
 
-    // Check if they've provided enough info
+    // Check if they've provided enough info for initial summary
     if (hasTimeline && hasSize && hasPriorities) {
-      let summary = "Perfect! I'm getting a clear picture of your dream wedding. 💕\n\nBased on what you've told me:\n• Timeline: " +
+      let summary = "Perfect! I'm getting a clear picture of your dream wedding. 💕\n\nBased on what you've shared:\n• Timeline: " +
         (fullConversation.match(/\d+\s*years?/) ? fullConversation.match(/\d+\s*years?/)[0] : "flexible") + "\n" +
         "• Style: Intimate celebration\n" +
         "• Priorities: Venue & Photography\n\n";
@@ -118,40 +118,38 @@ const mockClaudeResponse = async (messages) => {
         if (isAboutSavings) goals.push("Financial Planning");
 
         summary += "I also see you're interested in: " + goals.filter(g => g !== "Wedding").join(", ") + "\n\n" +
-          "This is wonderful! I can create personalized roadmaps for ALL your goals, showing you how to achieve them together.\n\n" +
-          "Ready to see your custom roadmap? Or would you like to add any more details about your other goals?";
+          "That's wonderful. Is there anything else you'd love to add about any of these goals, or shall we start building your personalized roadmap?";
       } else {
-        summary += "This is wonderful information! I can help you create a detailed roadmap with realistic costs and timelines.\n\n" +
-          "Would you like me to generate your custom wedding planning roadmap now, or is there anything else you'd like to add?";
+        summary += "That's wonderful. Is there anything else you'd love to add, or shall we start building your personalized roadmap?";
       }
 
       return summary;
     }
 
-    // If NO info collected yet, this is first mention - ask all questions at once
+    // If NO info collected yet, this is first mention - ask conversationally
     if (!hasTimeline && !hasSize && !hasPriorities) {
       if (goalCount > 1) {
-        return "Wonderful! I see you're interested in multiple goals including your wedding! 💍\n\nLet's start with the wedding. Tell me:\n\n• When are you hoping to get married?\n• What size wedding are you imagining? (intimate gathering or big celebration?)\n• Do you have a budget in mind?\n• What's most important to you? (venue, photography, guest experience?)\n\nAfter we discuss the wedding, we can dive into your other goals too!";
+        return "Wonderful! I see you're interested in multiple goals including your wedding! 💍 Let's start there.\n\nWhen are you thinking about getting married?";
       }
-      return "Congratulations on planning your wedding! 💍\n\nLet's make sure we create something perfect for YOU both. Tell me:\n\n• When are you hoping to get married?\n• What size wedding are you imagining? (intimate gathering or big celebration?)\n• Do you have a budget in mind?\n• What's most important to you? (venue, photography, guest experience?)\n\nI want to understand your vision!";
+      return "Congratulations on planning your wedding! 💍 That's so exciting.\n\nWhen are you thinking about tying the knot?";
     }
 
-    // We have some info but not all - ask for specific missing details
+    // We have some info but not all - ask conversationally for missing details
     if (!hasTimeline) {
-      return "Great start! When are you hoping to tie the knot? Having a timeline will help me give you the most accurate planning roadmap.";
+      return "I love that! When are you hoping to tie the knot?";
     }
     if (!hasSize) {
-      return "Thanks for sharing! How many guests are you thinking? This really helps with budgeting and venue selection.";
+      return "Beautiful! And are you picturing something intimate or a bigger celebration?";
     }
     if (!hasPriorities) {
-      return "Wonderful! What aspects of the wedding are most important to you both? For example: the venue, photography, food, music, or the overall guest experience?";
+      return "Got it! What matters most to you both when you picture that day? Is it the venue, the photography, the experience for your guests?";
     }
 
-    // Acknowledge their input and ask for more
+    // Acknowledge their input naturally (they're adding more details)
     if (goalCount > 1) {
-      return "I love hearing about your vision! I see you have multiple dreams you're working toward. Tell me more about any of your goals - I'm here to help with all of them!";
+      return "I love that! I'll make sure to include that in your plan. Anything else you'd like to add?";
     }
-    return "I love hearing about your vision! Tell me more - what other details have you been dreaming about for your special day?";
+    return "Got it, adding that to your plan! Is there anything else you'd love to mention?";
   }
 
   if (isAboutVacation) {
@@ -236,42 +234,128 @@ const mockClaudeResponse = async (messages) => {
  * Generate Luna's response during onboarding
  */
 export const getLunaOnboardingResponse = async (conversationHistory, userContext = {}) => {
+  // Build compatibility context if available
+  let compatibilityContext = '';
+  if (userContext.compatibilityData) {
+    const { alignmentScore, categoryScores, strongAlignments, misalignments, partner1Name, partner2Name } = userContext.compatibilityData;
+
+    compatibilityContext = `
+COMPATIBILITY ASSESSMENT COMPLETED:
+- Overall Alignment: ${alignmentScore}%
+- Partners: ${partner1Name} & ${partner2Name}
+- Category Scores: ${Object.entries(categoryScores).map(([cat, score]) => `${cat}: ${score}%`).join(', ')}
+
+Strong Alignments (Reference These Naturally):
+${strongAlignments.slice(0, 3).map(a => `- ${a.question}: ${a.insight}`).join('\n')}
+
+Areas for Discussion (Be Supportive):
+${misalignments.slice(0, 3).map(m => `- ${m.question}: ${partner1Name} (${m.partner1Answer}) vs ${partner2Name} (${m.partner2Answer})`).join('\n')}
+
+COMPATIBILITY-AWARE GUIDANCE:
+- ${alignmentScore >= 75 ? 'They have strong alignment! Encourage milestone planning confidently.' : ''}
+- ${alignmentScore >= 50 && alignmentScore < 75 ? 'Good foundation with areas to explore. Suggest relationship-strengthening goals alongside milestones.' : ''}
+- ${alignmentScore < 50 ? 'Significant differences exist. Focus on relationship-building goals first, gently address misalignments.' : ''}
+- SUBTLY reference their alignments to show understanding (e.g., "I see you both value [aligned area] - that\'s a strong foundation!")
+- GENTLY acknowledge areas of difference without being preachy (e.g., "I noticed you have different views on [topic] - that\'s actually common and totally workable!")
+- Suggest goals that BRIDGE their differences when relevant`;
+  }
+
   const systemPrompt = `You are Luna, an empathetic AI relationship advisor helping couples plan their future together.
 
 CONTEXT:
 - Location: ${userContext.location || 'Unknown'}
 - Conversation stage: ${conversationHistory.length === 0 ? 'Initial greeting' : 'Building rapport'}
+${compatibilityContext}
 
 YOUR ROLE:
-1. Ask thoughtful, open-ended questions
+1. Have natural, flowing conversations - NOT rigid Q&A
 2. Show genuine interest in their dreams - ALL of them
 3. Dig deeper with follow-ups when they mention goals
 4. Build a complete picture before offering solutions
 5. Be warm, encouraging, and never judgmental
 6. SUPPORT MULTIPLE GOALS - couples can plan several milestones at once!
 
-CONVERSATION GUIDELINES:
-- Start with a beautiful, polished welcome that invites them to share ALL their goals
-- Learn their names first
-- Encourage them to share MULTIPLE goals if they have them (wedding, home, vacation, family, etc.)
-- When they mention goal(s), ask specific follow-up questions:
-  * For vacation: WHERE, WHEN, BUDGET, TYPE of experience
-  * For wedding: DATE, SIZE, BUDGET, PRIORITIES
-  * For home: LOCATION, BUDGET, MUST-HAVES, TIMELINE
-  * For family: TIMELINE, CONCERNS, PREPARATIONS
-  * For savings: AMOUNT, PURPOSE, TIMELINE
-- If they mention multiple goals, acknowledge ALL of them and let them know you'll help with each one
-- Build understanding before offering to create roadmaps (plural if multiple goals)
-- Keep responses conversational, not prescriptive
-- Use emojis sparingly and naturally
+CRITICAL: BE CONVERSATIONAL, NOT A FORM
+❌ DON'T: Fire off 4 bullet-point questions at once
+✅ DO: Ask thoughtfully, one thing at a time, like a real conversation
+
+Example of BAD (too rigid):
+"Tell me:
+• When are you hoping to get married?
+• What size wedding are you imagining?
+• Do you have a budget in mind?
+• What's most important to you?"
+
+Example of GOOD (conversational):
+"That's so exciting! When are you thinking about getting married?"
+[User answers]
+"I love that timeline! And what kind of wedding are you picturing - something intimate or a big celebration?"
+[User answers]
+"Beautiful. What matters most to you both when you picture that day?"
+
+CONVERSATION FLOW:
+1. Learn their names naturally
+2. Discover their goals through conversation (not interrogation)
+3. For each goal, gather key details through natural back-and-forth:
+   * For wedding: DATE, SIZE, BUDGET, PRIORITIES
+   * For vacation: WHERE, WHEN, BUDGET, TYPE
+   * For home: LOCATION, BUDGET, MUST-HAVES, TIMELINE
+   * For family: TIMELINE, CONCERNS, PREPARATIONS
+4. When you sense you have enough info, summarize beautifully
+5. Use ADAPTIVE CLOSING based on their responses
+
+ADAPTIVE CLOSING (CRITICAL):
+After summarizing, DON'T ask "Ready for roadmap yes/no?"
+
+Instead, use a SOFT BRANCHING approach:
+
+Example 1 (User seems complete):
+"Perfect! I'm getting a clear picture of your dream wedding. 💕
+
+Based on what you've shared:
+• Timeline: 2 years
+• Style: Intimate celebration
+• Priorities: Venue & Photography
+
+That's wonderful. Is there anything else you'd love to add, or shall we start building your personalized roadmap?"
+
+Example 2 (User adds more details):
+User: "Actually, we're thinking Italy with close friends"
+You: "Italy sounds magical — I'll make sure your roadmap reflects that! 🇮🇹✨ Anything else you'd like me to note before I start creating your plan?"
+
+Example 3 (User keeps adding):
+User: "And we want vintage decor"
+You: "Got it, adding vintage vibes to the plan!
+
+Okay, I think I have everything I need to make this really yours. Ready to see your personalized roadmap?"
+
+SIGNALS THAT USER IS DONE:
+- "No, that's everything"
+- "Nope, we're good"
+- "That's it"
+- "Let's see the plan"
+- "Yes, create it"
+
+SIGNALS USER WANTS TO CONTINUE:
+- Adding new details
+- Asking questions
+- Mentioning new aspects
+- "Also..." / "And..." / "One more thing..."
+
+WHEN READY TO GENERATE:
+Use warm, exciting language:
+"Perfect! I'm so excited to start building your plan. 💕
+Let's create your personalized roadmap — ready?"
+
+Then the UI will show "See My Roadmap" button.
 
 IMPORTANT NOTES:
-- Emphasize that they DON'T have to choose just one goal - you can create multiple roadmaps
-- Only mention location-specific research AFTER understanding their goals and IF relevant
-- When enough information is gathered, offer to create personalized roadmaps for ALL their goals
-
-WELCOME MESSAGE STYLE:
-Your initial greeting should be warm, inviting, polished, and make it clear that you can help with multiple life goals simultaneously.`;
+- NEVER feel rushed - let users express themselves naturally
+- Acknowledge EVERY detail they add
+- Multiple goals? Handle each one conversationally
+- Location insights? Weave in naturally, don't force it
+- Keep responses warm but concise (2-4 sentences ideal)
+- Use emojis sparingly and naturally`;
 
   return await callClaude(conversationHistory, {
     systemPrompt,
@@ -314,7 +398,7 @@ Keep responses concise (2-3 paragraphs max) and actionable.`;
  * Extract structured data from conversation
  */
 export const extractUserDataFromConversation = async (conversationHistory) => {
-  const systemPrompt = `You are a data extraction assistant. Analyze the conversation and extract structured information.
+  const systemPrompt = `You are a data extraction assistant. Analyze the conversation and extract structured information from natural, conversational text.
 
 Extract and return ONLY a JSON object with these fields (use null if not found):
 {
@@ -322,11 +406,11 @@ Extract and return ONLY a JSON object with these fields (use null if not found):
   "partner2": "second name mentioned",
   "goals": ["array of goals - use EXACTLY these strings: 'Get Married', 'Get Engaged', 'Buy a Home', 'Start a Family', 'Dream Vacation', 'Build Savings'"],
   "goalDetails": {
-    "vacation": { "destination": "", "budget": "", "timeframe": "", "type": "" },
-    "wedding": { "date": "", "size": "", "budget": "", "priorities": [] },
-    "home": { "location": "", "budget": "", "mustHaves": [], "timeline": "" },
-    "family": { "timeline": "", "concerns": [], "preparations": [] },
-    "savings": { "amount": "", "purpose": "", "timeline": "" }
+    "vacation": { "destination": "", "budget": "", "timeframe": "", "type": "", "notes": "" },
+    "wedding": { "date": "", "size": "", "budget": "", "priorities": [], "notes": "" },
+    "home": { "location": "", "budget": "", "mustHaves": [], "timeline": "", "notes": "" },
+    "family": { "timeline": "", "concerns": [], "preparations": [], "notes": "" },
+    "savings": { "amount": "", "purpose": "", "timeline": "", "notes": "" }
   },
   "budget": "overall budget mentioned",
   "timeline": "overall timeline mentioned",
@@ -334,9 +418,16 @@ Extract and return ONLY a JSON object with these fields (use null if not found):
 }
 
 IMPORTANT:
-- The "goals" array should contain multiple goals if mentioned (e.g., ["Get Married", "Buy a Home", "Dream Vacation"])
+- Extract information from NATURAL conversation, not just structured answers
+- Look for organic details like locations (Italy), themes (vintage), guest lists (close friends)
+- The "notes" field in goalDetails should capture these organic details
+- Examples:
+  * "We're thinking Italy with close friends" → wedding.notes = "Italy with close friends"
+  * "We want vintage decor" → wedding.notes += "; vintage decor"
+  * "Somewhere near the beach" → vacation.notes = "near the beach"
+- The "goals" array should contain multiple goals if mentioned
 - Use the EXACT strings listed above for goal names
-- Extract ALL goals mentioned in the conversation, not just one`;
+- Extract ALL goals mentioned, even if briefly referenced`;
 
   const conversationText = conversationHistory
     .map(msg => `${msg.role}: ${msg.content}`)
@@ -431,11 +522,23 @@ const fallbackExtraction = (conversationHistory) => {
     partner2 = 'Partner 2';
   }
 
+  // Try to extract organic details from conversation
+  const goalDetails = {};
+  if (goals.includes('Get Married') || goals.includes('Get Engaged')) {
+    goalDetails.wedding = {
+      date: null,
+      size: null,
+      budget: null,
+      priorities: [],
+      notes: conversationText // Include full context for now
+    };
+  }
+
   return {
     partner1,
     partner2,
     goals: goals.length > 0 ? goals : ['Get Married'], // Default to wedding if nothing detected
-    goalDetails: {},
+    goalDetails,
     budget: null,
     timeline: null,
     priorities: []
