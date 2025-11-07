@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, ArrowRight, ArrowLeft, Check, Users, UserPlus, Copy, CheckCircle } from 'lucide-react';
+import BackButton from './BackButton';
 
 // Compatibility Questions Database
 const QUESTIONS = [
@@ -253,7 +254,7 @@ const QUESTIONS = [
   }
 ];
 
-const VisionCompatibility = ({ onComplete, location }) => {
+const VisionCompatibility = ({ onComplete, location, onBack = null }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [currentPartner, setCurrentPartner] = useState(1); // 1 or 2
   const [partner1Answers, setPartner1Answers] = useState({});
@@ -451,7 +452,14 @@ const VisionCompatibility = ({ onComplete, location }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-4 relative">
+      {/* Back Button */}
+      {onBack && stage === 'intro' && (
+        <div className="absolute top-4 left-4 z-50">
+          <BackButton onClick={onBack} label="Back" />
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {/* Intro Stage */}
         {stage === 'intro' && (

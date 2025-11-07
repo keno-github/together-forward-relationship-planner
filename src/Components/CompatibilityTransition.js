@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Sparkles, Zap, Target, CheckCircle, ArrowRight, MessageCircle } from 'lucide-react';
+import BackButton from './BackButton';
 
-const CompatibilityTransition = ({ compatibilityData, onPathSelected }) => {
+const CompatibilityTransition = ({ compatibilityData, onPathSelected, onBack = null }) => {
   const { alignmentScore, categoryScores, partner1Name, partner2Name } = compatibilityData;
 
   // Generate recommended goals based on compatibility
@@ -212,7 +213,14 @@ const CompatibilityTransition = ({ compatibilityData, onPathSelected }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-4 py-12 relative">
+      {/* Back Button */}
+      {onBack && (
+        <div className="absolute top-4 left-4 z-50">
+          <BackButton onClick={onBack} label="Back" />
+        </div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

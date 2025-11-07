@@ -1,12 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, Trophy, Brain } from 'lucide-react';
+import { Heart, Trophy, Brain, Cloud, CloudOff } from 'lucide-react';
 
 import DeepDiveModal from './DeepDiveModal';
 import MileStoneCard from './MileStoneCard';
 import SampleData from './SampleData'; // contains roadmap, coupleData, etc.
 import AIAnalysisModal from './Components/AIAnalysisModal';
+import BackButton from './Components/BackButton';
 
 import { convertGoalsToMilestones } from './utils/goalMappings';
+import { useAuth } from './context/AuthContext';
+import {
+  createRoadmap,
+  getUserRoadmaps,
+  updateRoadmap,
+  createMilestone,
+  getMilestonesByRoadmap,
+  updateMilestone,
+  createAchievement,
+  getAchievementsByRoadmap
+} from './services/supabaseService';
 
 const TogetherForward = ({
   coupleData: propCoupleData,
@@ -14,7 +26,8 @@ const TogetherForward = ({
   conversationHistory = [],
   selectedTemplates = [], // NEW: Templates from gallery
   customGoal = null, // NEW: Custom goal
-  instantGoals = [] // NEW: Instant goals from compatibility transition
+  instantGoals = [], // NEW: Instant goals from compatibility transition
+  onBack = null // NEW: Back navigation handler
 }) => {
   // Load from localStorage or use default sample data
   const loadFromStorage = (key, defaultValue) => {
@@ -148,21 +161,64 @@ const TogetherForward = ({
     return goals.map(goal => roadmapTemplates[goal]).filter(Boolean);
   };
 
+  // Authentication & Cloud Sync
+  const { user } = useAuth();
+  const [currentRoadmapId, setCurrentRoadmapId] = useState(propCoupleData?.roadmapId || null);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState('idle'); // idle, loading, syncing, synced, error
+
   const [roadmap, setRoadmap] = useState(() => {
-    // If we have user goals, always generate fresh roadmap (don't use cached)
+    console.log('🔵 TogetherForward useState initializing...');
+    console.log('propCoupleData:', propCoupleData);
+    console.log('existingMilestones:', propCoupleData?.existingMilestones);
+
+    // PRIORITY 1: If we have existing milestones from database (from RoadmapProfile)
+    if (propCoupleData?.existingMilestones && propCoupleData.existingMilestones.length > 0) {
+      console.log('📍 Loading existing milestones from RoadmapProfile:', propCoupleData.existingMilestones);
+      // Format the milestones from database
+      const formatted = propCoupleData.existingMilestones.map(m => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        icon: m.icon,
+        color: m.color,
+        category: m.category,
+        estimatedCost: m.estimated_cost,
+        duration: m.duration,
+        aiGenerated: m.ai_generated,
+        completed: m.completed,
+        deepDiveData: m.deep_dive_data,
+        tasks: [] // Tasks will be loaded separately if needed
+      }));
+      console.log('✅ Formatted milestones:', formatted);
+      return formatted;
+    }
+
+    // PRIORITY 2: If we have user goals, always generate fresh roadmap (don't use cached)
     if (userGoals && userGoals.length > 0) {
+      console.log('📍 Generating roadmap from user goals');
       return generateRoadmapFromGoals(userGoals);
     }
 
-    // Otherwise try to load from storage
+    // PRIORITY 3: Try to load from storage
     const saved = loadFromStorage('roadmap', null);
-    if (saved && saved.length > 0) return saved;
+    if (saved && saved.length > 0) {
+      console.log('📍 Loading from localStorage');
+      return saved;
+    }
 
-    // Fallback to sample data
+    // PRIORITY 4: Fallback to sample data
+    console.log('📍 Using sample data');
     return SampleData.roadmap || [];
   });
   const [coupleData] = useState(propCoupleData || SampleData.coupleData || { partner1: '', partner2: '', timeline: 0 });
-  const [xpPoints, setXpPoints] = useState(() => loadFromStorage('xpPoints', 0));
+  const [xpPoints, setXpPoints] = useState(() => {
+    // If XP is passed from RoadmapProfile via userData, use that
+    if (propCoupleData?.xp_points !== undefined) {
+      return propCoupleData.xp_points;
+    }
+    return loadFromStorage('xpPoints', 0);
+  });
   const [achievements, setAchievements] = useState(() => loadFromStorage('achievements', []));
   const [selectedMilestone, setSelectedMilestone] = useState(null);
   const [deepDiveData, setDeepDiveData] = useState(null);
@@ -180,6 +236,8 @@ const TogetherForward = ({
 
   // Save to localStorage whenever state changes
   useEffect(() => {
+    console.log('🔄 Roadmap state changed:', roadmap.length, 'milestones');
+    console.log('Current roadmap:', roadmap);
     try {
       localStorage.setItem('roadmap', JSON.stringify(roadmap));
     } catch (error) {
@@ -202,6 +260,206 @@ const TogetherForward = ({
       console.error('Error saving achievements to localStorage:', error);
     }
   }, [achievements]);
+
+  // Load roadmap from database when user logs in
+  useEffect(() => {
+    console.log('🔵 Database load useEffect triggered');
+    console.log('user:', user);
+    console.log('propCoupleData?.roadmapId:', propCoupleData?.roadmapId);
+    console.log('propCoupleData?.existingMilestones:', propCoupleData?.existingMilestones);
+
+    const loadFromDatabase = async () => {
+      if (!user) {
+        console.log('⏭️ Skipping - no user');
+        return;
+      }
+
+      // IMPORTANT: If we already loaded milestones from RoadmapProfile, skip database load
+      if (propCoupleData?.existingMilestones && propCoupleData.existingMilestones.length > 0) {
+        console.log('✅ Skipping database load - already loaded from RoadmapProfile');
+        setCloudSyncStatus('synced');
+        return;
+      }
+
+      // Check if a specific roadmap was passed (from RoadmapProfile)
+      const specificRoadmapId = propCoupleData?.roadmapId;
+      console.log('🔍 Loading from database, specificRoadmapId:', specificRoadmapId);
+
+      setCloudSyncStatus('loading');
+      try {
+        let targetRoadmap = null;
+
+        if (specificRoadmapId) {
+          // Load the SPECIFIC roadmap by ID (from RoadmapProfile)
+          const { data: roadmaps } = await getUserRoadmaps();
+          targetRoadmap = roadmaps?.find(r => r.id === specificRoadmapId);
+
+          if (!targetRoadmap) {
+            console.error(`Roadmap with ID ${specificRoadmapId} not found`);
+            setCloudSyncStatus('error');
+            return;
+          }
+        } else {
+          // No specific roadmap - load the most recent one
+          const { data: roadmaps, error } = await getUserRoadmaps();
+          if (error) throw error;
+
+          if (!roadmaps || roadmaps.length === 0) {
+            // No roadmaps in database yet
+            setCloudSyncStatus('idle');
+            console.log('No roadmaps in database yet');
+            return;
+          }
+
+          targetRoadmap = roadmaps[0]; // Most recent
+        }
+
+        // Load the target roadmap
+        if (targetRoadmap) {
+          setCurrentRoadmapId(targetRoadmap.id);
+
+          // Load milestones for this roadmap
+          const { data: milestones } = await getMilestonesByRoadmap(targetRoadmap.id);
+
+          if (milestones) {
+            // Convert database milestones to app format
+            const formattedMilestones = milestones.map(m => ({
+              id: m.id,
+              title: m.title,
+              description: m.description,
+              icon: m.icon,
+              color: m.color,
+              category: m.category,
+              estimatedCost: m.estimated_cost,
+              duration: m.duration,
+              aiGenerated: m.ai_generated,
+              completed: m.completed,
+              deepDiveData: m.deep_dive_data,
+              tasks: [] // Tasks will be loaded separately if needed
+            }));
+
+            console.log('📝 Setting roadmap from database:', formattedMilestones);
+            setRoadmap(formattedMilestones);
+          } else {
+            console.log('⚠️ No milestones found in database');
+          }
+
+          // Load XP and achievements
+          console.log('📝 Setting XP:', targetRoadmap.xp_points || 0);
+          setXpPoints(targetRoadmap.xp_points || 0);
+
+          const { data: dbAchievements } = await getAchievementsByRoadmap(targetRoadmap.id);
+          if (dbAchievements) {
+            setAchievements(dbAchievements.map(a => ({
+              title: a.title,
+              description: a.description
+            })));
+          }
+
+          setCloudSyncStatus('synced');
+          console.log('✅ Loaded roadmap from database:', targetRoadmap.id);
+        }
+      } catch (error) {
+        console.error('Error loading from database:', error);
+        setCloudSyncStatus('error');
+      }
+    };
+
+    loadFromDatabase();
+  }, [user, propCoupleData?.roadmapId, propCoupleData?.existingMilestones]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save to database whenever roadmap changes (debounced)
+  useEffect(() => {
+    if (!user || cloudSyncStatus === 'loading') return;
+
+    const saveToDatabase = async () => {
+      setCloudSyncing(true);
+      setCloudSyncStatus('syncing');
+
+      try {
+        let roadmapId = currentRoadmapId;
+
+        // Create roadmap if it doesn't exist
+        if (!roadmapId) {
+          const { data, error } = await createRoadmap({
+            title: 'Our Journey Together',
+            partner1_name: coupleData.partner1,
+            partner2_name: coupleData.partner2,
+            location: coupleData.location,
+            xp_points: xpPoints
+          });
+
+          if (error) throw error;
+          roadmapId = data.id;
+          setCurrentRoadmapId(roadmapId);
+        } else {
+          // Update existing roadmap
+          await updateRoadmap(roadmapId, {
+            xp_points: xpPoints
+          });
+        }
+
+        // Save milestones (simplified - just tracks if they exist)
+        const updatedRoadmap = [];
+        for (const milestone of roadmap) {
+          // Check if milestone has a database UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+          const isUUID = milestone.id && typeof milestone.id === 'string' && milestone.id.includes('-') && milestone.id.length > 30;
+
+          if (isUUID) {
+            // Already exists in database, update it
+            console.log('🔄 Updating existing milestone:', milestone.id);
+            await updateMilestone(milestone.id, {
+              completed: milestone.completed || false,
+              deep_dive_data: milestone.deepDiveData
+            });
+            updatedRoadmap.push(milestone);
+          } else {
+            // New milestone, create it
+            console.log('✨ Creating new milestone:', milestone.title);
+            const { data: newMilestone, error } = await createMilestone({
+              roadmap_id: roadmapId,
+              title: milestone.title,
+              description: milestone.description,
+              icon: milestone.icon,
+              color: milestone.color,
+              category: milestone.category || 'relationship',
+              estimated_cost: milestone.estimatedCost || 0,
+              duration: milestone.duration,
+              ai_generated: milestone.aiGenerated || false,
+              deep_dive_data: milestone.deepDiveData,
+              order_index: roadmap.indexOf(milestone)
+            });
+
+            if (!error && newMilestone) {
+              // Update the milestone with the database ID
+              updatedRoadmap.push({
+                ...milestone,
+                id: newMilestone.id
+              });
+            } else {
+              console.error('Error creating milestone:', error);
+              updatedRoadmap.push(milestone);
+            }
+          }
+        }
+
+        // Update local state with database IDs
+        setRoadmap(updatedRoadmap);
+
+        setCloudSyncStatus('synced');
+        console.log('✅ Saved to database');
+      } catch (error) {
+        console.error('Error saving to database:', error);
+        setCloudSyncStatus('error');
+      } finally {
+        setCloudSyncing(false);
+      }
+    };
+
+    // Debounce saves (wait 2 seconds after last change)
+    const timeoutId = setTimeout(saveToDatabase, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [roadmap, xpPoints, achievements, user, currentRoadmapId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chat props for DeepDiveModal
   const [chatMessages, setChatMessages] = useState([]);
@@ -655,7 +913,12 @@ const TogetherForward = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+    <div className="min-h-screen animated-gradient-bg relative overflow-hidden">
+      {/* Decorative blur circles for depth - Using custom colors */}
+      <div className="absolute top-0 left-0 w-96 h-96 rounded-full blur-3xl" style={{backgroundColor: 'rgba(192, 132, 252, 0.15)'}}></div>
+      <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full blur-3xl" style={{backgroundColor: 'rgba(248, 198, 208, 0.15)'}}></div>
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-3xl" style={{backgroundColor: 'rgba(255, 213, 128, 0.1)'}}></div>
+
       {/* AI Analysis Modal */}
       {analyzingMilestone && (
         <AIAnalysisModal
@@ -675,21 +938,49 @@ const TogetherForward = ({
       />
 
       {/* Header */}
-      <div className="bg-white shadow-lg sticky top-0 z-30 border-b border-gray-200">
+      <div className="glass-card-strong sticky top-0 z-30 border-b border-white/20">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center">
+            {/* Back Button - show if onBack handler provided */}
+            {onBack && (
+              <BackButton onClick={onBack} label={user ? "Dashboard" : "Back"} />
+            )}
+            <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center pulse-glow">
               <Heart className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-800">TogetherForward</h1>
-              <p className="text-sm text-gray-500">{coupleData.partner1} & {coupleData.partner2}</p>
+              <h1 className="text-xl font-bold" style={{color: '#2B2B2B'}}>TogetherForward</h1>
+              <p className="text-sm" style={{color: '#2B2B2B', opacity: 0.7}}>{coupleData.partner1} & {coupleData.partner2}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-full">
-              <Trophy className="w-5 h-5 text-yellow-600" />
-              <span className="font-bold text-yellow-700">{xpPoints} XP</span>
+            {/* Cloud Sync Indicator */}
+            {user && (
+              <div className="flex items-center gap-2 px-3 py-2 glass-card-light rounded-full text-sm">
+                {cloudSyncStatus === 'syncing' && (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-500 border-t-transparent"></div>
+                    <span style={{color: '#2B2B2B', opacity: 0.7}}>Saving...</span>
+                  </>
+                )}
+                {cloudSyncStatus === 'synced' && (
+                  <>
+                    <Cloud className="w-4 h-4" style={{color: '#10B981'}} />
+                    <span style={{color: '#10B981'}}>Saved</span>
+                  </>
+                )}
+                {cloudSyncStatus === 'error' && (
+                  <>
+                    <CloudOff className="w-4 h-4" style={{color: '#EF4444'}} />
+                    <span style={{color: '#EF4444'}}>Error</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 px-4 py-2 glass-card-light rounded-full">
+              <Trophy className="w-5 h-5" style={{color: '#FFD580'}} />
+              <span className="font-bold" style={{color: '#FFD580'}}>{xpPoints} XP</span>
             </div>
             <button
               onClick={() => {
@@ -698,9 +989,10 @@ const TogetherForward = ({
                   window.location.reload();
                 }
               }}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2 hover:glass-card-light rounded-lg smooth-transition"
+              style={{color: '#C084FC'}}
             >
-              <Brain className="w-5 h-5 text-gray-600" />
+              <Brain className="w-5 h-5" />
             </button>
           </div>
         </div>
