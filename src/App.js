@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProfileProvider } from './context/ProfileContext';
 import ErrorBoundary from './Components/ErrorBoundary';
-import LandingPage from './Components/LandingPage';
+import LandingPage from './Components/LandingPageNew';
 import Dashboard from './Components/Dashboard';
 import RoadmapProfile from './Components/RoadmapProfile';
+import Profile from './Components/Profile';
+import Settings from './Components/Settings';
 import VisionCompatibility from './Components/VisionCompatibility';
 import CompatibilityResults from './Components/CompatibilityResults';
 import CompatibilityTransition from './Components/CompatibilityTransition';
 import TogetherForward from './TogetherForward';
+import DeepDivePage from './Components/DeepDivePage';
 import AuthTest from './Components/AuthTest';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
@@ -18,7 +21,7 @@ import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseServ
 const AppContent = () => {
   const { user, loading: authLoading } = useAuth();
 
-  // Track app stage: landing, dashboard, roadmapProfile, compatibility, results, transition, main, authTest
+  // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, authTest
   const [stage, setStage] = useState('loading'); // Start with loading
   const [userData, setUserData] = useState(null);
   const [compatibilityData, setCompatibilityData] = useState(null);
@@ -26,6 +29,7 @@ const AppContent = () => {
   const [selectedRoadmap, setSelectedRoadmap] = useState(null);
   const [checkingRoadmaps, setCheckingRoadmaps] = useState(true);
   const [initialCheckDone, setInitialCheckDone] = useState(false); // NEW: Track if initial check completed
+  const [deepDiveMilestone, setDeepDiveMilestone] = useState(null); // NEW: Track milestone for Deep Dive page
 
   // Initialize app - always show landing page (no automatic dashboard redirect)
   useEffect(() => {
@@ -66,6 +70,13 @@ const AppContent = () => {
     if (data.chosenPath === 'compatibility') {
       // User chose compatibility path
       setStage('compatibility');
+    } else if (data.chosenPath === 'luna') {
+      // User chose Luna AI path - go to main app with Luna mode enabled
+      setUserData({
+        ...data,
+        openLunaOnStart: true // Flag to open Luna immediately
+      });
+      setStage('main');
     } else {
       // User chose "ready" path - go straight to main app
       setUserData(data);
@@ -160,15 +171,22 @@ const AppContent = () => {
     // Load milestones
     const { data: milestones } = await getMilestonesByRoadmap(selectedRoadmap.id);
 
-    setUserData({
+    // CRITICAL FIX: Don't pass existingMilestones if database is empty
+    // This lets TogetherForward use sample data instead of overwriting with empty array
+    const userData = {
       partner1: selectedRoadmap.partner1_name,
       partner2: selectedRoadmap.partner2_name,
       location: selectedRoadmap.location || 'Unknown',
       roadmapId: selectedRoadmap.id,
-      existingMilestones: milestones || [],
       xp_points: selectedRoadmap.xp_points || 0 // Pass XP points from roadmap
-    });
+    };
 
+    // Only add existingMilestones if we actually have some
+    if (milestones && milestones.length > 0) {
+      userData.existingMilestones = milestones;
+    }
+
+    setUserData(userData);
     setStage('main');
   };
 
@@ -198,6 +216,14 @@ const AppContent = () => {
     setStage('dashboard');
   };
 
+  const handleGoToProfile = () => {
+    setStage('profile');
+  };
+
+  const handleGoToSettings = () => {
+    setStage('settings');
+  };
+
   const handleBackToDashboard = () => {
     if (user) {
       setStage('dashboard');
@@ -208,6 +234,23 @@ const AppContent = () => {
 
   const handleBackToLanding = () => {
     setStage('landing');
+  };
+
+  // Deep Dive handlers
+  const handleOpenDeepDive = (milestone) => {
+    setDeepDiveMilestone(milestone);
+    setStage('deepDive');
+  };
+
+  const handleBackFromDeepDive = () => {
+    setDeepDiveMilestone(null);
+    setStage('main'); // Return to main app
+  };
+
+  const handleUpdateMilestoneFromDeepDive = (updatedMilestone) => {
+    // Update the milestone in the parent state
+    // This will be passed to TogetherForward to update its milestone list
+    setDeepDiveMilestone(updatedMilestone);
   };
 
   return (
@@ -234,12 +277,24 @@ const AppContent = () => {
         />
       )}
 
+      {/* STAGE: Profile */}
+      {stage === 'profile' && (
+        <Profile onBack={handleBackToLanding} />
+      )}
+
+      {/* STAGE: Settings */}
+      {stage === 'settings' && (
+        <Settings onBack={handleBackToLanding} />
+      )}
+
       {/* STAGE 1: Landing Page */}
       {stage === 'landing' && (
         <LandingPage
           onComplete={handleLandingComplete}
           onBack={user ? handleBackToDashboard : null} // Only show back button if user is logged in
           onGoToDashboard={handleGoToDashboard} // Navigate to dashboard
+          onGoToProfile={handleGoToProfile} // Navigate to profile
+          onGoToSettings={handleGoToSettings} // Navigate to settings
           isReturningUser={userData?.isReturningUser} // Pass flag to skip hero
         />
       )}
@@ -294,7 +349,34 @@ const AppContent = () => {
             instantGoals={userData?.instantGoals || []} // NEW: Pass instant goals from transition
             roadmap={roadmap}
             deepDiveData={deepDiveData}
-            onBack={handleBackToDashboard} // NEW: Back navigation handler
+            onBack={handleBackToDashboard} // Back navigation handler
+            onGoToDashboard={handleGoToDashboard} // Navigate to dashboard
+            onGoToProfile={handleGoToProfile} // Navigate to profile
+            onGoToSettings={handleGoToSettings} // Navigate to settings
+            onOpenDeepDive={handleOpenDeepDive} // NEW: Navigate to full-page Deep Dive
+          />
+        )}
+
+        {/* STAGE 6: Deep Dive Full Page */}
+        {stage === 'deepDive' && deepDiveMilestone && (
+          <DeepDivePage
+            milestone={deepDiveMilestone}
+            onBack={handleBackFromDeepDive}
+            onUpdateMilestone={handleUpdateMilestoneFromDeepDive}
+            roadmapId={userData?.roadmapId}
+            chatProps={{
+              // You can pass chat props here if needed
+              chatMessages: [],
+              sendChatMessage: () => {},
+              isChatLoading: false,
+              chatInput: '',
+              setChatInput: () => {}
+            }}
+            userContext={{
+              partner1: userData?.partner1 || coupleData.partner1,
+              partner2: userData?.partner2 || coupleData.partner2,
+              location: userData?.location || 'Unknown'
+            }}
           />
         )}
     </ErrorBoundary>

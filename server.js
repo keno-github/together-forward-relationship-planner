@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3001;
 
 // Enable CORS for your frontend
 app.use(cors({
-  origin: 'http://localhost:3000' // Your React app
+  origin: ['http://localhost:3000', 'http://localhost:3001'] // Support both ports
 }));
 
 app.use(express.json());
@@ -21,16 +21,30 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Luna backend is running' });
 });
 
-// Proxy Claude API calls
+// Proxy Claude API calls with function calling support
 app.post('/api/claude', async (req, res) => {
-  const { messages, systemPrompt, maxTokens = 1024, temperature = 1.0 } = req.body;
+  const { messages, systemPrompt, tools, maxTokens = 2048, temperature = 1.0 } = req.body;
 
   console.log('🤖 Proxying request to Claude API...', {
     messageCount: messages?.length,
-    systemPrompt: systemPrompt?.substring(0, 50)
+    systemPrompt: systemPrompt?.substring(0, 50),
+    toolsCount: tools?.length || 0
   });
 
   try {
+    const apiBody = {
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: maxTokens,
+      temperature: temperature,
+      system: systemPrompt,
+      messages: messages
+    };
+
+    // Add tools if provided (for function calling)
+    if (tools && tools.length > 0) {
+      apiBody.tools = tools;
+    }
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -38,13 +52,7 @@ app.post('/api/claude', async (req, res) => {
         'x-api-key': process.env.CLAUDE_API_KEY,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: maxTokens,
-        temperature: temperature,
-        system: systemPrompt,
-        messages: messages
-      })
+      body: JSON.stringify(apiBody)
     });
 
     if (!response.ok) {
@@ -56,10 +64,12 @@ app.post('/api/claude', async (req, res) => {
     const data = await response.json();
     console.log('✅ Claude API success!', {
       model: data.model,
-      usage: data.usage
+      usage: data.usage,
+      stop_reason: data.stop_reason
     });
 
-    res.json({ text: data.content[0].text });
+    // Return full response (not just text) to support function calling
+    res.json(data);
   } catch (error) {
     console.error('❌ Server error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });

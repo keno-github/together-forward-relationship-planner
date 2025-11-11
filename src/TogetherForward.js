@@ -5,7 +5,8 @@ import DeepDiveModal from './DeepDiveModal';
 import MileStoneCard from './MileStoneCard';
 import SampleData from './SampleData'; // contains roadmap, coupleData, etc.
 import AIAnalysisModal from './Components/AIAnalysisModal';
-import BackButton from './Components/BackButton';
+import NavBar from './Components/NavBar';
+import BudgetOverview from './Components/BudgetOverview';
 
 import { convertGoalsToMilestones } from './utils/goalMappings';
 import { useAuth } from './context/AuthContext';
@@ -27,7 +28,11 @@ const TogetherForward = ({
   selectedTemplates = [], // NEW: Templates from gallery
   customGoal = null, // NEW: Custom goal
   instantGoals = [], // NEW: Instant goals from compatibility transition
-  onBack = null // NEW: Back navigation handler
+  onBack = null, // Back navigation handler
+  onGoToDashboard = null, // Navigate to dashboard
+  onGoToProfile = null, // Navigate to profile
+  onGoToSettings = null, // Navigate to settings
+  onOpenDeepDive = null // NEW: Navigate to full-page Deep Dive
 }) => {
   // Load from localStorage or use default sample data
   const loadFromStorage = (key, defaultValue) => {
@@ -223,6 +228,7 @@ const TogetherForward = ({
   const [selectedMilestone, setSelectedMilestone] = useState(null);
   const [deepDiveData, setDeepDiveData] = useState(null);
   const [analyzingMilestone, setAnalyzingMilestone] = useState(null);
+  const [viewMode, setViewMode] = useState('milestones'); // 'milestones' or 'budget'
 
   // Store user context for Luna
   const [userContext] = useState({
@@ -278,6 +284,16 @@ const TogetherForward = ({
       if (propCoupleData?.existingMilestones && propCoupleData.existingMilestones.length > 0) {
         console.log('✅ Skipping database load - already loaded from RoadmapProfile');
         setCloudSyncStatus('synced');
+        return;
+      }
+
+      // CRITICAL: If a specific roadmap was passed but has no milestones,
+      // DON'T load from database as it will overwrite the working roadmap
+      // This happens when existingMilestones is explicitly passed as empty array []
+      if (propCoupleData?.roadmapId && propCoupleData?.existingMilestones !== undefined) {
+        console.log('⏭️ Skipping database load - roadmap passed with no milestones (working on new roadmap)');
+        setCloudSyncStatus('idle');
+        setCurrentRoadmapId(propCoupleData.roadmapId);
         return;
       }
 
@@ -834,8 +850,16 @@ const TogetherForward = ({
     // Simulate AI analysis (in production, this might be a real API call)
     setTimeout(() => {
       const enhancedMilestone = generatePersonalizedDeepDive(milestone);
-      setDeepDiveData(enhancedMilestone);
-      setAnalyzingMilestone(null);
+
+      // NEW: If onOpenDeepDive prop is provided (from App.js), use full-page Deep Dive
+      if (onOpenDeepDive) {
+        setAnalyzingMilestone(null);
+        onOpenDeepDive(enhancedMilestone); // Navigate to full-page Deep Dive
+      } else {
+        // Otherwise, use modal (legacy behavior)
+        setDeepDiveData(enhancedMilestone);
+        setAnalyzingMilestone(null);
+      }
     }, 2500); // 2.5 second analysis animation
   };
 
@@ -935,25 +959,21 @@ const TogetherForward = ({
         onUpdateMilestone={handleUpdateMilestone}
         chatProps={{ chatMessages, sendChatMessage, isChatLoading, chatInput, setChatInput }}
         userContext={userContext}
+        roadmapId={currentRoadmapId}
       />
 
-      {/* Header */}
-      <div className="glass-card-strong sticky top-0 z-30 border-b border-white/20">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Back Button - show if onBack handler provided */}
-            {onBack && (
-              <BackButton onClick={onBack} label={user ? "Dashboard" : "Back"} />
-            )}
-            <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center pulse-glow">
-              <Heart className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold" style={{color: '#2B2B2B'}}>TogetherForward</h1>
-              <p className="text-sm" style={{color: '#2B2B2B', opacity: 0.7}}>{coupleData.partner1} & {coupleData.partner2}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
+      {/* Navigation Bar */}
+      <NavBar
+        onGoHome={onBack}
+        onGoToDashboard={onGoToDashboard}
+        onGoToProfile={onGoToProfile}
+        onGoToSettings={onGoToSettings}
+        title={`${coupleData.partner1} & ${coupleData.partner2}`}
+      />
+
+      {/* Secondary Bar - XP and Sync Status */}
+      <div className="glass-card-light sticky top-[72px] z-20 border-b border-white/20">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-end gap-4">
             {/* Cloud Sync Indicator */}
             {user && (
               <div className="flex items-center gap-2 px-3 py-2 glass-card-light rounded-full text-sm">
@@ -994,25 +1014,65 @@ const TogetherForward = ({
             >
               <Brain className="w-5 h-5" />
             </button>
-          </div>
         </div>
       </div>
 
-      {/* Roadmap */}
-      <div className="container mx-auto px-4 py-8 space-y-6">
-        {roadmap.map((milestone, index) => (
-          <MileStoneCard
-            key={milestone.id}
-            milestone={milestone}
-            selectedMilestone={selectedMilestone}
-            setSelectedMilestone={setSelectedMilestone}
-            openDeepDive={openDeepDive}
-            roadmap={roadmap}
-            setRoadmap={setRoadmap}
-            addAchievement={addAchievement}
-          />
-        ))}
+      {/* View Mode Tabs */}
+      <div className="container mx-auto px-4 pt-6">
+        <div className="flex gap-4 mb-2">
+          <button
+            onClick={() => setViewMode('milestones')}
+            className={`px-6 py-3 rounded-xl font-semibold smooth-transition ${
+              viewMode === 'milestones'
+                ? 'text-white'
+                : 'glass-card-light'
+            }`}
+            style={viewMode === 'milestones' ? {background: 'linear-gradient(135deg, #C084FC, #F8C6D0)'} : {color: '#2B2B2B', opacity: 0.7}}
+          >
+            Milestones
+          </button>
+          <button
+            onClick={() => setViewMode('budget')}
+            className={`px-6 py-3 rounded-xl font-semibold smooth-transition ${
+              viewMode === 'budget'
+                ? 'text-white'
+                : 'glass-card-light'
+            }`}
+            style={viewMode === 'budget' ? {background: 'linear-gradient(135deg, #C084FC, #F8C6D0)'} : {color: '#2B2B2B', opacity: 0.7}}
+          >
+            Budget Tracker
+          </button>
+        </div>
       </div>
+
+      {/* Milestones View */}
+      {viewMode === 'milestones' && (
+        <div className="container mx-auto px-4 py-8 space-y-6">
+          {roadmap.map((milestone, index) => (
+            <MileStoneCard
+              key={milestone.id}
+              milestone={milestone}
+              selectedMilestone={selectedMilestone}
+              setSelectedMilestone={setSelectedMilestone}
+              openDeepDive={openDeepDive}
+              roadmap={roadmap}
+              setRoadmap={setRoadmap}
+              addAchievement={addAchievement}
+              roadmapId={currentRoadmapId}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Budget View */}
+      {viewMode === 'budget' && currentRoadmapId && (
+        <div className="container mx-auto px-4 py-8">
+          <BudgetOverview
+            roadmapId={currentRoadmapId}
+            milestones={roadmap}
+          />
+        </div>
+      )}
     </div>
   );
 };

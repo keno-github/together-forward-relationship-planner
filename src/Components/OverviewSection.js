@@ -236,14 +236,14 @@ const OverviewSection = ({ deepDiveData, userContext, onCustomize }) => {
 
       {/* CTA */}
       <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 rounded-xl p-6 text-white">
-        <h3 className="text-xl font-bold mb-2">🎯 Ready to get started?</h3>
+        <h3 className="text-xl font-bold mb-2">🎯 Ready to dive deeper?</h3>
         <p className="mb-4">
-          Explore the tabs above for detailed costs, step-by-step guidance, expert tips, and chat with Luna for personalized advice!
+          Navigate through the sections for detailed costs, step-by-step guidance, expert tips, and personalized advice from Luna!
         </p>
-        <div className="flex gap-2">
-          <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-sm">💰 Cost breakdown</span>
-          <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-sm">📋 Step-by-step guide</span>
-          <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-sm">💡 Expert tips</span>
+        <div className="flex flex-wrap gap-2">
+          <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-sm">💰 Budget & Savings</span>
+          <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-sm">📋 Action Steps</span>
+          <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-sm">💡 Expert Tips</span>
           <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-sm">💬 Chat with Luna</span>
         </div>
       </div>

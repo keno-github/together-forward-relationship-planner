@@ -325,6 +325,239 @@ export const getAchievementsByRoadmap = async (roadmapId) => {
 }
 
 // =====================================================
+// EXPENSE OPERATIONS
+// =====================================================
+
+/**
+ * Create a new expense
+ */
+export const createExpense = async (expenseData) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert([{
+        user_id: user.id,
+        ...expenseData
+      }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Create expense error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get all expenses for a roadmap
+ */
+export const getExpensesByRoadmap = async (roadmapId) => {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('roadmap_id', roadmapId)
+      .order('expense_date', { ascending: false })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get expenses error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get all expenses for a milestone
+ */
+export const getExpensesByMilestone = async (milestoneId) => {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('milestone_id', milestoneId)
+      .order('expense_date', { ascending: false })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get milestone expenses error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get expense by ID
+ */
+export const getExpenseById = async (expenseId) => {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('id', expenseId)
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get expense error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Update an expense
+ */
+export const updateExpense = async (expenseId, updates) => {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(updates)
+      .eq('id', expenseId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Update expense error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Delete an expense
+ */
+export const deleteExpense = async (expenseId) => {
+  try {
+    const { error } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('id', expenseId)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Delete expense error:', error)
+    return { error }
+  }
+}
+
+/**
+ * Mark expense as paid
+ */
+export const markExpenseAsPaid = async (expenseId, paidDate = null) => {
+  try {
+    const updates = {
+      status: 'paid',
+      paid_date: paidDate || new Date().toISOString().split('T')[0]
+    }
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(updates)
+      .eq('id', expenseId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Mark expense paid error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get budget summary for a roadmap
+ */
+export const getRoadmapBudgetSummary = async (roadmapId) => {
+  try {
+    const { data, error } = await supabase
+      .from('roadmap_budget_summary')
+      .select('*')
+      .eq('roadmap_id', roadmapId)
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get budget summary error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get expense breakdown by category for a roadmap
+ */
+export const getExpenseCategoryBreakdown = async (roadmapId) => {
+  try {
+    const { data, error } = await supabase
+      .from('expense_category_breakdown')
+      .select('*')
+      .eq('roadmap_id', roadmapId)
+      .order('total_amount', { ascending: false })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get expense breakdown error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get overdue expenses for a roadmap
+ */
+export const getOverdueExpenses = async (roadmapId) => {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('roadmap_id', roadmapId)
+      .eq('status', 'overdue')
+      .order('due_date', { ascending: true })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get overdue expenses error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get upcoming expenses (due in next 30 days)
+ */
+export const getUpcomingExpenses = async (roadmapId, daysAhead = 30) => {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const futureDate = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000)
+      .toISOString().split('T')[0]
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('roadmap_id', roadmapId)
+      .eq('status', 'pending')
+      .gte('due_date', today)
+      .lte('due_date', futureDate)
+      .order('due_date', { ascending: true })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get upcoming expenses error:', error)
+    return { data: null, error }
+  }
+}
+
+// =====================================================
 // CONVERSATION HISTORY OPERATIONS
 // =====================================================
 
@@ -479,6 +712,29 @@ export const subscribeToTasks = (milestoneId, callback) => {
         schema: 'public',
         table: 'tasks',
         filter: `milestone_id=eq.${milestoneId}`
+      },
+      (payload) => {
+        callback(payload)
+      }
+    )
+    .subscribe()
+
+  return subscription
+}
+
+/**
+ * Subscribe to expense changes for a roadmap
+ */
+export const subscribeToExpenses = (roadmapId, callback) => {
+  const subscription = supabase
+    .channel(`expenses:${roadmapId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'expenses',
+        filter: `roadmap_id=eq.${roadmapId}`
       },
       (payload) => {
         callback(payload)
