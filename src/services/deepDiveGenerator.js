@@ -305,6 +305,171 @@ function generateActionSteps(goalType, timelineMonths, preferences = {}) {
 }
 
 /**
+ * Extract common mistakes from challenges
+ */
+function extractCommonMistakes(challenges) {
+  return challenges.map(c => ({
+    id: `mistake_${Math.random().toString(36).substr(2, 9)}`,
+    mistake: c.title,
+    why: c.description,
+    avoid: c.solution
+  }));
+}
+
+/**
+ * Generate success metrics for goal
+ */
+function generateSuccessMetrics(goalType) {
+  const metrics = {
+    wedding: [
+      'Guest satisfaction: 90%+ positive feedback',
+      'Budget adherence: Within 10% of target',
+      'Stress level: Manageable throughout planning',
+      'Timeline: All major vendors booked 6+ months ahead'
+    ],
+    home: [
+      'Deposit saved: 10-20% of property value',
+      'Mortgage approved: Pre-approval obtained',
+      'Property found: Meets 80%+ of criteria',
+      'Move-in ready: Within 3 months of purchase'
+    ],
+    baby: [
+      'Emergency fund: 6 months expenses saved',
+      'Nursery complete: All essentials ready by month 8',
+      'Parental leave: Approved and finances planned',
+      'Support network: Childcare options arranged'
+    ],
+    travel: [
+      'Budget tracked: All expenses recorded',
+      'Key experiences: Must-do activities completed',
+      'Safety maintained: No major incidents',
+      'Memories captured: Photos and journal kept'
+    ],
+    career: [
+      'Applications sent: 10+ targeted applications',
+      'Interviews secured: 3+ first-round interviews',
+      'Skills upgraded: 2+ relevant certifications',
+      'Network expanded: 20+ new connections'
+    ],
+    education: [
+      'GPA maintained: 3.0+ average',
+      'Assignments on time: 95%+ submission rate',
+      'Work-study balance: Sustainable schedule',
+      'Skills mastered: Course objectives met'
+    ],
+    financial: [
+      'Emergency fund: 3-6 months expenses saved',
+      'Debt reduced: High-interest debt paid',
+      'Investments started: Regular contributions',
+      'Budget tracked: Monthly review completed'
+    ]
+  };
+  return metrics[goalType] || metrics.financial;
+}
+
+/**
+ * Generate warning flags for goal
+ */
+function generateWarningFlags(goalType) {
+  const flags = {
+    wedding: [
+      { flag: 'Venue not visited in person', severity: 'high' },
+      { flag: 'Guest list exceeds venue capacity', severity: 'critical' },
+      { flag: 'No backup plan for outdoor wedding', severity: 'medium' },
+      { flag: 'Vendors not properly insured', severity: 'high' }
+    ],
+    home: [
+      { flag: 'Skipping property survey', severity: 'critical' },
+      { flag: 'Deposit less than 10%', severity: 'high' },
+      { flag: 'No emergency fund after purchase', severity: 'critical' },
+      { flag: 'Buying at absolute budget limit', severity: 'high' }
+    ],
+    baby: [
+      { flag: 'No emergency fund', severity: 'critical' },
+      { flag: 'Unplanned parental leave finances', severity: 'high' },
+      { flag: 'No childcare plan', severity: 'high' },
+      { flag: 'Major purchases on credit', severity: 'medium' }
+    ],
+    travel: [
+      { flag: 'No travel insurance', severity: 'high' },
+      { flag: 'Peak season booking without backup', severity: 'medium' },
+      { flag: 'No emergency cash reserve', severity: 'high' },
+      { flag: 'Undocumented passport validity', severity: 'critical' }
+    ],
+    career: [
+      { flag: 'Generic CV for all applications', severity: 'high' },
+      { flag: 'No LinkedIn profile', severity: 'medium' },
+      { flag: 'Quitting before securing new role', severity: 'critical' },
+      { flag: 'Not researching company culture', severity: 'medium' }
+    ],
+    education: [
+      { flag: 'No scholarship applications', severity: 'medium' },
+      { flag: 'Enrolling without trial course', severity: 'high' },
+      { flag: 'Full-time study without savings', severity: 'critical' },
+      { flag: 'Not checking accreditation', severity: 'high' }
+    ],
+    financial: [
+      { flag: 'No emergency fund', severity: 'critical' },
+      { flag: 'Investing emergency money', severity: 'critical' },
+      { flag: 'Not tracking expenses', severity: 'high' },
+      { flag: 'Ignoring high-interest debt', severity: 'high' }
+    ]
+  };
+  return flags[goalType] || flags.financial;
+}
+
+/**
+ * Generate hidden costs
+ */
+function generateHiddenCosts(goalType) {
+  const hiddenCosts = {
+    wedding: [
+      { item: 'Vendor meals', cost: '€5-10/person', why: 'Required by most venues' },
+      { item: 'Alterations', cost: '€200-500', why: 'Rarely perfect fit off rack' },
+      { item: 'Overtime charges', cost: '€100-300/hour', why: 'If reception runs late' },
+      { item: 'Gratuities', cost: '15-20% services', why: 'Industry standard for vendors' }
+    ],
+    home: [
+      { item: 'Survey costs', cost: '€400-800', why: 'Essential to reveal issues' },
+      { item: 'Valuation fee', cost: '€150-300', why: 'Required by lender' },
+      { item: 'Early repayment charge', cost: '1-5% mortgage', why: 'If you switch mortgage' },
+      { item: 'Service charges', cost: '€1,000-3,000/year', why: 'For apartment buildings' }
+    ],
+    baby: [
+      { item: 'Hospital extras', cost: '€500-2,000', why: 'Private room, tests' },
+      { item: 'Formula feeding', cost: '€100/month', why: 'If breastfeeding difficult' },
+      { item: 'Emergency childcare', cost: '€15-25/hour', why: 'For unexpected needs' },
+      { item: 'Baby-proofing home', cost: '€200-500', why: 'Gates, locks, covers' }
+    ],
+    travel: [
+      { item: 'Baggage fees', cost: '€30-100/bag', why: 'Budget airlines charge extra' },
+      { item: 'Tourist taxes', cost: '€2-7/night', why: 'City accommodation tax' },
+      { item: 'Visa fees', cost: '€50-200', why: 'Depending on destination' },
+      { item: 'Currency exchange', cost: '3-5% total', why: 'Banks/bureaus charge fees' }
+    ],
+    career: [
+      { item: 'Interview wardrobe', cost: '€200-500', why: 'Professional attire needed' },
+      { item: 'Commute costs', cost: 'Variable', why: 'During interview process' },
+      { item: 'Career coaching', cost: '€100-300', why: 'Professional guidance helps' },
+      { item: 'Industry events', cost: '€50-200/event', why: 'Networking opportunities' }
+    ],
+    education: [
+      { item: 'Application fees', cost: '€50-150/school', why: 'Non-refundable fees' },
+      { item: 'Textbook editions', cost: '€100-300/term', why: 'New editions required' },
+      { item: 'Exam/certification fees', cost: '€200-500', why: 'Beyond tuition costs' },
+      { item: 'Commuting', cost: '€50-200/month', why: 'If not online program' }
+    ],
+    financial: [
+      { item: 'Investment fees', cost: '0.5-2%/year', why: 'Management and platform fees' },
+      { item: 'Tax preparation', cost: '€100-300', why: 'If complex returns' },
+      { item: 'Account minimums', cost: 'Variable', why: 'Some banks charge fees' },
+      { item: 'Inflation impact', cost: '2-3%/year', why: 'Erodes purchasing power' }
+    ]
+  };
+  return hiddenCosts[goalType] || hiddenCosts.financial;
+}
+
+/**
  * Main deep dive generation function
  */
 export function generateDeepDive(params) {
@@ -330,20 +495,42 @@ export function generateDeepDive(params) {
   // Get tips
   const tips = AI_TIPS[goal_type] || AI_TIPS.financial;
 
-  // Build deep dive object
+  // Generate additional data
+  const commonMistakes = extractCommonMistakes(challenges);
+  const successMetrics = generateSuccessMetrics(goal_type);
+  const warningFlags = generateWarningFlags(goal_type);
+  const hiddenCosts = generateHiddenCosts(goal_type);
+
+  // Build deep dive object with correct property names for DeepDiveModal
   const deepDive = {
     milestoneId: milestone_id,
     goalType: goal_type,
     totalBudget: budget,
     timeline_months,
     location,
-    costBreakdown,
+
+    // Renamed for DeepDiveModal compatibility
+    totalCostBreakdown: costBreakdown,  // Was: costBreakdown
+    detailedSteps: actionSteps,         // Was: actionSteps
+    expertTips: tips,                   // Was: tips
+
+    // Existing with proper structure
     challenges: challenges.map(c => ({
       ...c,
       id: `challenge_${Math.random().toString(36).substr(2, 9)}`
     })),
-    actionSteps,
-    tips,
+
+    // New fields for DeepDiveModal
+    commonMistakes,
+    successMetrics,
+    warningFlags,
+    hiddenCosts,
+    locationSpecific: {
+      location: location,
+      currency: '€',
+      notes: `Costs adjusted for ${location} market rates`
+    },
+
     createdAt: new Date().toISOString()
   };
 
@@ -352,7 +539,10 @@ export function generateDeepDive(params) {
     costCategories: costBreakdown.length,
     challenges: challenges.length,
     actionPhases: actionSteps.length,
-    tips: tips.length
+    tips: tips.length,
+    commonMistakes: commonMistakes.length,
+    warningFlags: warningFlags.length,
+    hiddenCosts: hiddenCosts.length
   });
 
   return deepDive;

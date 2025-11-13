@@ -131,6 +131,14 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
         console.log('✅ Roadmap complete! Preparing data...');
         const roadmapData = getRoadmapData(result.context);
 
+        console.log('📦 Luna roadmap data prepared:', {
+          milestones: roadmapData.milestones?.length,
+          milestonesWithDeepDives: roadmapData.milestones?.filter(m => m.deepDiveData).length,
+          partner1: roadmapData.partner1,
+          partner2: roadmapData.partner2,
+          location: roadmapData.location
+        });
+
         // Give user time to read Luna's final message
         setTimeout(() => {
           onComplete({

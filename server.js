@@ -11,8 +11,16 @@ const PORT = process.env.PORT || 3001;
 
 // Enable CORS for your frontend
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'] // Support both ports
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3006'] // Support all ports
 }));
+
+// Disable caching
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 
 app.use(express.json());
 
@@ -31,9 +39,26 @@ app.post('/api/claude', async (req, res) => {
     toolsCount: tools?.length || 0
   });
 
+  // DEBUG: Log full message structure and tool usage
+  console.log('📋 Full message array:');
+  messages?.forEach((msg, i) => {
+    if (Array.isArray(msg.content)) {
+      const types = msg.content.map(c => c.type).join(', ');
+      console.log(`  [${i}] role: ${msg.role}, content: [${types}]`);
+
+      // Log tool names if this message contains tool_use
+      const toolUses = msg.content.filter(c => c.type === 'tool_use');
+      if (toolUses.length > 0) {
+        console.log(`     🔧 Tools called: ${toolUses.map(t => t.name).join(', ')}`);
+      }
+    } else {
+      console.log(`  [${i}] role: ${msg.role}, content: "${msg.content?.substring(0, 50)}..."`);
+    }
+  });
+
   try {
     const apiBody = {
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: maxTokens,
       temperature: temperature,
       system: systemPrompt,
@@ -70,6 +95,56 @@ app.post('/api/claude', async (req, res) => {
 
     // Return full response (not just text) to support function calling
     res.json(data);
+  } catch (error) {
+    console.error('❌ Server error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// New endpoint for intelligent content generation
+app.post('/api/claude-generate', async (req, res) => {
+  const { prompt, systemPrompt, maxTokens = 2048, temperature = 0.8 } = req.body;
+
+  console.log('🧠 Generating intelligent content with Claude...');
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        temperature: temperature,
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('❌ Claude API error:', error);
+      return res.status(response.status).json({ error: error.error?.message || 'API call failed' });
+    }
+
+    const data = await response.json();
+    console.log('✅ Claude content generation success!');
+
+    // Extract text content
+    const textContent = data.content.find(c => c.type === 'text');
+    if (!textContent) {
+      return res.status(500).json({ error: 'No text content in response' });
+    }
+
+    res.json({ content: textContent.text });
   } catch (error) {
     console.error('❌ Server error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });

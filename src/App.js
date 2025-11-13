@@ -31,6 +31,10 @@ const AppContent = () => {
   const [initialCheckDone, setInitialCheckDone] = useState(false); // NEW: Track if initial check completed
   const [deepDiveMilestone, setDeepDiveMilestone] = useState(null); // NEW: Track milestone for Deep Dive page
 
+  // Chat state for Deep Dive
+  const [deepDiveChatMessages, setDeepDiveChatMessages] = useState([]);
+  const [isDeepDiveChatLoading, setIsDeepDiveChatLoading] = useState(false);
+
   // Initialize app - always show landing page (no automatic dashboard redirect)
   useEffect(() => {
     const initializeApp = async () => {
@@ -71,9 +75,13 @@ const AppContent = () => {
       // User chose compatibility path
       setStage('compatibility');
     } else if (data.chosenPath === 'luna') {
-      // User chose Luna AI path - go to main app with Luna mode enabled
+      // User chose Luna AI path - go to main app with Luna generated data
+      // Luna returns: milestones, deepDives, partner1, partner2, location, etc.
       setUserData({
         ...data,
+        // Convert Luna milestones to existingMilestones format for TogetherForward
+        existingMilestones: data.milestones || [],
+        lunaDeepDives: data.deepDives || [], // Store deep dives separately
         openLunaOnStart: true // Flag to open Luna immediately
       });
       setStage('main');
@@ -239,11 +247,13 @@ const AppContent = () => {
   // Deep Dive handlers
   const handleOpenDeepDive = (milestone) => {
     setDeepDiveMilestone(milestone);
+    setDeepDiveChatMessages([]); // Reset chat for new deep dive
     setStage('deepDive');
   };
 
   const handleBackFromDeepDive = () => {
     setDeepDiveMilestone(null);
+    setDeepDiveChatMessages([]); // Clear chat when leaving deep dive
     setStage('main'); // Return to main app
   };
 
@@ -251,6 +261,56 @@ const AppContent = () => {
     // Update the milestone in the parent state
     // This will be passed to TogetherForward to update its milestone list
     setDeepDiveMilestone(updatedMilestone);
+  };
+
+  // Chat handler for Deep Dive
+  const handleSendDeepDiveMessage = async (message) => {
+    if (!message.trim()) return;
+
+    const userMsg = { role: 'user', content: message };
+    setDeepDiveChatMessages(prev => [...prev, userMsg]);
+    setIsDeepDiveChatLoading(true);
+
+    try {
+      // Import Luna service
+      const { converseWithLuna } = await import('./services/lunaService');
+
+      // Build context with deep dive information
+      const context = {
+        partner1: userData?.partner1 || 'Partner 1',
+        partner2: userData?.partner2 || 'Partner 2',
+        location: userData?.location || 'Unknown',
+        currentMilestone: deepDiveMilestone,
+        deepDiveContext: true, // Flag to indicate this is deep dive chat
+        // Include deep dive specific data
+        ...(deepDiveMilestone && {
+          milestoneTitle: deepDiveMilestone.title,
+          totalBudget: deepDiveMilestone.totalBudget,
+          timeline: deepDiveMilestone.timeline_months,
+          personalizedInsights: deepDiveMilestone.personalizedInsights,
+          intelligentTips: deepDiveMilestone.intelligentTips,
+          riskAnalysis: deepDiveMilestone.riskAnalysis
+        })
+      };
+
+      // Build message history
+      const messages = [...deepDiveChatMessages, userMsg];
+
+      // Call Luna with context
+      const response = await converseWithLuna(messages, context);
+
+      const assistantMsg = { role: 'assistant', content: response };
+      setDeepDiveChatMessages(prev => [...prev, assistantMsg]);
+    } catch (error) {
+      console.error('Deep Dive chat error:', error);
+      const errorMsg = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again!'
+      };
+      setDeepDiveChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsDeepDiveChatLoading(false);
+    }
   };
 
   return (
@@ -365,12 +425,9 @@ const AppContent = () => {
             onUpdateMilestone={handleUpdateMilestoneFromDeepDive}
             roadmapId={userData?.roadmapId}
             chatProps={{
-              // You can pass chat props here if needed
-              chatMessages: [],
-              sendChatMessage: () => {},
-              isChatLoading: false,
-              chatInput: '',
-              setChatInput: () => {}
+              chatMessages: deepDiveChatMessages,
+              sendChatMessage: handleSendDeepDiveMessage,
+              isChatLoading: isDeepDiveChatLoading
             }}
             userContext={{
               partner1: userData?.partner1 || coupleData.partner1,

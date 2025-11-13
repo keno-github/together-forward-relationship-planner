@@ -491,20 +491,41 @@ const TogetherForward = ({
     const { partner1, partner2, location, locationData } = userContext;
     const currency = locationData?.currency || '€';
 
-    // Generate comprehensive, context-aware deep dive data
+    // AI Analysis Summary header (Bug #7 fix - softer tone)
+    const aiAnalysis = {
+      basedOn: [
+        `${partner1} & ${partner2}`,
+        `Location: ${location}`,
+        `Goal: ${milestone.title}`,
+        `Timeline: ${milestone.duration}`
+      ],
+      summary: `I've created a personalized plan for ${milestone.title.toLowerCase()} based on your unique situation in ${location}. Let's explore what this journey looks like for you both! 💕`
+    };
+
+    // Check if milestone already has Luna-generated deep dive data
+    if (milestone.deepDiveData && milestone.deepDiveData.totalCostBreakdown) {
+      console.log('✅ Using Luna-generated deep dive data for:', milestone.title);
+
+      // Luna already generated complete deep dive data, just add AI analysis wrapper
+      return {
+        ...milestone,
+        ...milestone.deepDiveData,  // Spread Luna's deep dive data
+        aiAnalysis,                 // Add AI analysis header
+        // Preserve Luna's location-specific data or add default
+        locationSpecific: milestone.deepDiveData.locationSpecific || {
+          localCosts: `Costs in ${location} are ${getLocationCostLevel(location)} compared to average`,
+          culturalFactors: getCulturalFactors(milestone.id, location),
+          resources: getLocalResources(milestone.id, location),
+          regulations: getLocalRegulations(milestone.id, location)
+        }
+      };
+    }
+
+    // Fallback: Generate deep dive data manually (for non-Luna milestones)
+    console.log('📝 Generating deep dive data manually for:', milestone.title);
     const enhancedMilestone = {
       ...milestone,
-
-      // AI Analysis Summary (Bug #7 fix - softer tone)
-      aiAnalysis: {
-        basedOn: [
-          `${partner1} & ${partner2}`,
-          `Location: ${location}`,
-          `Goal: ${milestone.title}`,
-          `Timeline: ${milestone.duration}`
-        ],
-        summary: `I've created a personalized plan for ${milestone.title.toLowerCase()} based on your unique situation in ${location}. Let's explore what this journey looks like for you both! 💕`
-      },
+      aiAnalysis,
 
       // Enhanced cost breakdown
       totalCostBreakdown: {
