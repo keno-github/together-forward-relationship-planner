@@ -4,14 +4,26 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
-require('dotenv').config();
+const { validateServerEnv, getServerConfig, logConfig } = require('./src/config/serverEnv');
 
+// Validate environment before starting
+try {
+  validateServerEnv();
+} catch (error) {
+  console.error('❌ Server startup failed:', error.message);
+  process.exit(1);
+}
+
+const config = getServerConfig();
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = config.server.port;
 
-// Enable CORS for your frontend
+// Enable CORS for your frontend with improved security
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3006'] // Support all ports
+  origin: config.cors.allowedOrigins,
+  credentials: true, // Allow cookies if needed in future
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Disable caching
@@ -74,7 +86,7 @@ app.post('/api/claude', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.CLAUDE_API_KEY,
+        'x-api-key': config.claude.apiKey,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify(apiBody)
@@ -112,11 +124,11 @@ app.post('/api/claude-generate', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.CLAUDE_API_KEY,
+        'x-api-key': config.claude.apiKey,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: config.claude.model,
         max_tokens: maxTokens,
         temperature: temperature,
         system: systemPrompt,
@@ -152,6 +164,9 @@ app.post('/api/claude-generate', async (req, res) => {
 });
 
 app.listen(PORT, () => {
+  console.log(`\n${'='.repeat(60)}`);
   console.log(`🚀 Luna backend running on http://localhost:${PORT}`);
-  console.log(`📝 Make sure CLAUDE_API_KEY is set in .env`);
+  console.log(`${'='.repeat(60)}\n`);
+  logConfig();
+  console.log(`\n✅ Server ready to accept requests\n`);
 });
