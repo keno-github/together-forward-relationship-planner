@@ -10,6 +10,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.13.1",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dompurify": "^3.3.0",
     "dotenv": "^16.3.1",

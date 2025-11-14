@@ -3,6 +3,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const fetch = require('node-fetch');
 const { validateServerEnv, getServerConfig, logConfig } = require('./src/config/serverEnv');
 
@@ -17,6 +18,9 @@ try {
 const config = getServerConfig();
 const app = express();
 const PORT = config.server.port;
+
+// Enable Gzip compression for all responses
+app.use(compression());
 
 // Enable CORS for your frontend with improved security
 app.use(cors({

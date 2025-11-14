@@ -48,7 +48,7 @@ Be specific to ${userContext.location}, use their names, and give actionable adv
 
       const systemPrompt = `You are Luna, a warm and intelligent planning assistant. Generate ONLY valid JSON with no markdown, no explanations, no extra text. Just the JSON object.`;
 
-      const response = await fetch('http://localhost:3008/api/claude-generate', {
+      const response = await fetch('http://localhost:3001/api/claude-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -83,7 +83,7 @@ Be specific to ${userContext.location}, use their names, and give actionable adv
 
       const enhancedContent = JSON.parse(jsonContent.trim());
 
-      console.log('✅ Successfully enhanced deep dive with Claude intelligence!');
+      console.log('✅ Successfully enhanced deep dive with Claude intelligence!',jsonContent);
 
       // Merge with existing deep dive data
       setEnhancedData({

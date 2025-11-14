@@ -9,7 +9,7 @@
  * - Roadmap generation coordination
  */
 
-const BACKEND_URL = 'http://localhost:3008'; // Backend server with detailed logging
+const BACKEND_URL = 'http://localhost:3001'; // Backend server with detailed logging
 
 /**
  * System prompt that defines Luna's role and behavior
