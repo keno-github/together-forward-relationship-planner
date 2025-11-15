@@ -19,6 +19,7 @@ const LUNA_SYSTEM_PROMPT = `You are Luna, an AI planning assistant for couples p
 
 YOUR MISSION:
 Help couples create realistic, actionable roadmaps for their goals (wedding, home, baby, travel, etc.)
+Track expenses, monitor budgets, and provide intelligent financial insights throughout their journey.
 
 CONVERSATION STYLE:
 - Warm, supportive, conversational (like a helpful friend)
@@ -26,22 +27,33 @@ CONVERSATION STYLE:
 - Celebrate their goals ("That's exciting!", "I love that!")
 - Handle "what if" scenarios enthusiastically
 - Build on previous answers, don't repeat questions
+- Proactively notice budget hints, timeline clues, and preferences in conversation
 
 WORKFLOW:
 1. Get partner names casually
 2. Ask location (needed for accurate costs)
-3. Discover their goals through conversation
+3. Discover their goals through conversation - use intelligent context extraction
 4. For each goal, learn: timeline, budget, key preferences
-5. Use tools to generate milestones and deep dive data
-6. Finalize when you have 1-3 complete milestones
+5. Use tools to generate comprehensive roadmaps with smart recommendations
+6. Track expenses and provide budget insights as they progress
+7. Finalize when you have 1-3 complete milestones
 
 TOOL USAGE:
-- Call extract_user_data() as soon as you learn names/location
-- Call generate_milestone() when you have: goal type + budget + timeline
+- Call extract_user_data() as soon as you learn names/location (provides intelligent context analysis)
+- Call generate_milestone() when you have: goal type + budget + timeline (generates smart roadmaps)
 - Call generate_deep_dive() right after creating a milestone
+- Call track_expense() when user mentions spending money (auto-categorizes, detects anomalies)
+- Call analyze_savings_progress() when user asks about financial progress (provides recommendations)
 - Call finalize_roadmap() when all milestones are complete
 
-Be conversational between tool calls - explain what you're creating!`;
+INTELLIGENT FEATURES:
+- Extract budget/timeline hints from casual conversation ("We're saving $500/month", "by next summer")
+- Auto-categorize expenses (e.g., "bought wedding dress" → attire category)
+- Detect budget anomalies (large expenses, duplicates, over-budget alerts)
+- Provide savings recommendations based on progress and timeline
+- Generate context-aware roadmaps that adapt to user constraints
+
+Be conversational between tool calls - explain what you're creating and discovering!`;
 
 /**
  * Tool definitions for Claude function calling
@@ -168,6 +180,62 @@ const LUNA_TOOLS = [
         }
       },
       required: ["summary"]
+    }
+  },
+  {
+    name: "track_expense",
+    description: "Track an expense and get budget status, anomaly detection, and financial insights. Use when user mentions spending money on something.",
+    input_schema: {
+      type: "object",
+      properties: {
+        amount: {
+          type: "number",
+          description: "Expense amount"
+        },
+        title: {
+          type: "string",
+          description: "What the expense is for (e.g., 'Venue deposit', 'Wedding dress')"
+        },
+        category: {
+          type: "string",
+          description: "Optional category (will be auto-detected if not provided)"
+        },
+        roadmap_id: {
+          type: "string",
+          description: "ID of the roadmap this expense belongs to"
+        },
+        milestone_id: {
+          type: "string",
+          description: "Optional milestone ID this expense is for"
+        }
+      },
+      required: ["amount", "title"]
+    }
+  },
+  {
+    name: "analyze_savings_progress",
+    description: "Analyze savings progress toward a goal and provide recommendations. Use when user asks about savings or financial progress.",
+    input_schema: {
+      type: "object",
+      properties: {
+        target_amount: {
+          type: "number",
+          description: "Target savings amount"
+        },
+        target_date: {
+          type: "string",
+          description: "Target date (ISO format)"
+        },
+        current_amount: {
+          type: "number",
+          description: "Current saved amount"
+        },
+        monthly_contribution: {
+          type: "number",
+          description: "Monthly savings contribution"
+        }
+      },
+      required: ["target_amount", "target_date"]
     }
   }
 ];
@@ -335,7 +403,7 @@ async function handleToolUse(data, messages, context) {
 async function executeToolCall(toolName, input, context) {
   switch(toolName) {
     case 'extract_user_data':
-      return handleExtractUserData(input);
+      return await handleExtractUserData(input, context);
 
     case 'generate_milestone':
       return await handleGenerateMilestone(input, context);
@@ -345,6 +413,12 @@ async function executeToolCall(toolName, input, context) {
 
     case 'finalize_roadmap':
       return handleFinalizeRoadmap(input, context);
+
+    case 'track_expense':
+      return await handleTrackExpense(input, context);
+
+    case 'analyze_savings_progress':
+      return await handleAnalyzeSavingsProgress(input, context);
 
     default:
       return {
@@ -358,30 +432,76 @@ async function executeToolCall(toolName, input, context) {
  * Tool Handlers
  */
 
-function handleExtractUserData(input) {
+async function handleExtractUserData(input, context) {
+  // Import Goal Discovery Agent
+  const { analyzeMessage, determineNextQuestions } = await import('./agents/goalDiscoveryAgent');
+
+  // Analyze the current conversation to extract additional context
+  const conversationHistory = context.conversationHistory || [];
+  const lastMessage = conversationHistory[conversationHistory.length - 1] || '';
+
+  // Extract context from the message using Goal Discovery Agent
+  const extractedContext = analyzeMessage(lastMessage);
+
+  // Check readiness for roadmap generation
+  const readiness = determineNextQuestions(extractedContext, context.goalType || 'wedding');
+
   return {
     success: true,
     extracted: {
       partner1: input.partner1,
       partner2: input.partner2 || null,
       location: input.location || null
+    },
+    // Add intelligent context from Goal Discovery Agent
+    discoveredContext: {
+      budgetHints: extractedContext.budgetHints,
+      timelineHints: extractedContext.timelineHints,
+      preferences: extractedContext.preferences,
+      constraints: extractedContext.constraints,
+      readiness: readiness.readiness,
+      isReady: readiness.isReady,
+      nextQuestion: readiness.nextQuestion,
+      missingInfo: readiness.missingInfo
     }
   };
 }
 
 async function handleGenerateMilestone(input, context) {
-  // Import milestone generator
-  const { generateMilestone } = await import('./milestoneGenerator');
+  // Import Roadmap Architect Agent
+  const { generateRoadmap } = await import('./agents/roadmapArchitectAgent');
 
-  const milestone = generateMilestone({
-    ...input,
-    context
-  });
+  // Build user context from accumulated data
+  const userContext = {
+    budget: input.budget ? { amount: input.budget, confidence: 0.9 } : null,
+    timeline: input.timeline_months ? { text: `${input.timeline_months} months`, confidence: 0.9 } : null,
+    location: input.location ? { text: input.location, confidence: 0.9 } : null,
+    preferences: input.preferences ? Object.entries(input.preferences).map(([category, value]) => ({
+      category,
+      value: typeof value === 'string' ? value : JSON.stringify(value),
+      confidence: 0.8
+    })) : [],
+    constraints: context.constraints || []
+  };
+
+  // Generate comprehensive roadmap using Roadmap Architect
+  const { roadmap, budgetAllocation } = await generateRoadmap(userContext, input.goal_type);
+
+  // Return the first milestone (Luna will call this multiple times for full roadmap)
+  const milestone = roadmap.milestones[0];
 
   return {
     success: true,
     milestone,
-    milestone_id: milestone.id
+    milestone_id: milestone.id,
+    // Include full roadmap metadata for context
+    roadmapMetadata: {
+      totalMilestones: roadmap.metadata.totalMilestones,
+      totalDuration: roadmap.metadata.totalDuration,
+      estimatedCost: roadmap.metadata.estimatedCost,
+      budgetAllocation,
+      confidence: roadmap.metadata.confidence
+    }
   };
 }
 
@@ -596,6 +716,55 @@ function handleFinalizeRoadmap(input, context) {
     summary: input.summary,
     total_cost: input.total_cost,
     total_timeline_months: input.total_timeline_months
+  };
+}
+
+async function handleTrackExpense(input, context) {
+  // Import Financial Intelligence Agent
+  const { trackExpense } = await import('./agents/financialIntelligenceAgent');
+
+  // Get budget from context (roadmap budget allocation)
+  const budget = context.budget || {};
+
+  // Track the expense with intelligent analysis
+  const result = trackExpense(input, budget);
+
+  return {
+    success: true,
+    expense: result.expense,
+    budgetStatus: result.budgetStatus,
+    anomalies: result.anomalies,
+    alerts: result.alerts,
+    // Provide human-readable summary for Luna
+    summary: `Tracked ${result.expense.category} expense of $${input.amount}. Budget status: ${result.budgetStatus.status}. ${result.alerts.length > 0 ? 'Alerts: ' + result.alerts.map(a => a.message).join('; ') : 'No alerts.'}`
+  };
+}
+
+async function handleAnalyzeSavingsProgress(input, context) {
+  // Import Financial Intelligence Agent
+  const { analyzeSavingsProgress } = await import('./agents/financialIntelligenceAgent');
+
+  // Analyze savings progress
+  const goal = {
+    targetAmount: input.target_amount,
+    targetDate: input.target_date
+  };
+
+  const currentStatus = {
+    currentAmount: input.current_amount || 0,
+    monthlyContribution: input.monthly_contribution || 0
+  };
+
+  const result = analyzeSavingsProgress(goal, currentStatus);
+
+  return {
+    success: true,
+    progress: result.progress,
+    timeline: result.timeline,
+    savings: result.savings,
+    recommendations: result.recommendations,
+    // Provide human-readable summary for Luna
+    summary: `You're ${result.progress.progressPercentage}% toward your goal of $${input.target_amount}. ${result.progress.isOnTrack ? 'You\'re on track!' : `You need to save an additional $${result.savings.gap} per month to stay on track.`} ${result.recommendations.length > 0 ? result.recommendations[0].message : ''}`
   };
 }
 

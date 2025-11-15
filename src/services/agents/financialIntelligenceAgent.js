@@ -175,7 +175,7 @@ export const trackExpense = (expense, budget) => {
  * @param {string} title - Expense title
  * @returns {string} Detected category
  */
-const detectCategory = (title) => {
+export const detectCategory = (title) => {
   const categoryKeywords = {
     venue: ['venue', 'hall', 'location', 'space', 'church', 'temple'],
     catering: ['catering', 'food', 'meal', 'dinner', 'lunch', 'cake', 'dessert'],

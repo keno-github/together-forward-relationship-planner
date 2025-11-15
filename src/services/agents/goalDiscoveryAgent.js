@@ -134,17 +134,17 @@ export const determineNextQuestions = (extractedContext, goalType) => {
     preferences: false
   };
 
-  // Check what we already have
-  if (extractedContext.budgetHints.length > 0) {
+  // Check what we already have (handle both raw and consolidated context)
+  if ((extractedContext.budgetHints && extractedContext.budgetHints.length > 0) || extractedContext.budget) {
     requiredInfo.budget = true;
   }
-  if (extractedContext.timelineHints.length > 0) {
+  if ((extractedContext.timelineHints && extractedContext.timelineHints.length > 0) || extractedContext.timeline) {
     requiredInfo.timeline = true;
   }
   if (extractedContext.location) {
     requiredInfo.location = true;
   }
-  if (extractedContext.preferences.length > 2) {
+  if ((extractedContext.preferences && extractedContext.preferences.length > 2)) {
     requiredInfo.preferences = true;
   }
 

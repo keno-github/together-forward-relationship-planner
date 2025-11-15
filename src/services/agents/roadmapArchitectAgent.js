@@ -30,11 +30,19 @@ export const generateRoadmap = async (userContext, goalType) => {
 
   // Generate each milestone with context
   const milestones = milestoneSequence.map((milestoneType, index) => {
-    const milestone = generateMilestone(milestoneType, {
-      budget: budget?.amount,
-      location: location?.text,
-      preferences: preferences.map(p => p.value),
-      order: index
+    // Create a human-readable title from milestone type
+    const title = milestoneType.split('_').map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+
+    const milestone = generateMilestone({
+      goal_type: goalType,
+      title,
+      timeline_months: 1,
+      budget: budget?.amount || 10000,
+      location: location?.text || 'US',
+      preferences: preferences || [],
+      context: { order: index }
     });
 
     // Add dependencies
@@ -78,7 +86,7 @@ export const generateRoadmap = async (userContext, goalType) => {
  * @param {Array} constraints - User constraints
  * @returns {Array} Ordered array of milestone types
  */
-const determineMilestoneSequence = (goalType, constraints = []) => {
+export const determineMilestoneSequence = (goalType, constraints = []) => {
   const sequences = {
     wedding: [
       'engagement',
@@ -242,7 +250,7 @@ const calculateTotalDuration = (milestones) => {
  * @param {number} totalBudget - Total available budget
  * @returns {Object} Budget allocation by milestone
  */
-const allocateBudget = (milestones, totalBudget) => {
+export const allocateBudget = (milestones, totalBudget) => {
   if (!totalBudget) {
     return {
       total: 0,
