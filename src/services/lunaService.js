@@ -611,7 +611,9 @@ async function handleCreateMultiGoalPlan(input, context) {
   // Use AI to analyze conflicts and generate recommendations
   let orchestration;
   try {
-    orchestration = await analyzeMultiGoalWithAI(roadmaps, input.total_budget, input.location);
+    // TODO: Implement analyzeMultiGoalWithAI function
+    // orchestration = await analyzeMultiGoalWithAI(roadmaps, input.total_budget, input.location);
+    throw new Error('analyzeMultiGoalWithAI not yet implemented');
   } catch (error) {
     console.error('AI orchestration failed, using basic analysis:', error);
     orchestration = {

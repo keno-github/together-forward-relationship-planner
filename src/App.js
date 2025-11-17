@@ -14,8 +14,6 @@ import TogetherForward from './TogetherForward';
 import DeepDivePage from './Components/DeepDivePage';
 import MilestoneDetailPage from './Components/MilestoneDetailPage';
 import AuthTest from './Components/AuthTest';
-import AtlasShowcase from './Components/AtlasShowcase';
-import ColorTest from './Components/ColorTest';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseService';
@@ -25,7 +23,7 @@ const AppContent = () => {
   const { user, loading: authLoading } = useAuth();
 
   // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, showcase, colorTest
-  const [stage, setStage] = useState('colorTest'); // Start with color test to see exact colors
+  const [stage, setStage] = useState('landing'); // Start with landing page
   const [userData, setUserData] = useState(null);
   const [compatibilityData, setCompatibilityData] = useState(null);
   const [selectedGoalsFromTransition, setSelectedGoalsFromTransition] = useState([]);
@@ -345,43 +343,7 @@ const AppContent = () => {
 
   return (
     <ErrorBoundary>
-      {/* COLOR TEST STAGE: Show exact hex colors */}
-      {stage === 'colorTest' && (
-        <div>
-          <ColorTest />
-          {/* Navigation buttons */}
-          <div className="fixed bottom-8 right-8 z-50 flex gap-3">
-            <button
-              onClick={() => setStage('showcase')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700"
-            >
-              View Showcase
-            </button>
-            <button
-              onClick={() => setStage('landing')}
-              className="px-6 py-3 bg-gray-600 text-white rounded-lg shadow-lg hover:bg-gray-700"
-            >
-              Go to App
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* SHOWCASE STAGE: Intimate Cartography Design System */}
-      {stage === 'showcase' && (
-        <div>
-          <AtlasShowcase />
-          {/* Navigation button to go back to landing */}
-          <div className="fixed bottom-8 right-8 z-50">
-            <button
-              onClick={() => setStage('landing')}
-              className="atlas-btn-primary shadow-lg"
-            >
-              Exit Showcase → Go to App
-            </button>
-          </div>
-        </div>
-      )}
+      {/* COLOR TEST and SHOWCASE stages removed - moved to feature/design-system branch */}
 
       {/* TEST STAGE: Auth Test */}
       {stage === 'authTest' && (
