@@ -32,7 +32,8 @@ const TogetherForward = ({
   onGoToDashboard = null, // Navigate to dashboard
   onGoToProfile = null, // Navigate to profile
   onGoToSettings = null, // Navigate to settings
-  onOpenDeepDive = null // NEW: Navigate to full-page Deep Dive
+  onOpenDeepDive = null, // Navigate to full-page Deep Dive (legacy)
+  onOpenMilestoneDetail = null // NEW: Navigate to multi-section milestone detail page
 }) => {
   // Load from localStorage or use default sample data
   const loadFromStorage = (key, defaultValue) => {
@@ -389,6 +390,25 @@ const TogetherForward = ({
     if (!user || cloudSyncStatus === 'loading') return;
 
     const saveToDatabase = async () => {
+      // CRITICAL FIX: Check if all milestones already have database IDs
+      // This prevents duplicate creation when state updates trigger the effect again
+      const allMilestonesHaveDBIds = roadmap.every(m =>
+        m.id && typeof m.id === 'string' && m.id.includes('-') && m.id.length > 30
+      );
+
+      // If all milestones have DB IDs and we have a roadmap ID, only update XP
+      if (allMilestonesHaveDBIds && currentRoadmapId) {
+        console.log('✅ All milestones already saved, only updating XP');
+        try {
+          await updateRoadmap(currentRoadmapId, { xp_points: xpPoints });
+          setCloudSyncStatus('synced');
+        } catch (error) {
+          console.error('Error updating XP:', error);
+          setCloudSyncStatus('error');
+        }
+        return; // Exit early - no need to create anything
+      }
+
       setCloudSyncing(true);
       setCloudSyncStatus('syncing');
 
@@ -397,8 +417,17 @@ const TogetherForward = ({
 
         // Create roadmap if it doesn't exist
         if (!roadmapId) {
+          console.log('🆕 Creating new roadmap');
+
+          // Generate intelligent roadmap title from first milestone or use default
+          let roadmapTitle = 'Our Journey Together';
+          if (roadmap.length > 0) {
+            // Use the first milestone's title as the roadmap title
+            roadmapTitle = roadmap[0].title || 'Our Journey Together';
+          }
+
           const { data, error } = await createRoadmap({
-            title: 'Our Journey Together',
+            title: roadmapTitle,
             partner1_name: coupleData.partner1,
             partner2_name: coupleData.partner2,
             location: coupleData.location,
@@ -408,6 +437,7 @@ const TogetherForward = ({
           if (error) throw error;
           roadmapId = data.id;
           setCurrentRoadmapId(roadmapId);
+          console.log('✅ Roadmap created:', roadmapId);
         } else {
           // Update existing roadmap
           await updateRoadmap(roadmapId, {
@@ -415,10 +445,12 @@ const TogetherForward = ({
           });
         }
 
-        // Save milestones (simplified - just tracks if they exist)
+        // Save milestones - only create new ones, update existing ones
         const updatedRoadmap = [];
+        let hasNewMilestones = false;
+
         for (const milestone of roadmap) {
-          // Check if milestone has a database UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+          // Check if milestone has a database UUID
           const isUUID = milestone.id && typeof milestone.id === 'string' && milestone.id.includes('-') && milestone.id.length > 30;
 
           if (isUUID) {
@@ -431,6 +463,7 @@ const TogetherForward = ({
             updatedRoadmap.push(milestone);
           } else {
             // New milestone, create it
+            hasNewMilestones = true;
             console.log('✨ Creating new milestone:', milestone.title);
             const { data: newMilestone, error } = await createMilestone({
               roadmap_id: roadmapId,
@@ -459,8 +492,12 @@ const TogetherForward = ({
           }
         }
 
-        // Update local state with database IDs
-        setRoadmap(updatedRoadmap);
+        // CRITICAL FIX: Only update state if we created new milestones
+        // This prevents infinite loop of state updates
+        if (hasNewMilestones) {
+          console.log('📝 Updating roadmap state with new DB IDs');
+          setRoadmap(updatedRoadmap);
+        }
 
         setCloudSyncStatus('synced');
         console.log('✅ Saved to database');
@@ -1076,6 +1113,7 @@ const TogetherForward = ({
               selectedMilestone={selectedMilestone}
               setSelectedMilestone={setSelectedMilestone}
               openDeepDive={openDeepDive}
+              openMilestoneDetail={onOpenMilestoneDetail} // NEW: Pass multi-section handler
               roadmap={roadmap}
               setRoadmap={setRoadmap}
               addAchievement={addAchievement}

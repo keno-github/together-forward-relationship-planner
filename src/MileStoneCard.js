@@ -1,10 +1,10 @@
 // MileStoneCard.js
 import React, { useState } from 'react';
-import { Clock, DollarSign, ChevronRight, Maximize2, Brain, Heart, Receipt } from 'lucide-react';
+import { Clock, DollarSign, ChevronRight, Maximize2, Brain, Heart, Receipt, Target } from 'lucide-react';
 import TaskItem from './TaskItem';
 import ExpenseTracker from './Components/ExpenseTracker';
 
-const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roadmap, setRoadmap, openDeepDive, addAchievement, roadmapId }) => {
+const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roadmap, setRoadmap, openDeepDive, openMilestoneDetail, addAchievement, roadmapId }) => {
   // Handle both emoji strings and React components for icon
   const IconComponent = milestone.icon || Heart;
   const isEmojiIcon = typeof IconComponent === 'string';
@@ -65,14 +65,30 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
 
             {/* Buttons */}
             <div className="flex gap-2">
-              <button
-                onClick={() => openDeepDive(milestone)}
-                className="px-4 py-2 glass-button rounded-xl smooth-transition flex items-center gap-2 font-medium"
-                title="Deep dive into this goal"
-              >
-                <Maximize2 className="w-4 h-4" />
-                Deep Dive
-              </button>
+              {/* NEW: Primary action - View Details (multi-section page) */}
+              {openMilestoneDetail && (
+                <button
+                  onClick={() => openMilestoneDetail(milestone, 'overview')}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:shadow-lg smooth-transition flex items-center gap-2 font-medium"
+                  title="View full milestone details with overview, roadmap, budget, etc."
+                >
+                  <Target className="w-4 h-4" />
+                  View Details
+                </button>
+              )}
+
+              {/* Legacy: Deep Dive (kept for backward compatibility) */}
+              {openDeepDive && !openMilestoneDetail && (
+                <button
+                  onClick={() => openDeepDive(milestone)}
+                  className="px-4 py-2 glass-button rounded-xl smooth-transition flex items-center gap-2 font-medium"
+                  title="Deep dive into this goal"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                  Deep Dive
+                </button>
+              )}
+
               <button
                 onClick={() => setSelectedMilestone(selectedMilestone === milestone.id ? null : milestone.id)}
                 className="p-2 hover:glass-card-light rounded-lg smooth-transition"

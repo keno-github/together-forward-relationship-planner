@@ -12,7 +12,10 @@ import CompatibilityResults from './Components/CompatibilityResults';
 import CompatibilityTransition from './Components/CompatibilityTransition';
 import TogetherForward from './TogetherForward';
 import DeepDivePage from './Components/DeepDivePage';
+import MilestoneDetailPage from './Components/MilestoneDetailPage';
 import AuthTest from './Components/AuthTest';
+import AtlasShowcase from './Components/AtlasShowcase';
+import ColorTest from './Components/ColorTest';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseService';
@@ -21,8 +24,8 @@ import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseServ
 const AppContent = () => {
   const { user, loading: authLoading } = useAuth();
 
-  // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, authTest
-  const [stage, setStage] = useState('loading'); // Start with loading
+  // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, showcase, colorTest
+  const [stage, setStage] = useState('colorTest'); // Start with color test to see exact colors
   const [userData, setUserData] = useState(null);
   const [compatibilityData, setCompatibilityData] = useState(null);
   const [selectedGoalsFromTransition, setSelectedGoalsFromTransition] = useState([]);
@@ -30,6 +33,12 @@ const AppContent = () => {
   const [checkingRoadmaps, setCheckingRoadmaps] = useState(true);
   const [initialCheckDone, setInitialCheckDone] = useState(false); // NEW: Track if initial check completed
   const [deepDiveMilestone, setDeepDiveMilestone] = useState(null); // NEW: Track milestone for Deep Dive page
+
+  // NEW: Milestone Detail state
+  const [milestoneDetailState, setMilestoneDetailState] = useState({
+    milestone: null,
+    section: 'overview' // default section: overview, roadmap, budget, assessment, tasks, status
+  });
 
   // Chat state for Deep Dive
   const [deepDiveChatMessages, setDeepDiveChatMessages] = useState([]);
@@ -263,6 +272,27 @@ const AppContent = () => {
     setDeepDiveMilestone(updatedMilestone);
   };
 
+  // NEW: Milestone Detail handlers (multi-section navigation)
+  const handleOpenMilestoneDetail = (milestone, section = 'overview') => {
+    setMilestoneDetailState({ milestone, section });
+    setStage('milestoneDetail');
+  };
+
+  const handleMilestoneDetailSectionChange = (section) => {
+    setMilestoneDetailState(prev => ({ ...prev, section }));
+  };
+
+  const handleBackFromMilestoneDetail = () => {
+    setMilestoneDetailState({ milestone: null, section: 'overview' });
+    setStage('main'); // Return to main app
+  };
+
+  const handleUpdateMilestoneFromDetail = (updatedMilestone) => {
+    // Update the milestone in the detail state
+    setMilestoneDetailState(prev => ({ ...prev, milestone: updatedMilestone }));
+    // TODO: Also update in userData.existingMilestones if needed
+  };
+
   // Chat handler for Deep Dive
   const handleSendDeepDiveMessage = async (message) => {
     if (!message.trim()) return;
@@ -315,6 +345,44 @@ const AppContent = () => {
 
   return (
     <ErrorBoundary>
+      {/* COLOR TEST STAGE: Show exact hex colors */}
+      {stage === 'colorTest' && (
+        <div>
+          <ColorTest />
+          {/* Navigation buttons */}
+          <div className="fixed bottom-8 right-8 z-50 flex gap-3">
+            <button
+              onClick={() => setStage('showcase')}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700"
+            >
+              View Showcase
+            </button>
+            <button
+              onClick={() => setStage('landing')}
+              className="px-6 py-3 bg-gray-600 text-white rounded-lg shadow-lg hover:bg-gray-700"
+            >
+              Go to App
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SHOWCASE STAGE: Intimate Cartography Design System */}
+      {stage === 'showcase' && (
+        <div>
+          <AtlasShowcase />
+          {/* Navigation button to go back to landing */}
+          <div className="fixed bottom-8 right-8 z-50">
+            <button
+              onClick={() => setStage('landing')}
+              className="atlas-btn-primary shadow-lg"
+            >
+              Exit Showcase → Go to App
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* TEST STAGE: Auth Test */}
       {stage === 'authTest' && (
         <AuthTest />
@@ -413,11 +481,29 @@ const AppContent = () => {
             onGoToDashboard={handleGoToDashboard} // Navigate to dashboard
             onGoToProfile={handleGoToProfile} // Navigate to profile
             onGoToSettings={handleGoToSettings} // Navigate to settings
-            onOpenDeepDive={handleOpenDeepDive} // NEW: Navigate to full-page Deep Dive
+            onOpenDeepDive={handleOpenDeepDive} // Navigate to full-page Deep Dive (legacy)
+            onOpenMilestoneDetail={handleOpenMilestoneDetail} // NEW: Navigate to multi-section milestone detail
           />
         )}
 
-        {/* STAGE 6: Deep Dive Full Page */}
+        {/* STAGE 6: Milestone Detail Page (NEW - Multi-section navigation) */}
+        {stage === 'milestoneDetail' && milestoneDetailState.milestone && (
+          <MilestoneDetailPage
+            milestone={milestoneDetailState.milestone}
+            section={milestoneDetailState.section}
+            onSectionChange={handleMilestoneDetailSectionChange}
+            onBack={handleBackFromMilestoneDetail}
+            onUpdateMilestone={handleUpdateMilestoneFromDetail}
+            roadmapId={userData?.roadmapId}
+            userContext={{
+              partner1: userData?.partner1 || coupleData.partner1,
+              partner2: userData?.partner2 || coupleData.partner2,
+              location: userData?.location || 'Unknown'
+            }}
+          />
+        )}
+
+        {/* STAGE 7: Deep Dive Full Page (Legacy - for backward compatibility) */}
         {stage === 'deepDive' && deepDiveMilestone && (
           <DeepDivePage
             milestone={deepDiveMilestone}
