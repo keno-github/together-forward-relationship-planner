@@ -1188,7 +1188,7 @@ Make it conversational, reference their specific numbers, and feel like a friend
 async function handleFinalizeRoadmap(input, context) {
   try {
     // Import supabase services
-    const { createRoadmap, createMilestone } = await import('./supabaseService');
+    const { createRoadmap, createMilestone, createTask } = await import('./supabaseService');
 
     console.log('💾 Finalizing roadmap - saving to database...');
     console.log('📊 Context data:', {
@@ -1228,7 +1228,9 @@ async function handleFinalizeRoadmap(input, context) {
 
     console.log('✅ Roadmap saved to database:', savedRoadmap.id);
 
-    // Save milestones if they exist in context
+    let totalTasksSaved = 0;
+
+    // Save milestones and their tasks if they exist in context
     if (context.generatedMilestones && context.generatedMilestones.length > 0) {
       console.log(`📌 Saving ${context.generatedMilestones.length} milestones...`);
 
@@ -1255,12 +1257,54 @@ async function handleFinalizeRoadmap(input, context) {
         if (milestoneError) {
           console.error(`❌ Error saving milestone ${i + 1}:`, milestoneError);
           // Continue saving other milestones even if one fails
-        } else {
-          console.log(`✅ Milestone ${i + 1} saved:`, savedMilestone.id);
+          continue;
+        }
+
+        console.log(`✅ Milestone ${i + 1} saved:`, savedMilestone.id);
+
+        // Save tasks for this milestone
+        const keyActions = milestone.key_actions || milestone.keyActions || [];
+
+        if (keyActions.length > 0) {
+          console.log(`  📋 Saving ${keyActions.length} tasks for milestone ${i + 1}...`);
+
+          for (let j = 0; j < keyActions.length; j++) {
+            const action = keyActions[j];
+
+            // Handle both string and object formats
+            const taskTitle = typeof action === 'string' ? action : action.title || action.name;
+            const taskDescription = typeof action === 'object' ? action.description : '';
+            const suggestedAssignee = typeof action === 'object' ? action.suggested_assignee : null;
+            const estimatedTime = typeof action === 'object' ? action.estimated_time : null;
+
+            const taskData = {
+              milestone_id: savedMilestone.id,
+              title: taskTitle || `Task ${j + 1}`,
+              description: taskDescription || '',
+              order_index: j,
+              completed: false,
+              ai_generated: true,
+              assigned_to: suggestedAssignee || null,
+              estimated_time: estimatedTime || null
+            };
+
+            const { data: savedTask, error: taskError } = await createTask(taskData);
+
+            if (taskError) {
+              console.error(`  ❌ Error saving task ${j + 1}:`, taskError);
+              // Continue saving other tasks even if one fails
+            } else {
+              totalTasksSaved++;
+              console.log(`  ✅ Task ${j + 1} saved:`, savedTask.id);
+            }
+          }
         }
       }
 
       console.log('✅ All milestones saved successfully');
+      if (totalTasksSaved > 0) {
+        console.log(`✅ Saved ${totalTasksSaved} tasks across all milestones`);
+      }
     } else {
       console.warn('⚠️ No milestones found in context to save');
     }
@@ -1277,7 +1321,8 @@ async function handleFinalizeRoadmap(input, context) {
       total_cost: input.total_cost,
       total_timeline_months: input.total_timeline_months,
       milestones_count: context.generatedMilestones?.length || 0,
-      message: `Roadmap "${input.roadmap_title}" has been saved successfully!`
+      tasks_count: totalTasksSaved,
+      message: `Roadmap "${input.roadmap_title}" has been saved successfully with ${context.generatedMilestones?.length || 0} milestones and ${totalTasksSaved} tasks!`
     };
 
   } catch (error) {
