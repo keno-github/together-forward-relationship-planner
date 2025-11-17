@@ -22,42 +22,110 @@ Help couples create realistic, actionable roadmaps for ANY goal they have togeth
 Goals can be ANYTHING: buying apartment, planning wedding, learning new skill, starting business,
 getting fit, writing book, learning language, renovating home, adopting pet, saving for vacation, etc.
 
-APPROACH:
-- Listen to their EXACT goal description
-- Use their actual words to categorize the goal (don't force it into predefined boxes)
-- Think about what journey stages make sense for THEIR specific goal
-- Generate a roadmap that takes them from where they are NOW to achieving THAT goal
-Track expenses, monitor budgets, and provide intelligent financial insights throughout their journey.
+INTELLIGENCE-FIRST APPROACH:
+You are powered by advanced AI. Before asking ANY questions, ASSESS what you already know.
+Your goal is to get users to their roadmap as FAST as possible while maintaining quality.
+
+INFORMATION COMPLETENESS ASSESSMENT:
+For every message, evaluate what you know:
+- Goal clarity: Do I understand WHAT they want to achieve?
+- Timeline: Do I know WHEN they want to achieve it?
+- Budget: Do I know HOW MUCH they can spend?
+- Location: Do I know WHERE they are?
+- Partner names: Do I know WHO is involved?
+
+ADAPTIVE ROUTING - Choose the FASTEST path:
+
+🚀 EXPRESS PATH (90%+ complete information):
+WHEN: User provides comprehensive details upfront
+EXAMPLES:
+- "Alex and Sam want to buy apartment in Berlin for €400k in 12 months"
+- "We're planning our wedding in Seattle for $50k next June"
+- "Maria and I want to start a bakery in Portland with $100k budget, opening in 18 months"
+
+YOUR ACTION:
+1. Acknowledge their goal enthusiastically
+2. Extract all provided information (names, location, goal, budget, timeline)
+3. Call extract_user_data() if names/location provided
+4. IMMEDIATELY call generate_intelligent_roadmap() or create_multi_goal_plan()
+5. Do NOT ask redundant questions about information they already gave you
+
+TIME TO ROADMAP: ~30 seconds
+
+⚡ HYBRID PATH (50-90% complete information):
+WHEN: User provides goal + some details, but missing 1-2 critical pieces
+EXAMPLES:
+- "We want to buy a house in Austin in 2 years" (missing: budget)
+- "Planning our wedding for $40k" (missing: location, timeline)
+- "Start a coffee shop in Denver" (missing: budget, timeline)
+
+YOUR ACTION:
+1. Acknowledge their goal
+2. Extract what you know
+3. Ask ONLY for missing critical information (1-2 targeted questions MAX)
+4. Then IMMEDIATELY generate roadmap
+5. Don't ask for "nice-to-haves" - make smart assumptions
+
+TIME TO ROADMAP: ~2 minutes
+
+💬 CONVERSATIONAL PATH (<50% complete information):
+WHEN: User provides vague or exploratory input
+EXAMPLES:
+- "We're thinking about our future together"
+- "We want to plan something big"
+- "Help us figure out our next steps"
+
+YOUR ACTION:
+1. Warm, supportive response
+2. Ask open-ended discovery questions
+3. Guide them to clarity about their goals
+4. Build understanding through conversation
+5. Once goal is clear, assess completeness and switch to EXPRESS or HYBRID
+
+TIME TO ROADMAP: ~5 minutes
+
+MULTI-GOAL DETECTION (CRITICAL):
+Watch for these patterns that indicate MULTIPLE goals:
+
+Conjunction words:
+- "X AND Y" → "buy apartment AND plan wedding"
+- "X plus Y" → "save for car plus vacation"
+- "X as well as Y" → "start business as well as buy home"
+
+Sequential indicators:
+- "X THEN Y" → "get married THEN buy house"
+- "First X, later Y" → "First renovate, later buy car"
+- "X before Y" → "Save emergency fund before starting business"
+
+Parallel timelines:
+- "X in N months and Y in M months" → "wedding in 6 months and house in 18 months"
+- "X next year, Y in 3 years" → "car next year, baby in 3 years"
+
+Lists:
+- "X, Y, and Z" → "save for car, vacation, and home down payment"
+
+When MULTIPLE goals detected:
+1. Acknowledge ALL goals clearly: "I see you have 3 goals: X, Y, and Z. That's exciting!"
+2. For EXPRESS path: If all goals have budgets/timelines, call create_multi_goal_plan() immediately
+3. For HYBRID path: Ask "Which goal is most important?" and "What's your budget for each?"
+4. Call create_multi_goal_plan() with complete goal array
+5. Luna will handle timeline conflicts, dependencies, and resource allocation intelligently
 
 CONVERSATION STYLE:
 - Warm, supportive, conversational (like a helpful friend)
-- Ask only 2-3 essential questions MAX per milestone
 - Extract information intelligently from conversation (budget hints, timeline clues)
 - Celebrate their goals ("That's exciting!", "I love that!")
 - Build on previous answers, don't repeat questions
 - NEVER assume their goal - if they say "moving to Augsburg, Germany", use THAT exact location
 - LISTEN carefully and use their EXACT words for titles and descriptions
-- Be concise - users want quick roadmaps, not long interviews
 
-WORKFLOW (Keep it SHORT):
-1. Get partner names + location in first exchange
-2. Ask about their goal(s) in THEIR OWN WORDS
-   - If they mention MULTIPLE goals → acknowledge ALL of them
-   - Example: "get married in 6 months, have baby in 24 months, buy car in 18 months"
-3. If multiple goals detected:
-   - Acknowledge all goals and timelines
-   - Ask for budget for EACH goal separately OR total combined budget
-   - Call create_multi_goal_plan() to orchestrate all goals together
-4. If single goal:
-   - Ask ONLY: timeline + budget
-   - Call generate_intelligent_roadmap() once
-5. Finalize when complete
-
-MULTI-GOAL INTELLIGENCE:
-- DETECT when users mention multiple goals in one message
-- Common patterns: "and", "also", "then", multiple timelines mentioned
-- Example: "I want to X in N months and Y in M months" = 2 GOALS
-- Create coordinated plan that handles timeline conflicts and dependencies
+CRITICAL RULES:
+- NEVER ask for information the user already provided
+- NEVER force unnecessary questions when you have complete information
+- ALWAYS choose the FASTEST path that maintains quality
+- DEFAULT to EXPRESS path when you have 90%+ info - users appreciate speed
+- If you have enough to generate a quality roadmap, DO IT NOW
+- Only ask questions when truly necessary for quality
 
 TOOL USAGE:
 - Call extract_user_data() ONCE when you learn names/location
@@ -80,6 +148,7 @@ INTELLIGENT FEATURES:
 - Detect budget anomalies (large expenses, duplicates, over-budget alerts)
 - Provide savings recommendations based on progress and timeline
 - Generate context-aware roadmaps that adapt to user constraints
+- Make smart assumptions for missing "nice-to-have" information (e.g., assume 20% down payment if not specified)
 
 Be conversational between tool calls - explain what you're creating and discovering!`;
 
@@ -521,7 +590,7 @@ async function executeToolCall(toolName, input, context) {
       return await handleGenerateDeepDive(input, context);
 
     case 'finalize_roadmap':
-      return handleFinalizeRoadmap(input, context);
+      return await handleFinalizeRoadmap(input, context);
 
     case 'track_expense':
       return await handleTrackExpense(input, context);
@@ -1116,15 +1185,116 @@ Make it conversational, reference their specific numbers, and feel like a friend
   }
 }
 
-function handleFinalizeRoadmap(input, context) {
-  return {
-    success: true,
-    ready: true,
-    roadmap_title: input.roadmap_title,
-    summary: input.summary,
-    total_cost: input.total_cost,
-    total_timeline_months: input.total_timeline_months
-  };
+async function handleFinalizeRoadmap(input, context) {
+  try {
+    // Import supabase services
+    const { createRoadmap, createMilestone } = await import('./supabaseService');
+
+    console.log('💾 Finalizing roadmap - saving to database...');
+    console.log('📊 Context data:', {
+      partner1: context.partner1,
+      partner2: context.partner2,
+      location: context.location,
+      goalType: context.goalType,
+      milestonesCount: context.generatedMilestones?.length || 0
+    });
+
+    // Prepare roadmap data for database
+    const roadmapData = {
+      title: input.roadmap_title || context.goalDescription || 'Our Journey Together',
+      partner1_name: context.partner1 || 'Partner 1',
+      partner2_name: context.partner2 || 'Partner 2',
+      location: context.location || null,
+      goal_type: context.goalType || 'custom',
+      budget: input.total_cost || context.totalBudget || 0,
+      timeline_months: input.total_timeline_months || context.totalTimelineMonths || 12,
+      xp_points: 0,
+      status: 'active'
+    };
+
+    console.log('📝 Creating roadmap with data:', roadmapData);
+
+    // Create roadmap in database
+    const { data: savedRoadmap, error: roadmapError } = await createRoadmap(roadmapData);
+
+    if (roadmapError) {
+      console.error('❌ Error creating roadmap:', roadmapError);
+      throw new Error(`Failed to save roadmap: ${roadmapError.message}`);
+    }
+
+    if (!savedRoadmap) {
+      throw new Error('Roadmap creation returned no data');
+    }
+
+    console.log('✅ Roadmap saved to database:', savedRoadmap.id);
+
+    // Save milestones if they exist in context
+    if (context.generatedMilestones && context.generatedMilestones.length > 0) {
+      console.log(`📌 Saving ${context.generatedMilestones.length} milestones...`);
+
+      for (let i = 0; i < context.generatedMilestones.length; i++) {
+        const milestone = context.generatedMilestones[i];
+
+        const milestoneData = {
+          roadmap_id: savedRoadmap.id,
+          title: milestone.title || `Milestone ${i + 1}`,
+          description: milestone.description || '',
+          icon: milestone.icon || '🎯',
+          color: milestone.color || '#4F46E5',
+          category: milestone.category || context.goalType || 'custom',
+          estimated_cost: milestone.estimated_cost || milestone.estimatedCost || 0,
+          duration: milestone.estimated_duration || milestone.duration || '1-2 weeks',
+          ai_generated: true,
+          deep_dive_data: milestone.deep_dive_data || milestone.deepDiveData || {},
+          order_index: i,
+          status: 'not_started'
+        };
+
+        const { data: savedMilestone, error: milestoneError } = await createMilestone(milestoneData);
+
+        if (milestoneError) {
+          console.error(`❌ Error saving milestone ${i + 1}:`, milestoneError);
+          // Continue saving other milestones even if one fails
+        } else {
+          console.log(`✅ Milestone ${i + 1} saved:`, savedMilestone.id);
+        }
+      }
+
+      console.log('✅ All milestones saved successfully');
+    } else {
+      console.warn('⚠️ No milestones found in context to save');
+    }
+
+    // Store roadmap ID in context for future use
+    context.savedRoadmapId = savedRoadmap.id;
+
+    return {
+      success: true,
+      ready: true,
+      roadmap_id: savedRoadmap.id,
+      roadmap_title: input.roadmap_title,
+      summary: input.summary,
+      total_cost: input.total_cost,
+      total_timeline_months: input.total_timeline_months,
+      milestones_count: context.generatedMilestones?.length || 0,
+      message: `Roadmap "${input.roadmap_title}" has been saved successfully!`
+    };
+
+  } catch (error) {
+    console.error('❌ Error in handleFinalizeRoadmap:', error);
+
+    // Return error but don't crash the conversation
+    return {
+      success: false,
+      ready: true,
+      error: error.message,
+      roadmap_title: input.roadmap_title,
+      summary: input.summary,
+      total_cost: input.total_cost,
+      total_timeline_months: input.total_timeline_months,
+      message: `Roadmap created but failed to save: ${error.message}. You can still view it in this session.`
+    };
+  }
 }
 
 async function handleTrackExpense(input, context) {
