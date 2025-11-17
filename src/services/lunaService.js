@@ -1187,8 +1187,9 @@ Make it conversational, reference their specific numbers, and feel like a friend
 
 async function handleFinalizeRoadmap(input, context) {
   try {
-    // Import supabase services
+    // Import supabase services and auth
     const { createRoadmap, createMilestone, createTask } = await import('./supabaseService');
+    const { supabase } = await import('../config/supabaseClient');
 
     console.log('💾 Finalizing roadmap - saving to database...');
     console.log('📊 Context data:', {
@@ -1198,6 +1199,36 @@ async function handleFinalizeRoadmap(input, context) {
       goalType: context.goalType,
       milestonesCount: context.generatedMilestones?.length || 0
     });
+
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.log('⚠️ No authenticated user - storing roadmap in context for UI display only');
+      // GUEST USER MODE: Populate context.milestones for UI transition without database save
+      if (context.generatedMilestones && context.generatedMilestones.length > 0) {
+        context.milestones = context.generatedMilestones;
+        context.roadmapComplete = true;
+        context.roadmapTitle = input.roadmap_title;
+        context.summary = input.summary;
+        context.totalCost = input.total_cost;
+        context.totalTimeline = input.total_timeline_months;
+
+        console.log('✅ Copied generatedMilestones to context.milestones for UI transition (guest mode):', context.milestones.length);
+
+        return {
+          success: true,
+          ready: true,
+          guest_mode: true,
+          roadmap_title: input.roadmap_title,
+          summary: input.summary,
+          total_cost: input.total_cost,
+          total_timeline_months: input.total_timeline_months,
+          milestones_count: context.generatedMilestones?.length || 0,
+          message: `Roadmap "${input.roadmap_title}" created with ${context.generatedMilestones?.length || 0} milestones! (Sign in to save permanently)`
+        };
+      }
+    }
 
     // Prepare roadmap data for database
     const roadmapData = {
