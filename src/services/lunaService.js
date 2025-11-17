@@ -1415,6 +1415,14 @@ function updateContextFromToolResult(context, result) {
     context.summary = result.summary;
     context.totalCost = result.total_cost;
     context.totalTimeline = result.total_timeline_months;
+
+    // CRITICAL FIX: Copy generatedMilestones to milestones for UI transition
+    // When roadmap is finalized, ensure context.milestones is populated
+    // so isRoadmapComplete() returns true and triggers view transition
+    if (context.generatedMilestones && context.generatedMilestones.length > 0) {
+      context.milestones = context.generatedMilestones;
+      console.log('✅ Copied generatedMilestones to context.milestones for UI transition:', context.milestones.length);
+    }
   }
 }
 
