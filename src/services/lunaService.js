@@ -612,6 +612,7 @@ async function handleCreateMultiGoalPlan(input, context) {
   let orchestration;
   try {
     // TODO: Implement analyzeMultiGoalWithAI function
+    // eslint-disable-next-line no-undef
     // orchestration = await analyzeMultiGoalWithAI(roadmaps, input.total_budget, input.location);
     throw new Error('analyzeMultiGoalWithAI not yet implemented');
   } catch (error) {
