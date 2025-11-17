@@ -18,33 +18,61 @@ const BACKEND_URL = 'http://localhost:3001'; // Backend server with detailed log
 const LUNA_SYSTEM_PROMPT = `You are Luna, an AI planning assistant for couples planning their future together.
 
 YOUR MISSION:
-Help couples create realistic, actionable roadmaps for their goals (wedding, home, baby, travel, etc.)
+Help couples create realistic, actionable roadmaps for ANY goal they have together.
+Goals can be ANYTHING: buying apartment, planning wedding, learning new skill, starting business,
+getting fit, writing book, learning language, renovating home, adopting pet, saving for vacation, etc.
+
+APPROACH:
+- Listen to their EXACT goal description
+- Use their actual words to categorize the goal (don't force it into predefined boxes)
+- Think about what journey stages make sense for THEIR specific goal
+- Generate a roadmap that takes them from where they are NOW to achieving THAT goal
 Track expenses, monitor budgets, and provide intelligent financial insights throughout their journey.
 
 CONVERSATION STYLE:
 - Warm, supportive, conversational (like a helpful friend)
-- Ask clarifying questions naturally - don't interrogate
+- Ask only 2-3 essential questions MAX per milestone
+- Extract information intelligently from conversation (budget hints, timeline clues)
 - Celebrate their goals ("That's exciting!", "I love that!")
-- Handle "what if" scenarios enthusiastically
 - Build on previous answers, don't repeat questions
-- Proactively notice budget hints, timeline clues, and preferences in conversation
+- NEVER assume their goal - if they say "moving to Augsburg, Germany", use THAT exact location
+- LISTEN carefully and use their EXACT words for titles and descriptions
+- Be concise - users want quick roadmaps, not long interviews
 
-WORKFLOW:
-1. Get partner names casually
-2. Ask location (needed for accurate costs)
-3. Discover their goals through conversation - use intelligent context extraction
-4. For each goal, learn: timeline, budget, key preferences
-5. Use tools to generate comprehensive roadmaps with smart recommendations
-6. Track expenses and provide budget insights as they progress
-7. Finalize when you have 1-3 complete milestones
+WORKFLOW (Keep it SHORT):
+1. Get partner names + location in first exchange
+2. Ask about their goal(s) in THEIR OWN WORDS
+   - If they mention MULTIPLE goals → acknowledge ALL of them
+   - Example: "get married in 6 months, have baby in 24 months, buy car in 18 months"
+3. If multiple goals detected:
+   - Acknowledge all goals and timelines
+   - Ask for budget for EACH goal separately OR total combined budget
+   - Call create_multi_goal_plan() to orchestrate all goals together
+4. If single goal:
+   - Ask ONLY: timeline + budget
+   - Call generate_intelligent_roadmap() once
+5. Finalize when complete
+
+MULTI-GOAL INTELLIGENCE:
+- DETECT when users mention multiple goals in one message
+- Common patterns: "and", "also", "then", multiple timelines mentioned
+- Example: "I want to X in N months and Y in M months" = 2 GOALS
+- Create coordinated plan that handles timeline conflicts and dependencies
 
 TOOL USAGE:
-- Call extract_user_data() as soon as you learn names/location (provides intelligent context analysis)
-- Call generate_milestone() when you have: goal type + budget + timeline (generates smart roadmaps)
-- Call generate_deep_dive() right after creating a milestone
-- Call track_expense() when user mentions spending money (auto-categorizes, detects anomalies)
-- Call analyze_savings_progress() when user asks about financial progress (provides recommendations)
-- Call finalize_roadmap() when all milestones are complete
+- Call extract_user_data() ONCE when you learn names/location
+- FOR MULTIPLE GOALS: Call create_multi_goal_plan() with array of all goals
+  → Automatically handles timeline conflicts, dependencies, resource allocation
+  → Returns orchestrated plan for all goals
+- FOR SINGLE GOAL: Call generate_intelligent_roadmap() with goal details
+  → Generates complete multi-stage roadmap
+- Call finalize_roadmap() ONCE when all roadmaps are ready
+- Call track_expense() when user mentions spending money
+- Call analyze_savings_progress() when user asks about financial progress
+
+LEGACY TOOLS (avoid if possible):
+- generate_milestone() - OLD single milestone tool
+- generate_deep_dive() - Built into intelligent roadmap now
 
 INTELLIGENT FEATURES:
 - Extract budget/timeline hints from casual conversation ("We're saving $500/month", "by next summer")
@@ -83,23 +111,96 @@ const LUNA_TOOLS = [
     }
   },
   {
+    name: "create_multi_goal_plan",
+    description: "Create a coordinated plan for MULTIPLE goals simultaneously. Use this when user mentions 2+ goals with different timelines. This intelligently orchestrates timeline conflicts, dependencies, and resource allocation across all goals.",
+    input_schema: {
+      type: "object",
+      properties: {
+        goals: {
+          type: "array",
+          description: "Array of goals with their details",
+          items: {
+            type: "object",
+            properties: {
+              goal_description: { type: "string", description: "Goal in user's words" },
+              timeline_months: { type: "number", description: "Timeline in months" },
+              budget: { type: "number", description: "Budget for this goal" },
+              priority: { type: "string", enum: ["critical", "high", "medium", "low"], description: "Goal priority" }
+            },
+            required: ["goal_description", "timeline_months"]
+          },
+          minItems: 2
+        },
+        location: {
+          type: "string",
+          description: "Location for all goals"
+        },
+        total_budget: {
+          type: "number",
+          description: "Total combined budget (optional if individual budgets provided)"
+        }
+      },
+      required: ["goals", "location"]
+    }
+  },
+  {
+    name: "generate_intelligent_roadmap",
+    description: "Generate a complete journey roadmap for a SINGLE goal using AI. For multiple goals, use create_multi_goal_plan instead.",
+    input_schema: {
+      type: "object",
+      properties: {
+        goal_description: {
+          type: "string",
+          description: "The user's goal in their own words (e.g., 'Buy a 2-bedroom apartment in Berlin', 'Learn to play guitar', 'Start a bakery business')"
+        },
+        budget: {
+          type: "number",
+          description: "Total budget available"
+        },
+        timeline_months: {
+          type: "number",
+          description: "Timeline in months"
+        },
+        location: {
+          type: "string",
+          description: "Location (for cost calculations and local context)"
+        },
+        preferences: {
+          type: "array",
+          description: "User preferences as array of strings",
+          items: { type: "string" }
+        },
+        constraints: {
+          type: "array",
+          description: "Any constraints (time, budget, etc.)",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string" }
+            }
+          }
+        }
+      },
+      required: ["goal_description", "budget", "timeline_months"]
+    }
+  },
+  {
     name: "generate_milestone",
-    description: "Generate a complete milestone object with tasks, costs, and timeline. Call when you have goal type, budget, and timeline.",
+    description: "LEGACY: Generate a single milestone. Use generate_intelligent_roadmap instead for complete journey planning.",
     input_schema: {
       type: "object",
       properties: {
         goal_type: {
           type: "string",
-          enum: ["wedding", "engagement", "home", "baby", "travel", "career", "education", "financial"],
-          description: "Type of goal"
+          description: "A short category label for the goal type"
         },
         title: {
           type: "string",
-          description: "Descriptive title (e.g., 'Plan Dream Wedding', 'Buy First Home')"
+          description: "Descriptive title"
         },
         description: {
           type: "string",
-          description: "Brief description incorporating user preferences"
+          description: "Brief description"
         },
         timeline_months: {
           type: "number",
@@ -107,20 +208,15 @@ const LUNA_TOOLS = [
         },
         budget: {
           type: "number",
-          description: "Budget in euros"
+          description: "Budget"
         },
         location: {
           type: "string",
-          description: "Location for cost calculations"
+          description: "Location"
         },
         preferences: {
           type: "object",
-          description: "User preferences (size, style, must-haves, etc.)",
-          properties: {
-            size: { type: "string" },
-            style: { type: "string" },
-            priorities: { type: "array", items: { type: "string" } }
-          }
+          description: "User preferences"
         }
       },
       required: ["goal_type", "title", "timeline_months", "budget"]
@@ -166,6 +262,10 @@ const LUNA_TOOLS = [
     input_schema: {
       type: "object",
       properties: {
+        roadmap_title: {
+          type: "string",
+          description: "Title for the entire roadmap using the user's EXACT words for their goal (e.g., 'Moving to Augsburg, Germany' NOT 'Destination Research')"
+        },
         summary: {
           type: "string",
           description: "Brief summary of the complete roadmap"
@@ -179,7 +279,7 @@ const LUNA_TOOLS = [
           description: "Total timeline in months"
         }
       },
-      required: ["summary"]
+      required: ["roadmap_title", "summary"]
     }
   },
   {
@@ -325,6 +425,9 @@ export async function converseWithLuna(messages, context = {}) {
 async function handleToolUse(data, messages, context) {
   console.log('🔧 Claude wants to use tools');
 
+  // Store conversation messages in context for deep dive generation
+  context.conversationMessages = messages;
+
   // Find ALL tool use requests in Claude's response (Claude can call multiple tools at once!)
   const toolUses = data.content.filter(c => c.type === 'tool_use');
   if (toolUses.length === 0) {
@@ -405,6 +508,12 @@ async function executeToolCall(toolName, input, context) {
     case 'extract_user_data':
       return await handleExtractUserData(input, context);
 
+    case 'create_multi_goal_plan':
+      return await handleCreateMultiGoalPlan(input, context);
+
+    case 'generate_intelligent_roadmap':
+      return await handleGenerateIntelligentRoadmap(input, context);
+
     case 'generate_milestone':
       return await handleGenerateMilestone(input, context);
 
@@ -467,7 +576,249 @@ async function handleExtractUserData(input, context) {
   };
 }
 
+async function handleCreateMultiGoalPlan(input, context) {
+  console.log(`🎯🎯🎯 Creating multi-goal plan for ${input.goals.length} goals`);
+
+  const { generateIntelligentRoadmap } = await import('./agents/intelligentRoadmapAgent');
+
+  // Generate roadmap for each goal
+  const roadmaps = [];
+  for (const [index, goal] of input.goals.entries()) {
+    console.log(`  📍 Generating roadmap ${index + 1}/${input.goals.length}: ${goal.goal_description}`);
+
+    const userContext = {
+      budget: goal.budget ? { amount: goal.budget } : null,
+      timeline: { text: `${goal.timeline_months} months` },
+      location: { text: input.location },
+      preferences: [],
+      constraints: []
+    };
+
+    try {
+      const roadmap = await generateIntelligentRoadmap(goal.goal_description, userContext);
+      roadmaps.push({
+        ...roadmap,
+        goal_index: index,
+        priority: goal.priority || 'medium',
+        original_goal: goal
+      });
+    } catch (error) {
+      console.error(`❌ Failed to generate roadmap for goal ${index + 1}:`, error);
+      // Continue with other goals even if one fails
+    }
+  }
+
+  // Use AI to analyze conflicts and generate recommendations
+  let orchestration;
+  try {
+    orchestration = await analyzeMultiGoalWithAI(roadmaps, input.total_budget, input.location);
+  } catch (error) {
+    console.error('AI orchestration failed, using basic analysis:', error);
+    orchestration = {
+      conflicts: [],
+      recommendations: [{
+        type: 'basic',
+        message: `Created ${roadmaps.length} goal roadmaps. Review timelines and budgets for potential conflicts.`
+      }],
+      timeline_strategy: 'Review each goal individually and adjust as needed.',
+      financial_strategy: 'Monitor spending across all goals.'
+    };
+  }
+
+  // Store all roadmaps in context
+  context.multiGoalPlan = {
+    roadmaps,
+    ...orchestration,
+    total_goals: input.goals.length,
+    successfully_generated: roadmaps.length
+  };
+
+  console.log(`✅ Multi-goal plan created: ${roadmaps.length}/${input.goals.length} roadmaps generated`);
+
+  return {
+    success: true,
+    roadmaps_generated: roadmaps.length,
+    total_goals: input.goals.length,
+    roadmaps: roadmaps.map(r => ({
+      goal: r.original_goal.goal_description,
+      timeline: r.original_goal.timeline_months,
+      milestones_count: r.milestones.length,
+      estimated_cost: r.total_estimated_cost
+    })),
+    ...orchestration,
+    message: `Successfully created coordinated plan for ${roadmaps.length} goals. ${orchestration.conflicts.length > 0 ? `AI identified ${orchestration.conflicts.length} considerations.` : 'Plan looks well-balanced!'}`
+  };
+}
+
+/**
+ * Analyze timeline conflicts between multiple goals
+ */
+function analyzeTimelineConflicts(roadmaps) {
+  const conflicts = [];
+
+  // Sort roadmaps by timeline
+  const sorted = [...roadmaps].sort((a, b) =>
+    a.original_goal.timeline_months - b.original_goal.timeline_months
+  );
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const goal1 = sorted[i].original_goal;
+      const goal2 = sorted[j].original_goal;
+
+      // Check if goals overlap significantly
+      const overlap = goal1.timeline_months >= goal2.timeline_months * 0.5;
+
+      if (overlap) {
+        conflicts.push({
+          type: 'timeline_overlap',
+          goal1: goal1.goal_description,
+          goal2: goal2.goal_description,
+          severity: goal1.timeline_months < goal2.timeline_months * 0.75 ? 'high' : 'medium',
+          recommendation: `${goal1.goal_description} (${goal1.timeline_months}mo) may overlap with ${goal2.goal_description} (${goal2.timeline_months}mo). Consider staggering start dates or adjusting timelines.`
+        });
+      }
+    }
+  }
+
+  // Check for financial strain
+  const totalCost = roadmaps.reduce((sum, r) => sum + (r.total_estimated_cost || 0), 0);
+  const avgMonthlyBurn = totalCost / Math.max(...roadmaps.map(r => r.original_goal.timeline_months));
+
+  if (avgMonthlyBurn > 5000) {
+    conflicts.push({
+      type: 'financial_strain',
+      severity: 'high',
+      total_cost: totalCost,
+      monthly_burn: avgMonthlyBurn,
+      recommendation: `High monthly spending required (€${Math.round(avgMonthlyBurn)}/month). Consider extending timelines or prioritizing goals.`
+    });
+  }
+
+  return conflicts;
+}
+
+/**
+ * Generate recommendations for multi-goal planning
+ */
+function generateMultiGoalRecommendations(roadmaps, conflicts, totalBudget) {
+  const recommendations = [];
+
+  // Priority-based sequencing
+  const byPriority = {
+    critical: roadmaps.filter(r => r.priority === 'critical'),
+    high: roadmaps.filter(r => r.priority === 'high'),
+    medium: roadmaps.filter(r => r.priority === 'medium'),
+    low: roadmaps.filter(r => r.priority === 'low')
+  };
+
+  if (byPriority.critical.length > 1) {
+    recommendations.push({
+      type: 'priority_conflict',
+      message: `You have ${byPriority.critical.length} critical-priority goals. Consider which is truly most urgent.`,
+      action: 'Review and adjust priorities'
+    });
+  }
+
+  // Budget allocation
+  const totalCost = roadmaps.reduce((sum, r) => sum + (r.total_estimated_cost || 0), 0);
+  if (totalBudget && totalCost > totalBudget) {
+    recommendations.push({
+      type: 'budget_exceeded',
+      message: `Total estimated cost (€${totalCost}) exceeds budget (€${totalBudget}) by €${totalCost - totalBudget}`,
+      action: 'Adjust goal scopes or extend timelines to reduce monthly costs'
+    });
+  }
+
+  // Timeline sequencing
+  const shortestTimeline = Math.min(...roadmaps.map(r => r.original_goal.timeline_months));
+  const longestTimeline = Math.max(...roadmaps.map(r => r.original_goal.timeline_months));
+
+  if (longestTimeline > shortestTimeline * 3) {
+    recommendations.push({
+      type: 'timeline_spread',
+      message: `Goals span from ${shortestTimeline} to ${longestTimeline} months. This is manageable with good planning.`,
+      action: 'Focus on near-term goals first, plan long-term goals in parallel'
+    });
+  }
+
+  return recommendations;
+}
+
+async function handleGenerateIntelligentRoadmap(input, context) {
+  console.log('🎯 Generating intelligent roadmap for:', input.goal_description);
+
+  // Import the intelligent roadmap agent
+  const { generateIntelligentRoadmap } = await import('./agents/intelligentRoadmapAgent');
+
+  // Build user context
+  const userContext = {
+    budget: input.budget ? { amount: input.budget } : null,
+    timeline: input.timeline_months ? { text: `${input.timeline_months} months` } : null,
+    location: input.location ? { text: input.location } : null,
+    preferences: input.preferences || [],
+    constraints: input.constraints || []
+  };
+
+  try {
+    // Generate the intelligent roadmap using Claude
+    const roadmap = await generateIntelligentRoadmap(input.goal_description, userContext);
+
+    // Store in context for finalization
+    context.generatedRoadmap = roadmap;
+    context.roadmapMilestones = roadmap.milestones;
+
+    console.log(`✅ Generated ${roadmap.milestones.length} milestone stages`);
+
+    return {
+      success: true,
+      roadmap,
+      milestones_count: roadmap.milestones.length,
+      total_cost: roadmap.total_estimated_cost,
+      total_duration: roadmap.total_estimated_duration,
+      message: `Successfully generated a ${roadmap.milestones.length}-stage journey roadmap for: ${input.goal_description}`
+    };
+  } catch (error) {
+    console.error('❌ Intelligent roadmap generation failed:', error);
+
+    // Fallback to template-based generation
+    console.log('⚠️ Falling back to template-based generation');
+    const { generateTemplateBasedRoadmap } = await import('./agents/intelligentRoadmapAgent');
+    const roadmap = generateTemplateBasedRoadmap(input.goal_description, userContext);
+
+    context.generatedRoadmap = roadmap;
+    context.roadmapMilestones = roadmap.milestones;
+
+    return {
+      success: true,
+      roadmap,
+      milestones_count: roadmap.milestones.length,
+      fallback: true,
+      message: `Generated a ${roadmap.milestones.length}-stage roadmap using template matching (AI generation unavailable)`
+    };
+  }
+}
+
 async function handleGenerateMilestone(input, context) {
+  // CRITICAL: Check if we already created a milestone for this goal
+  const existingMilestones = context.milestones || [];
+  const alreadyCreated = existingMilestones.some(m =>
+    m.goal_type === input.goal_type ||
+    (m.title && input.title && m.title.toLowerCase().includes(input.title.toLowerCase().substring(0, 10)))
+  );
+
+  if (alreadyCreated) {
+    console.log('⚠️ DUPLICATE PREVENTION: Milestone already exists for this goal, skipping creation');
+    console.log('   Existing milestones:', existingMilestones.map(m => m.title));
+    console.log('   Attempted goal_type:', input.goal_type);
+    return {
+      success: false,
+      error: 'A milestone for this goal has already been created. Please call generate_deep_dive() for the existing milestone, then finalize_roadmap().',
+      duplicate: true,
+      existing_milestone_id: existingMilestones[0]?.id
+    };
+  }
+
   // Import Roadmap Architect Agent
   const { generateRoadmap } = await import('./agents/roadmapArchitectAgent');
 
@@ -484,8 +835,20 @@ async function handleGenerateMilestone(input, context) {
     constraints: context.constraints || []
   };
 
-  // Generate comprehensive roadmap using Roadmap Architect
-  const { roadmap, budgetAllocation } = await generateRoadmap(userContext, input.goal_type);
+  // Extract goal description for hybrid approach
+  const goalDescription = input.description || input.title || null;
+
+  // Generate comprehensive roadmap using Roadmap Architect (HYBRID APPROACH WITH VALIDATION)
+  // - Layer 1: Template matching (rich, comprehensive templates)
+  // - Layer 2: Claude validation & customization (quality gate for user's specific dream)
+  // - Layer 3: Pure Claude generation (fallback for unknown goals)
+  // - Layer 4: Generic fallback (safety net)
+  const { roadmap, budgetAllocation } = await generateRoadmap(
+    userContext,
+    input.goal_type,
+    goalDescription,
+    { useClaudeValidation: true } // Enable Claude validation (default)
+  );
 
   // Return the first milestone (Luna will call this multiple times for full roadmap)
   const milestone = roadmap.milestones[0];
@@ -500,7 +863,9 @@ async function handleGenerateMilestone(input, context) {
       totalDuration: roadmap.metadata.totalDuration,
       estimatedCost: roadmap.metadata.estimatedCost,
       budgetAllocation,
-      confidence: roadmap.metadata.confidence
+      confidence: roadmap.metadata.confidence,
+      generationMethod: roadmap.metadata.generationMethod, // 'template', 'template_validated', 'template_customized', 'claude_generated', or 'fallback'
+      validationInsights: roadmap.metadata.validationInsights // Claude's explanation of customizations
     }
   };
 }
@@ -537,6 +902,7 @@ async function handleGenerateDeepDive(input, context) {
       riskAnalysis: personalizedContent.risks,
       smartSavings: personalizedContent.savings,
       coupleAdvice: personalizedContent.coupleAdvice,
+      roadmapPhases: personalizedContent.roadmapPhases, // NEW: Luna-generated roadmap tree
       aiGenerated: true,
       generatedAt: new Date().toISOString()
     };
@@ -547,6 +913,8 @@ async function handleGenerateDeepDive(input, context) {
       hasRiskAnalysis: !!enhancedDeepDive.riskAnalysis,
       hasSmartSavings: !!enhancedDeepDive.smartSavings,
       hasCoupleAdvice: !!enhancedDeepDive.coupleAdvice,
+      hasRoadmapPhases: !!enhancedDeepDive.roadmapPhases,
+      phaseCount: enhancedDeepDive.roadmapPhases?.length || 0,
       aiGenerated: enhancedDeepDive.aiGenerated
     });
 
@@ -585,19 +953,35 @@ async function generatePersonalizedContent(input, context) {
     hasPreferences: !!preferences
   });
 
-  // Build a rich prompt for Claude with all context
-  const prompt = `You are Luna, an AI planning assistant. Based on this couple's situation, generate personalized advice.
+  // Extract actual conversation for context
+  const conversationMessages = context.conversationMessages || [];
+  const userMessages = conversationMessages
+    .filter(msg => msg.role === 'user')
+    .map(msg => msg.content)
+    .join('\n');
+
+  // Build a rich prompt for Claude with actual conversation context
+  const prompt = `You are Luna, an AI planning assistant. Generate personalized insights based on the ACTUAL conversation with this couple.
 
 COUPLE DETAILS:
 - Partners: ${partner1} and ${partner2}
-- Goal: ${goal_type}
+- Goal Type: ${goal_type}
 - Budget: €${budget.toLocaleString()}
 - Timeline: ${timeline_months} months
 - Location: ${location}
 - Preferences: ${JSON.stringify(preferences || {})}
 
-CONVERSATION CONTEXT:
-${context.conversationSummary || 'First time planning this goal'}
+ACTUAL CONVERSATION WITH USER:
+${userMessages || 'No detailed conversation yet - use basic info above'}
+
+CRITICAL INSTRUCTIONS:
+- Base ALL insights on what the user ACTUALLY said in the conversation above
+- Do NOT assume or invent details they didn't mention
+- If they said they already have housing, don't suggest finding housing
+- Confidence score should reflect how well-prepared THEY are based on THEIR statements
+- Assessment should summarize THEIR specific situation, not generic advice
+- Create a PERSONALIZED roadmap tree with 3-5 phases specific to THEIR unique situation
+- Each phase should have contextual tips that reference THEIR specific budget, timeline, and location
 
 Generate personalized content in JSON format:
 
@@ -608,6 +992,26 @@ Generate personalized content in JSON format:
     "strength": "What's their biggest advantage?",
     "challenge": "What's their biggest obstacle?"
   },
+  "roadmapPhases": [
+    {
+      "title": "Phase name (e.g., 'Financial Preparation', 'Venue Search')",
+      "description": "What this phase is about, tailored to THEIR situation",
+      "isCriticalPath": true/false,
+      "isUnlocked": true/false,
+      "duration": "Realistic duration based on THEIR timeline (e.g., '2-4 weeks')",
+      "estimatedCost": 5000,
+      "smartTips": [
+        "Specific tip #1 that references THEIR budget/timeline/location",
+        "Specific tip #2 personalized to THEIR constraints",
+        "Specific tip #3 based on THEIR conversation"
+      ],
+      "dependencies": ["Previous phase name if any"]
+    }
+    // Generate 3-5 phases that logically break down THEIR journey
+    // Example for apartment: Financial Prep → Property Search → Legal/Docs → Move-In
+    // Example for wedding: Vision/Budget → Major Vendors → Details → Final Prep
+    // CUSTOMIZE to what THEY actually said in conversation!
+  ],
   "tips": [
     {
       "title": "Specific tip title",
@@ -713,6 +1117,7 @@ function handleFinalizeRoadmap(input, context) {
   return {
     success: true,
     ready: true,
+    roadmap_title: input.roadmap_title,
     summary: input.summary,
     total_cost: input.total_cost,
     total_timeline_months: input.total_timeline_months
@@ -788,6 +1193,7 @@ function updateContextFromToolResult(context, result) {
 
   if (result.ready) {
     context.roadmapComplete = true;
+    context.roadmapTitle = result.roadmap_title;
     context.summary = result.summary;
     context.totalCost = result.total_cost;
     context.totalTimeline = result.total_timeline_months;
