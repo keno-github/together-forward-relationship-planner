@@ -1440,6 +1440,14 @@ function updateContextFromToolResult(context, result) {
     context.deepDives.push(result.deep_dive);
   }
 
+  // CRITICAL FIX: When roadmap is generated, populate generatedMilestones
+  // This ensures finalize_roadmap has access to milestones for database save
+  if (result.roadmap && result.roadmap.milestones) {
+    context.generatedMilestones = result.roadmap.milestones;
+    context.generatedRoadmap = result.roadmap;
+    console.log('✅ Stored generated roadmap with', result.roadmap.milestones.length, 'milestones');
+  }
+
   if (result.ready) {
     context.roadmapComplete = true;
     context.roadmapTitle = result.roadmap_title;
