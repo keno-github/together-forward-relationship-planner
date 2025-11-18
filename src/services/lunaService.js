@@ -180,80 +180,6 @@ const LUNA_TOOLS = [
     }
   },
   {
-    name: "create_multi_goal_plan",
-    description: "DEPRECATED: Do not use. For multiple goals, call generate_milestone() for each goal separately, then generate_deep_dive() for each, then finalize_roadmap() once.",
-    input_schema: {
-      type: "object",
-      properties: {
-        goals: {
-          type: "array",
-          description: "Array of goals with their details",
-          items: {
-            type: "object",
-            properties: {
-              goal_description: { type: "string", description: "Goal in user's words" },
-              timeline_months: { type: "number", description: "Timeline in months" },
-              budget: { type: "number", description: "Budget for this goal" },
-              priority: { type: "string", enum: ["critical", "high", "medium", "low"], description: "Goal priority" }
-            },
-            required: ["goal_description", "timeline_months"]
-          },
-          minItems: 2
-        },
-        location: {
-          type: "string",
-          description: "Location for all goals"
-        },
-        total_budget: {
-          type: "number",
-          description: "Total combined budget (optional if individual budgets provided)"
-        }
-      },
-      required: ["goals", "location"]
-    }
-  },
-  {
-    name: "generate_intelligent_roadmap",
-    description: "DEPRECATED: Do not use. Instead, call generate_milestone() to create the goal card, then generate_deep_dive() to add tasks inside it, then finalize_roadmap().",
-    input_schema: {
-      type: "object",
-      properties: {
-        goal_description: {
-          type: "string",
-          description: "The user's goal in their own words (e.g., 'Buy a 2-bedroom apartment in Berlin', 'Learn to play guitar', 'Start a bakery business')"
-        },
-        budget: {
-          type: "number",
-          description: "Total budget available"
-        },
-        timeline_months: {
-          type: "number",
-          description: "Timeline in months"
-        },
-        location: {
-          type: "string",
-          description: "Location (for cost calculations and local context)"
-        },
-        preferences: {
-          type: "array",
-          description: "User preferences as array of strings",
-          items: { type: "string" }
-        },
-        constraints: {
-          type: "array",
-          description: "Any constraints (time, budget, etc.)",
-          items: {
-            type: "object",
-            properties: {
-              type: { type: "string" }
-            }
-          }
-        }
-      },
-      required: ["goal_description", "budget", "timeline_months"]
-    }
-  },
-  {
     name: "generate_milestone",
     description: "Create a milestone card for a user's goal (e.g., 'Buy Apartment in Berlin'). This creates the clickable card that users see. After calling this, call generate_deep_dive() to add the roadmap steps/tasks inside it. IMPORTANT: After calling this, you MUST call generate_deep_dive() and then finalize_roadmap().",
     input_schema: {
@@ -576,12 +502,6 @@ async function executeToolCall(toolName, input, context) {
   switch(toolName) {
     case 'extract_user_data':
       return await handleExtractUserData(input, context);
-
-    case 'create_multi_goal_plan':
-      return await handleCreateMultiGoalPlan(input, context);
-
-    case 'generate_intelligent_roadmap':
-      return await handleGenerateIntelligentRoadmap(input, context);
 
     case 'generate_milestone':
       return await handleGenerateMilestone(input, context);
