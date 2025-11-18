@@ -1231,19 +1231,20 @@ async function handleFinalizeRoadmap(input, context) {
     }
 
     // Prepare roadmap data for database
+    // ARCHITECTURE: Roadmap is a container for the couple's journey
+    // Budget and timeline are stored PER MILESTONE (each goal has its own budget/timeline)
+    // This allows isolated budget tracking per goal (no aggregation confusion)
     const roadmapData = {
       title: input.roadmap_title || context.goalDescription || 'Our Journey Together',
       partner1_name: context.partner1 || 'Partner 1',
       partner2_name: context.partner2 || 'Partner 2',
       location: context.location || null,
-      goal_type: context.goalType || 'custom',
-      budget: input.total_cost || context.totalBudget || 0,
-      timeline_months: input.total_timeline_months || context.totalTimelineMonths || 12,
-      xp_points: 0,
-      status: 'active'
+      xp_points: 0
+      // Note: budget, timeline, goal_type, status are MILESTONE properties (saved below)
     };
 
     console.log('📝 Creating roadmap with data:', roadmapData);
+    console.log('💰 Budget and timeline are saved per milestone for isolated tracking');
 
     // Create roadmap in database
     const { data: savedRoadmap, error: roadmapError } = await createRoadmap(roadmapData);
