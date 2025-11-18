@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
-import { getVisibleNavigationTabs } from '../utils/navigationHelpers';
+import { getVisibleNavigationTabs, calculateClientMetrics } from '../utils/navigationHelpers';
 import GoalOverviewDashboard from './GoalOverviewDashboard';
 import RoadmapTreeView from './RoadmapTreeView'; // NEW: Tree-based roadmap
 import BudgetAllocation from './BudgetAllocation'; // Budget section
+import TaskManager from './TaskManager'; // NEW: Full-featured task management
 
 /**
  * MilestoneDetailPage - Parent Container
@@ -41,6 +42,7 @@ const MilestoneDetailPage = ({
   const [tasks, setTasks] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState(milestone.milestone_metrics || {});
 
   // Update visible tabs when milestone changes
   useEffect(() => {
@@ -82,7 +84,6 @@ const MilestoneDetailPage = ({
   }
 
   const currentTab = visibleTabs.find(t => t.id === activeSection) || visibleTabs[0];
-  const metrics = milestone.milestone_metrics || {};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
@@ -259,7 +260,14 @@ const MilestoneDetailPage = ({
 
             {activeSection === 'tasks' && (
               <div className="p-6">
-                <TaskAssignmentPlaceholder tasks={tasks} userContext={userContext} />
+                <TaskManager
+                  milestone={milestone}
+                  userContext={userContext}
+                  onProgressUpdate={() => {
+                    // Reload page data when tasks change to refresh metrics
+                    window.location.reload();
+                  }}
+                />
               </div>
             )}
 

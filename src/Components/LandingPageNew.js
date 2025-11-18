@@ -125,6 +125,10 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
         deepDivesCount: result.context.deepDives?.length || 0,
         isComplete: result.context.roadmapComplete
       });
+      console.log('🔍 DEBUG: Full context received:', result.context);
+      console.log('🔍 DEBUG: context.milestones:', result.context.milestones);
+      console.log('🔍 DEBUG: context.generatedMilestones:', result.context.generatedMilestones);
+      console.log('🔍 DEBUG: Checking isRoadmapComplete...');
 
       // Check if roadmap is complete
       if (isRoadmapComplete(result.context)) {

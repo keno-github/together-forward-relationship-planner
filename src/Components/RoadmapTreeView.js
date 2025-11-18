@@ -36,8 +36,19 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) =>
 
   // Use Luna-generated roadmap phases from deep_dive_data
   const phases = useMemo(() => {
-    // PRIORITY 1: Check deep_dive_data.roadmapPhases (where Luna saves it)
-    const roadmapPhases = milestone.deep_dive_data?.roadmapPhases;
+    console.log('🔍 RoadmapTreeView checking for phases in milestone:', milestone.title);
+    console.log('🔍 milestone.deepDiveData exists?', !!milestone.deepDiveData);
+    console.log('🔍 milestone.deep_dive_data exists?', !!milestone.deep_dive_data);
+    console.log('🔍 All milestone keys:', Object.keys(milestone));
+
+    // PRIORITY 1: Check both deepDiveData (camelCase) and deep_dive_data (snake_case)
+    const deepDive = milestone.deepDiveData || milestone.deep_dive_data;
+    console.log('🔍 deepDive exists?', !!deepDive);
+    if (deepDive) {
+      console.log('🔍 deepDive keys:', Object.keys(deepDive));
+    }
+
+    const roadmapPhases = deepDive?.roadmapPhases;
 
     if (roadmapPhases && roadmapPhases.length > 0) {
       console.log('✨ Using Luna-generated roadmap phases:', roadmapPhases.length);
@@ -55,10 +66,11 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) =>
     }
 
     // If no Luna phases, this is an error state
-    console.error('❌ No roadmap phases found in milestone.deep_dive_data');
+    console.error('❌ No roadmap phases found in milestone deep dive data');
     console.error('   Milestone:', milestone.title);
+    console.error('   Has deepDiveData:', !!milestone.deepDiveData);
     console.error('   Has deep_dive_data:', !!milestone.deep_dive_data);
-    console.error('   Deep dive keys:', milestone.deep_dive_data ? Object.keys(milestone.deep_dive_data) : 'none');
+    console.error('   Deep dive keys:', deepDive ? Object.keys(deepDive) : 'none');
 
     // Return null to signal generation failure
     return null;

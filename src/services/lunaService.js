@@ -191,7 +191,7 @@ const LUNA_TOOLS = [
         },
         title: {
           type: "string",
-          description: "Descriptive title"
+          description: "User-facing, descriptive title that clearly describes WHAT the goal is (e.g., 'Plan Iceland Wedding', 'Buy Berlin Apartment', 'Start Coffee Shop in Portland'). NEVER use generic titles like 'Goal Definition And Research'. The title should immediately tell the user what they're planning."
         },
         description: {
           type: "string",
@@ -1146,12 +1146,15 @@ async function handleFinalizeRoadmap(input, context) {
       goalType: context.goalType,
       milestonesCount: context.generatedMilestones?.length || 0
     });
+    console.log('🔍 DEBUG: context.generatedMilestones:', context.generatedMilestones);
 
     // Check if user is authenticated
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       console.log('⚠️ No authenticated user - storing roadmap in context for UI display only');
+      console.log('🔍 DEBUG: context.generatedMilestones exists?', !!context.generatedMilestones);
+      console.log('🔍 DEBUG: context.generatedMilestones length:', context.generatedMilestones?.length);
       // GUEST USER MODE: Populate context.milestones for UI transition without database save
       if (context.generatedMilestones && context.generatedMilestones.length > 0) {
         context.milestones = context.generatedMilestones;
@@ -1162,6 +1165,7 @@ async function handleFinalizeRoadmap(input, context) {
         context.totalTimeline = input.total_timeline_months;
 
         console.log('✅ Copied generatedMilestones to context.milestones for UI transition (guest mode):', context.milestones.length);
+        console.log('🔍 DEBUG: context.milestones after copy:', context.milestones);
 
         return {
           success: true,
@@ -1384,6 +1388,12 @@ function updateContextFromToolResult(context, result) {
   if (result.milestone) {
     context.milestones = context.milestones || [];
     context.milestones.push(result.milestone);
+
+    // CRITICAL FIX: Also keep generatedMilestones in sync
+    // finalize_roadmap relies on generatedMilestones to know what to save
+    context.generatedMilestones = context.generatedMilestones || [];
+    context.generatedMilestones.push(result.milestone);
+    console.log('✅ Added milestone to both context.milestones and context.generatedMilestones');
   }
 
   if (result.deep_dive) {

@@ -152,7 +152,19 @@ const GoalOverviewDashboard = ({
           />
         )}
 
-        {/* Time Remaining */}
+        {/* Budget - Fallback to estimatedCost if budget_amount not set (for Luna-generated milestones) */}
+        {!hasBudget && milestone.estimatedCost && milestone.estimatedCost > 0 && (
+          <MetricCard
+            icon={DollarSign}
+            label="Budget"
+            value={formatCurrency(milestone.estimatedCost)}
+            subtitle="Estimated cost"
+            color="purple"
+            onClick={() => onNavigateToSection?.('budget')}
+          />
+        )}
+
+        {/* Time Remaining - with target_date */}
         {milestone.target_date && (
           <MetricCard
             icon={Clock}
@@ -161,6 +173,18 @@ const GoalOverviewDashboard = ({
             subtitle={new Date(milestone.target_date).toLocaleDateString()}
             color="blue"
             onClick={() => onNavigateToSection?.('status')}
+          />
+        )}
+
+        {/* Timeline - Fallback to duration/timeline_months (for Luna-generated milestones) */}
+        {!milestone.target_date && (milestone.duration || milestone.timeline_months) && (
+          <MetricCard
+            icon={Calendar}
+            label="Timeline"
+            value={milestone.duration || `${milestone.timeline_months} months`}
+            subtitle="Estimated duration"
+            color="blue"
+            onClick={() => onNavigateToSection?.('roadmap')}
           />
         )}
 
