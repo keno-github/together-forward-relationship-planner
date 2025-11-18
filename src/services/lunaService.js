@@ -181,7 +181,7 @@ const LUNA_TOOLS = [
   },
   {
     name: "create_multi_goal_plan",
-    description: "Create a coordinated plan for MULTIPLE goals simultaneously. Use this when user mentions 2+ goals with different timelines. This intelligently orchestrates timeline conflicts, dependencies, and resource allocation across all goals.",
+    description: "Create a coordinated plan for MULTIPLE goals simultaneously. Use this when user mentions 2+ goals with different timelines. This intelligently orchestrates timeline conflicts, dependencies, and resource allocation across all goals. IMPORTANT: After calling this, you MUST call finalize_roadmap() to save and display the roadmap to the user.",
     input_schema: {
       type: "object",
       properties: {
@@ -214,7 +214,7 @@ const LUNA_TOOLS = [
   },
   {
     name: "generate_intelligent_roadmap",
-    description: "Generate a complete journey roadmap for a SINGLE goal using AI. For multiple goals, use create_multi_goal_plan instead.",
+    description: "Generate a complete journey roadmap for a SINGLE goal using AI. For multiple goals, use create_multi_goal_plan instead. IMPORTANT: After calling this, you MUST call finalize_roadmap() to save and display the roadmap to the user.",
     input_schema: {
       type: "object",
       properties: {
