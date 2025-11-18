@@ -1210,11 +1210,14 @@ async function handleFinalizeRoadmap(input, context) {
     let totalTasksSaved = 0;
 
     // Save milestones and their tasks if they exist in context
-    if (context.generatedMilestones && context.generatedMilestones.length > 0) {
-      console.log(`📌 Saving ${context.generatedMilestones.length} milestones...`);
+    // CRITICAL: Use context.milestones (where generate_milestone stores them)
+    // NOT context.generatedMilestones (old deprecated tool)
+    const milestonesToSave = context.milestones || context.generatedMilestones || [];
+    if (milestonesToSave.length > 0) {
+      console.log(`📌 Saving ${milestonesToSave.length} milestones...`);
 
-      for (let i = 0; i < context.generatedMilestones.length; i++) {
-        const milestone = context.generatedMilestones[i];
+      for (let i = 0; i < milestonesToSave.length; i++) {
+        const milestone = milestonesToSave[i];
 
         const milestoneData = {
           roadmap_id: savedRoadmap.id,
@@ -1299,9 +1302,9 @@ async function handleFinalizeRoadmap(input, context) {
       summary: input.summary,
       total_cost: input.total_cost,
       total_timeline_months: input.total_timeline_months,
-      milestones_count: context.generatedMilestones?.length || 0,
+      milestones_count: milestonesToSave.length,
       tasks_count: totalTasksSaved,
-      message: `Roadmap "${input.roadmap_title}" has been saved successfully with ${context.generatedMilestones?.length || 0} milestones and ${totalTasksSaved} tasks!`
+      message: `Roadmap "${input.roadmap_title}" has been saved successfully with ${milestonesToSave.length} milestones and ${totalTasksSaved} tasks!`
     };
 
   } catch (error) {
