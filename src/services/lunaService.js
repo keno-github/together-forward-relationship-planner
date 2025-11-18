@@ -129,18 +129,18 @@ CRITICAL RULES:
 
 TOOL USAGE:
 - Call extract_user_data() ONCE when you learn names/location
-- FOR MULTIPLE GOALS: Call create_multi_goal_plan() with array of all goals
-  → Automatically handles timeline conflicts, dependencies, resource allocation
-  → Returns orchestrated plan for all goals
-- FOR SINGLE GOAL: Call generate_intelligent_roadmap() with goal details
-  → Generates complete multi-stage roadmap
-- Call finalize_roadmap() ONCE when all roadmaps are ready
+- FOR EACH GOAL: Call generate_milestone() to create a milestone card
+  → This creates the goal as a clickable card (e.g., "Buy Apartment in Berlin")
+  → The milestone title should be the user's goal in their own words
+- THEN call generate_deep_dive() for that milestone
+  → This adds the roadmap steps/tasks INSIDE the milestone
+  → Tasks appear when user clicks the milestone card
+- Call finalize_roadmap() ONCE when all milestones are ready
+  → This saves everything to database and triggers UI transition
 - Call track_expense() when user mentions spending money
 - Call analyze_savings_progress() when user asks about financial progress
 
-LEGACY TOOLS (avoid if possible):
-- generate_milestone() - OLD single milestone tool
-- generate_deep_dive() - Built into intelligent roadmap now
+IMPORTANT: Each user goal = ONE milestone card. The steps to achieve it = tasks inside that milestone.
 
 INTELLIGENT FEATURES:
 - Extract budget/timeline hints from casual conversation ("We're saving $500/month", "by next summer")
@@ -181,7 +181,7 @@ const LUNA_TOOLS = [
   },
   {
     name: "create_multi_goal_plan",
-    description: "Create a coordinated plan for MULTIPLE goals simultaneously. Use this when user mentions 2+ goals with different timelines. This intelligently orchestrates timeline conflicts, dependencies, and resource allocation across all goals. IMPORTANT: After calling this, you MUST call finalize_roadmap() to save and display the roadmap to the user.",
+    description: "DEPRECATED: Do not use. For multiple goals, call generate_milestone() for each goal separately, then generate_deep_dive() for each, then finalize_roadmap() once.",
     input_schema: {
       type: "object",
       properties: {
@@ -214,7 +214,7 @@ const LUNA_TOOLS = [
   },
   {
     name: "generate_intelligent_roadmap",
-    description: "Generate a complete journey roadmap for a SINGLE goal using AI. For multiple goals, use create_multi_goal_plan instead. IMPORTANT: After calling this, you MUST call finalize_roadmap() to save and display the roadmap to the user.",
+    description: "DEPRECATED: Do not use. Instead, call generate_milestone() to create the goal card, then generate_deep_dive() to add tasks inside it, then finalize_roadmap().",
     input_schema: {
       type: "object",
       properties: {
@@ -255,7 +255,7 @@ const LUNA_TOOLS = [
   },
   {
     name: "generate_milestone",
-    description: "LEGACY: Generate a single milestone. Use generate_intelligent_roadmap instead for complete journey planning.",
+    description: "Create a milestone card for a user's goal (e.g., 'Buy Apartment in Berlin'). This creates the clickable card that users see. After calling this, call generate_deep_dive() to add the roadmap steps/tasks inside it. IMPORTANT: After calling this, you MUST call generate_deep_dive() and then finalize_roadmap().",
     input_schema: {
       type: "object",
       properties: {
