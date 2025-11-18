@@ -990,17 +990,44 @@ async function handleGenerateDeepDive(input, context) {
       aiGenerated: enhancedDeepDive.aiGenerated
     });
 
+    // CRITICAL: Attach deep dive directly to the milestone in context
+    // This eliminates the need for complex linking logic
+    const milestoneId = input.milestone_id;
+    if (milestoneId && context.milestones) {
+      const milestone = context.milestones.find(m => m.id === milestoneId);
+      if (milestone) {
+        milestone.deep_dive_data = enhancedDeepDive;
+        console.log('✅ Attached deep dive to milestone:', milestone.title);
+        console.log('   Roadmap phases:', enhancedDeepDive.roadmapPhases?.length || 0);
+      } else {
+        console.warn('⚠️ Milestone not found for deep dive attachment:', milestoneId);
+      }
+    }
+
     return {
       success: true,
-      deep_dive: enhancedDeepDive
+      deep_dive: enhancedDeepDive,
+      milestone_id: milestoneId // Return for reference
     };
   } catch (error) {
     console.error('⚠️ Failed to generate personalized content, using base deep dive:', error);
     console.error('Error stack:', error.stack);
+
     // Fallback to base deep dive if Claude call fails
+    // Also attach to milestone for consistency
+    const milestoneId = input.milestone_id;
+    if (milestoneId && context.milestones) {
+      const milestone = context.milestones.find(m => m.id === milestoneId);
+      if (milestone) {
+        milestone.deep_dive_data = baseDeepDive;
+        console.log('✅ Attached base deep dive to milestone (fallback):', milestone.title);
+      }
+    }
+
     return {
       success: true,
-      deep_dive: baseDeepDive
+      deep_dive: baseDeepDive,
+      milestone_id: milestoneId
     };
   }
 }

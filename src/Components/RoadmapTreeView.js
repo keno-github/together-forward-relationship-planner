@@ -34,15 +34,15 @@ import {
 const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) => {
   const [expandedPhases, setExpandedPhases] = useState([0]); // First phase expanded by default
 
-  // Use Luna-generated phases if available, otherwise fall back to template-based organization
+  // Use Luna-generated roadmap phases from deep_dive_data
   const phases = useMemo(() => {
-    // Check if Luna generated personalized roadmap phases
-    const lunaPhases = milestone.personalizedInsights?.roadmapPhases || milestone.roadmapPhases;
+    // PRIORITY 1: Check deep_dive_data.roadmapPhases (where Luna saves it)
+    const roadmapPhases = milestone.deep_dive_data?.roadmapPhases;
 
-    if (lunaPhases && lunaPhases.length > 0) {
-      console.log('✨ Using Luna-generated roadmap phases:', lunaPhases.length);
-      // Map Luna phases to our component format and attach tasks
-      return lunaPhases.map((phase, idx) => ({
+    if (roadmapPhases && roadmapPhases.length > 0) {
+      console.log('✨ Using Luna-generated roadmap phases:', roadmapPhases.length);
+      // Map Luna phases to component format and attach tasks
+      return roadmapPhases.map((phase, idx) => ({
         ...phase,
         // Attach tasks that match this phase (by matching keywords in phase title)
         tasks: tasks.filter(task => {
@@ -54,9 +54,14 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) =>
       }));
     }
 
-    // Fallback to template-based phases
-    console.log('⚠️ No Luna phases found, using template-based organization');
-    return organizeTasksIntoPhases(milestone, tasks);
+    // If no Luna phases, this is an error state
+    console.error('❌ No roadmap phases found in milestone.deep_dive_data');
+    console.error('   Milestone:', milestone.title);
+    console.error('   Has deep_dive_data:', !!milestone.deep_dive_data);
+    console.error('   Deep dive keys:', milestone.deep_dive_data ? Object.keys(milestone.deep_dive_data) : 'none');
+
+    // Return null to signal generation failure
+    return null;
   }, [milestone, tasks]);
 
   const togglePhase = (phaseIndex) => {
@@ -115,6 +120,41 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) =>
         return 'bg-yellow-100 border-yellow-300';
     }
   };
+
+  // Show error state if no roadmap was generated
+  if (phases === null) {
+    return (
+      <div className="space-y-4 p-6">
+        <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-8 text-center">
+          <Lightbulb className="w-16 h-16 mx-auto mb-4 text-purple-600" />
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">
+            Roadmap Not Generated
+          </h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            Luna hasn't created a personalized roadmap for "{milestone.title}" yet.
+            This usually happens if the generation was interrupted or failed.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            >
+              Refresh Page
+            </button>
+            <button
+              onClick={() => alert('Chat with Luna feature coming soon!')}
+              className="px-6 py-3 bg-white text-purple-600 border-2 border-purple-600 rounded-lg hover:bg-purple-50 transition-colors font-medium"
+            >
+              Chat with Luna to Generate
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mt-4">
+            If this issue persists, please contact support
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 p-6">
