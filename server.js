@@ -38,7 +38,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// Increase JSON payload limit to handle large conversation histories
+// Default is 100kb, we're increasing to 10MB for Luna conversations
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Health check
 app.get('/api/health', (req, res) => {
