@@ -1,16 +1,27 @@
 // MileStoneCard.js
 import React, { useState } from 'react';
-import { Clock, DollarSign, ChevronRight, Maximize2, Brain, Heart, Receipt, Target } from 'lucide-react';
+import { Clock, DollarSign, ChevronRight, Maximize2, Brain, Heart, Receipt, Target, Trash2 } from 'lucide-react';
 import TaskItem from './TaskItem';
 import ExpenseTracker from './Components/ExpenseTracker';
 
-const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roadmap, setRoadmap, openDeepDive, openMilestoneDetail, addAchievement, roadmapId }) => {
+const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roadmap, setRoadmap, openDeepDive, openMilestoneDetail, addAchievement, roadmapId, onDelete }) => {
   // Handle both emoji strings and React components for icon
   const IconComponent = milestone.icon || Heart;
   const isEmojiIcon = typeof IconComponent === 'string';
 
   // Tab state for viewing tasks vs expenses
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' or 'expenses'
+
+  // Handle delete with confirmation
+  const handleDelete = async () => {
+    const confirmMessage = `Are you sure you want to delete "${milestone.title}"?\n\nThis will permanently remove:\n- The milestone\n- All associated tasks\n- All budget and expense data\n\nThis action cannot be undone.`;
+
+    if (window.confirm(confirmMessage)) {
+      if (onDelete) {
+        await onDelete(milestone.id);
+      }
+    }
+  };
 
   return (
     <div className="glass-card rounded-2xl p-6 hover:glass-card-strong smooth-transition shimmer">
@@ -86,6 +97,18 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
                 >
                   <Maximize2 className="w-4 h-4" />
                   Deep Dive
+                </button>
+              )}
+
+              {/* Delete Button */}
+              {onDelete && (
+                <button
+                  onClick={handleDelete}
+                  className="p-2 hover:bg-red-100 rounded-lg smooth-transition group"
+                  title="Delete this milestone"
+                  style={{color: '#EF4444'}}
+                >
+                  <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </button>
               )}
 

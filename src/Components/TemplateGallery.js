@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, MessageCircle } from 'lucide-react';
-import { GOAL_TEMPLATES, GOAL_CATEGORIES, getTemplatesByCategory } from '../data/goalTemplates';
+import { ArrowLeft, Check, CheckCircle2 } from 'lucide-react';
+import { GOAL_CATEGORIES, getTemplatesByCategory } from '../data/goalTemplates';
 
-const TemplateGallery = ({ onBack, onComplete, onRefineWithLuna }) => {
+const TemplateGallery = ({ onBack, onComplete }) => {
   const [selectedGoals, setSelectedGoals] = useState([]);
 
   const toggleGoal = (template) => {
@@ -21,12 +21,8 @@ const TemplateGallery = ({ onBack, onComplete, onRefineWithLuna }) => {
     return selectedGoals.some(g => g.id === templateId);
   };
 
-  const handleCreateRoadmap = () => {
+  const handleAddToBasket = () => {
     onComplete(selectedGoals);
-  };
-
-  const handleRefineWithLuna = () => {
-    onRefineWithLuna(selectedGoals);
   };
 
   return (
@@ -163,20 +159,14 @@ const TemplateGallery = ({ onBack, onComplete, onRefineWithLuna }) => {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* Action Button */}
                   <div className="flex gap-3 flex-shrink-0">
                     <button
-                      onClick={handleRefineWithLuna}
-                      className="flex items-center gap-2 px-6 py-3 border-2 border-purple-500 text-purple-700 rounded-xl font-semibold hover:bg-purple-50 transition-all"
+                      onClick={handleAddToBasket}
+                      className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      <MessageCircle className="w-5 h-5" />
-                      Refine with Luna
-                    </button>
-                    <button
-                      onClick={handleCreateRoadmap}
-                      className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-                    >
-                      Create Roadmap Now →
+                      Add to Goal Basket
+                      <CheckCircle2 className="w-5 h-5" />
                     </button>
                   </div>
                 </div>

@@ -2,14 +2,12 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronDown,
   ChevronRight,
   CheckCircle,
   Clock,
   Lock,
   AlertCircle,
   User,
-  Users,
   Lightbulb,
   TrendingUp,
   DollarSign,
@@ -17,8 +15,12 @@ import {
   Zap,
   Target,
   ArrowRight,
-  Flag
+  Flag,
+  Plus,
+  X,
+  Save
 } from 'lucide-react';
+import { createPhaseTask } from '../services/supabaseService';
 
 /**
  * RoadmapTreeView - Interactive accordion roadmap showing journey phases
@@ -30,9 +32,18 @@ import {
  * - Partner assignment display
  * - Smart contextual tips per phase
  * - Critical path highlighting
+ * - Add tasks directly to phases
+ * - Partner-specific task assignment
  */
-const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) => {
+const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTasksUpdated }) => {
   const [expandedPhases, setExpandedPhases] = useState([0]); // First phase expanded by default
+  const [addingTaskToPhase, setAddingTaskToPhase] = useState(null); // Track which phase is adding a task
+  const [newTaskForm, setNewTaskForm] = useState({
+    title: '',
+    description: '',
+    assigned_to: '',
+    priority: 'medium'
+  });
 
   // Use Luna-generated roadmap phases from deep_dive_data
   const phases = useMemo(() => {
@@ -55,12 +66,19 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) =>
       // Map Luna phases to component format and attach tasks
       return roadmapPhases.map((phase, idx) => ({
         ...phase,
-        // Attach tasks that match this phase (by matching keywords in phase title)
+        // Attach tasks linked to this specific phase index
         tasks: tasks.filter(task => {
-          // Simple matching: if task title contains keywords from phase title
-          const phaseKeywords = phase.title.toLowerCase().split(' ');
-          const taskTitle = (task.title || task.description || '').toLowerCase();
-          return phaseKeywords.some(keyword => keyword.length > 3 && taskTitle.includes(keyword));
+          // First priority: tasks explicitly linked to this phase
+          if (task.roadmap_phase_index === idx) {
+            return true;
+          }
+          // Fallback: tasks without phase assignment - try keyword matching
+          if (task.roadmap_phase_index === null || task.roadmap_phase_index === undefined) {
+            const phaseKeywords = phase.title.toLowerCase().split(' ');
+            const taskTitle = (task.title || task.description || '').toLowerCase();
+            return phaseKeywords.some(keyword => keyword.length > 3 && taskTitle.includes(keyword));
+          }
+          return false;
         })
       }));
     }
@@ -82,6 +100,67 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) =>
         ? prev.filter(i => i !== phaseIndex)
         : [...prev, phaseIndex]
     );
+  };
+
+  const handleAddTaskClick = (phaseIndex) => {
+    setAddingTaskToPhase(phaseIndex);
+    setNewTaskForm({
+      title: '',
+      description: '',
+      assigned_to: '',
+      priority: 'medium'
+    });
+  };
+
+  const handleCancelAddTask = () => {
+    setAddingTaskToPhase(null);
+    setNewTaskForm({
+      title: '',
+      description: '',
+      assigned_to: '',
+      priority: 'medium'
+    });
+  };
+
+  const handleSaveTask = async (phaseIndex) => {
+    if (!newTaskForm.title.trim()) {
+      alert('Please enter a task title');
+      return;
+    }
+
+    try {
+      const taskData = {
+        milestone_id: milestone.id,
+        title: newTaskForm.title,
+        description: newTaskForm.description || '',
+        assigned_to: newTaskForm.assigned_to || null,
+        priority: newTaskForm.priority,
+        completed: false,
+        ai_generated: false,
+        order_index: 0
+      };
+
+      const { data, error } = await createPhaseTask(taskData, phaseIndex);
+
+      if (error) {
+        console.error('Error creating task:', error);
+        alert('Failed to create task. Please try again.');
+        return;
+      }
+
+      console.log('✅ Task created successfully:', data);
+
+      // Reset form
+      handleCancelAddTask();
+
+      // Notify parent to reload tasks
+      if (onTasksUpdated) {
+        onTasksUpdated();
+      }
+    } catch (error) {
+      console.error('Error saving task:', error);
+      alert('An error occurred while creating the task.');
+    }
   };
 
   const getPhaseStatus = (phase, phaseIndex) => {
@@ -352,16 +431,136 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick }) =>
                       )}
 
                       {/* Tasks in this Phase */}
-                      {phase.tasks && phase.tasks.length > 0 && !isWaiting && (
-                        <div className="space-y-2">
-                          {phase.tasks.map((task, taskIndex) => (
-                            <TaskCard
-                              key={task.id || taskIndex}
-                              task={task}
-                              userContext={userContext}
-                              onTaskClick={onTaskClick}
-                            />
-                          ))}
+                      {!isWaiting && (
+                        <div className="space-y-3">
+                          {phase.tasks && phase.tasks.length > 0 && (
+                            <div className="space-y-2">
+                              {phase.tasks.map((task, taskIndex) => (
+                                <TaskCard
+                                  key={task.id || taskIndex}
+                                  task={task}
+                                  userContext={userContext}
+                                  onTaskClick={onTaskClick}
+                                />
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Add Task Button */}
+                          {addingTaskToPhase !== phaseIndex && (
+                            <button
+                              onClick={() => handleAddTaskClick(phaseIndex)}
+                              className="w-full p-3 glass-card-light rounded-xl text-sm font-medium smooth-transition hover:glass-card flex items-center justify-center gap-2"
+                              style={{ color: '#C084FC' }}
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add Task to This Phase
+                            </button>
+                          )}
+
+                          {/* Add Task Form */}
+                          {addingTaskToPhase === phaseIndex && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="glass-card rounded-xl p-4 border-2"
+                              style={{ borderColor: '#C084FC' }}
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <h5 className="font-semibold text-sm" style={{ color: '#2B2B2B' }}>
+                                  Add Task to {phase.title}
+                                </h5>
+                                <button
+                                  onClick={handleCancelAddTask}
+                                  className="p-1 hover:bg-gray-100 rounded-lg"
+                                >
+                                  <X className="w-4 h-4 text-gray-500" />
+                                </button>
+                              </div>
+
+                              <div className="space-y-3">
+                                {/* Task Title */}
+                                <div>
+                                  <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
+                                    Task Title *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={newTaskForm.title}
+                                    onChange={(e) => setNewTaskForm({ ...newTaskForm, title: e.target.value })}
+                                    placeholder="e.g., Visit 3 potential venues"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                  />
+                                </div>
+
+                                {/* Task Description */}
+                                <div>
+                                  <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
+                                    Description (Optional)
+                                  </label>
+                                  <textarea
+                                    value={newTaskForm.description}
+                                    onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })}
+                                    placeholder="Add any details..."
+                                    rows={2}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                                  />
+                                </div>
+
+                                {/* Assign To & Priority */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
+                                      Assign To
+                                    </label>
+                                    <select
+                                      value={newTaskForm.assigned_to}
+                                      onChange={(e) => setNewTaskForm({ ...newTaskForm, assigned_to: e.target.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    >
+                                      <option value="">Both Partners</option>
+                                      <option value={userContext?.partner1}>{userContext?.partner1 || 'Partner 1'}</option>
+                                      <option value={userContext?.partner2}>{userContext?.partner2 || 'Partner 2'}</option>
+                                    </select>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
+                                      Priority
+                                    </label>
+                                    <select
+                                      value={newTaskForm.priority}
+                                      onChange={(e) => setNewTaskForm({ ...newTaskForm, priority: e.target.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    >
+                                      <option value="low">Low</option>
+                                      <option value="medium">Medium</option>
+                                      <option value="high">High</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-2 pt-2">
+                                  <button
+                                    onClick={() => handleSaveTask(phaseIndex)}
+                                    disabled={!newTaskForm.title.trim()}
+                                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:shadow-lg smooth-transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                  >
+                                    <Save className="w-4 h-4" />
+                                    Save Task
+                                  </button>
+                                  <button
+                                    onClick={handleCancelAddTask}
+                                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 smooth-transition"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
                         </div>
                       )}
 

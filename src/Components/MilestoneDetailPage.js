@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Calendar, Check, X } from 'lucide-react';
 import { getVisibleNavigationTabs, calculateClientMetrics } from '../utils/navigationHelpers';
-import GoalOverviewDashboard from './GoalOverviewDashboard';
+import { getTasksByMilestone, updateMilestone } from '../services/supabaseService';
 import RoadmapTreeView from './RoadmapTreeView'; // NEW: Tree-based roadmap
 import BudgetAllocation from './BudgetAllocation'; // Budget section
 import TaskManager from './TaskManager'; // NEW: Full-featured task management
+import LunaAssessment from './LunaAssessment'; // Luna Assessment with AI insights
+import GoalOverviewDashboard from './GoalOverviewDashboard'; // Overview with budget setting
 
 /**
  * MilestoneDetailPage - Parent Container
@@ -13,7 +15,7 @@ import TaskManager from './TaskManager'; // NEW: Full-featured task management
  * Multi-dimensional milestone navigation with persistent header
  *
  * Features:
- * - Tabbed navigation (Overview, Roadmap, Budget, Assessment, Tasks, Status)
+ * - Tabbed navigation (Overview, Roadmap, Budget, Assessment, Tasks)
  * - Conditional tab rendering (e.g., hide Budget for non-monetary goals)
  * - Responsive design (desktop header nav + mobile top nav)
  * - Section state management
@@ -43,6 +45,8 @@ const MilestoneDetailPage = ({
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState(milestone.milestone_metrics || {});
+  const [editingTargetDate, setEditingTargetDate] = useState(false);
+  const [targetDate, setTargetDate] = useState(milestone.target_date || '');
 
   // Update visible tabs when milestone changes
   useEffect(() => {
@@ -57,14 +61,32 @@ const MilestoneDetailPage = ({
     setActiveSection(section);
   }, [section]);
 
-  // Load tasks and expenses (mock for now - will connect to DB)
+  // Load tasks from database
+  const loadTasks = async () => {
+    if (!milestone?.id) return;
+
+    try {
+      const { data, error } = await getTasksByMilestone(milestone.id);
+
+      if (error) {
+        console.error('Error loading tasks:', error);
+        setTasks([]);
+      } else {
+        setTasks(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load tasks and expenses when milestone changes
   useEffect(() => {
     if (milestone) {
-      // TODO: Fetch from Supabase
-      // For now, use mock data or data from milestone object
-      setTasks(milestone.tasks || []);
+      loadTasks();
       setExpenses(milestone.expenses || []);
-      setLoading(false);
     }
   }, [milestone]);
 
@@ -73,6 +95,45 @@ const MilestoneDetailPage = ({
     if (onSectionChange) {
       onSectionChange(newSection);
     }
+  };
+
+  const handleSaveTargetDate = async () => {
+    if (!targetDate) {
+      alert('Please select a target date');
+      return;
+    }
+
+    try {
+      const { data, error } = await updateMilestone(milestone.id, {
+        target_date: targetDate
+      });
+
+      if (error) {
+        console.error('Error updating target date:', error);
+        alert('Failed to save target date');
+        return;
+      }
+
+      console.log('✅ Target date saved:', targetDate);
+
+      // Update parent component
+      if (onUpdateMilestone) {
+        onUpdateMilestone({ ...milestone, target_date: targetDate });
+      }
+
+      setEditingTargetDate(false);
+
+      // Reload tasks to recalculate metrics
+      loadTasks();
+    } catch (error) {
+      console.error('Error saving target date:', error);
+      alert('An error occurred while saving');
+    }
+  };
+
+  const handleCancelTargetDate = () => {
+    setTargetDate(milestone.target_date || '');
+    setEditingTargetDate(false);
   };
 
   if (!milestone) {
@@ -110,50 +171,100 @@ const MilestoneDetailPage = ({
             </div>
           </div>
 
-          {/* Progress Indicator */}
-          {metrics.progress_percentage !== undefined && (
-            <div className="flex items-center gap-3">
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {metrics.progress_percentage}% Complete
-                </p>
-                <p className="text-xs text-gray-600">
-                  {metrics.tasks_completed}/{metrics.tasks_total} tasks
-                </p>
-              </div>
+          <div className="flex items-center gap-4">
+            {/* Target Date */}
+            <div className="flex items-center gap-2">
+              {!editingTargetDate ? (
+                <button
+                  onClick={() => setEditingTargetDate(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-gray-200 hover:border-purple-300 transition-colors group"
+                >
+                  <Calendar className="w-4 h-4 text-gray-600 group-hover:text-purple-600" />
+                  <div className="text-left">
+                    <p className="text-xs text-gray-500">Target Date</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {milestone.target_date
+                        ? new Date(milestone.target_date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })
+                        : 'Set date'}
+                    </p>
+                  </div>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-purple-300 bg-purple-50">
+                  <input
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={handleSaveTargetDate}
+                    className="p-1 hover:bg-green-100 rounded transition-colors"
+                    title="Save"
+                  >
+                    <Check className="w-4 h-4 text-green-600" />
+                  </button>
+                  <button
+                    onClick={handleCancelTargetDate}
+                    className="p-1 hover:bg-red-100 rounded transition-colors"
+                    title="Cancel"
+                  >
+                    <X className="w-4 h-4 text-red-600" />
+                  </button>
+                </div>
+              )}
+            </div>
 
-              {/* Circular progress indicator */}
-              <div className="relative w-12 h-12">
-                <svg className="transform -rotate-90" width="48" height="48">
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="20"
-                    stroke="#E5E7EB"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="20"
-                    stroke="#8B5CF6"
-                    strokeWidth="4"
-                    fill="none"
-                    strokeDasharray={2 * Math.PI * 20}
-                    strokeDashoffset={2 * Math.PI * 20 * (1 - metrics.progress_percentage / 100)}
-                    strokeLinecap="round"
-                    className="transition-all duration-500"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-bold text-purple-600">
-                    {metrics.progress_percentage}
-                  </span>
+            {/* Progress Indicator */}
+            {metrics.progress_percentage !== undefined && (
+              <div className="flex items-center gap-3">
+                <div className="hidden md:block text-right">
+                  <p className="text-sm font-medium text-gray-900">
+                    {metrics.progress_percentage}% Complete
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {metrics.tasks_completed}/{metrics.tasks_total} tasks
+                  </p>
+                </div>
+
+                {/* Circular progress indicator */}
+                <div className="relative w-12 h-12">
+                  <svg className="transform -rotate-90" width="48" height="48">
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="20"
+                      stroke="#E5E7EB"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="20"
+                      stroke="#8B5CF6"
+                      strokeWidth="4"
+                      fill="none"
+                      strokeDasharray={2 * Math.PI * 20}
+                      strokeDashoffset={2 * Math.PI * 20 * (1 - metrics.progress_percentage / 100)}
+                      strokeLinecap="round"
+                      className="transition-all duration-500"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs font-bold text-purple-600">
+                      {metrics.progress_percentage}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Mobile: Title (shown below back button) */}
@@ -220,13 +331,16 @@ const MilestoneDetailPage = ({
             transition={{ duration: 0.2 }}
           >
             {activeSection === 'overview' && (
-              <GoalOverviewDashboard
-                milestone={milestone}
-                userContext={userContext}
-                tasks={tasks}
-                expenses={expenses}
-                onNavigateToSection={handleSectionChange}
-              />
+              <div className="p-6">
+                <GoalOverviewDashboard
+                  milestone={milestone}
+                  userContext={userContext}
+                  tasks={tasks}
+                  expenses={expenses}
+                  onNavigateToSection={handleSectionChange}
+                  onUpdateMilestone={onUpdateMilestone}
+                />
+              </div>
             )}
 
             {activeSection === 'roadmap' && (
@@ -239,22 +353,28 @@ const MilestoneDetailPage = ({
                   handleSectionChange('tasks');
                   // TODO: Pass selected task to tasks section
                 }}
+                onTasksUpdated={loadTasks}
               />
             )}
 
             {activeSection === 'budget' && (
               <div className="p-6">
                 <BudgetAllocation
-                  budgetData={milestone.budgetAllocation || {}}
-                  totalBudget={milestone.budget_amount || 0}
-                  expenses={expenses}
+                  milestone={milestone}
+                  roadmapId={roadmapId}
+                  onProgressUpdate={loadTasks}
+                  onNavigateToSection={handleSectionChange}
                 />
               </div>
             )}
 
             {activeSection === 'assessment' && (
               <div className="p-6">
-                <LunaAssessmentPlaceholder milestone={milestone} />
+                <LunaAssessment
+                  userId={userContext?.userId}
+                  roadmapId={roadmapId}
+                  userContext={userContext}
+                />
               </div>
             )}
 
@@ -264,16 +384,11 @@ const MilestoneDetailPage = ({
                   milestone={milestone}
                   userContext={userContext}
                   onProgressUpdate={() => {
-                    // Reload page data when tasks change to refresh metrics
-                    window.location.reload();
+                    // Reload tasks to refresh progress
+                    loadTasks();
                   }}
+                  onNavigateToRoadmap={() => handleSectionChange('roadmap')}
                 />
-              </div>
-            )}
-
-            {activeSection === 'status' && (
-              <div className="p-6">
-                <MilestoneStatusPlaceholder milestone={milestone} metrics={metrics} />
               </div>
             )}
           </motion.div>
@@ -335,41 +450,6 @@ const TaskAssignmentPlaceholder = ({ tasks, userContext }) => (
         Full task assignment interface coming soon...
       </p>
     </div>
-  </div>
-);
-
-const MilestoneStatusPlaceholder = ({ milestone, metrics }) => (
-  <div className="bg-white rounded-2xl p-8 border-2 border-gray-100">
-    <h2 className="text-2xl font-bold text-gray-900 mb-4">Milestone Status</h2>
-    <div className="grid grid-cols-2 gap-4">
-      <div className="bg-green-50 rounded-xl p-4">
-        <p className="text-sm text-gray-600">Completed</p>
-        <p className="text-2xl font-bold text-green-600">
-          {metrics.tasks_completed || 0}
-        </p>
-      </div>
-      <div className="bg-blue-50 rounded-xl p-4">
-        <p className="text-sm text-gray-600">Remaining</p>
-        <p className="text-2xl font-bold text-blue-600">
-          {(metrics.tasks_total || 0) - (metrics.tasks_completed || 0)}
-        </p>
-      </div>
-      <div className="bg-purple-50 rounded-xl p-4">
-        <p className="text-sm text-gray-600">Progress</p>
-        <p className="text-2xl font-bold text-purple-600">
-          {metrics.progress_percentage || 0}%
-        </p>
-      </div>
-      <div className="bg-pink-50 rounded-xl p-4">
-        <p className="text-sm text-gray-600">Health Score</p>
-        <p className="text-2xl font-bold text-pink-600">
-          {metrics.health_score || 0}/100
-        </p>
-      </div>
-    </div>
-    <p className="text-sm text-gray-500 italic mt-6">
-      Full status tracking interface coming soon...
-    </p>
   </div>
 );
 

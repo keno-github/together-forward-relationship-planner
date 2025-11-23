@@ -8,7 +8,7 @@
  */
 
 import {
-  Target, Map, DollarSign, Brain, CheckSquare, Activity,
+  Target, Map, DollarSign, Brain, CheckSquare,
   AlertTriangle, Clock, TrendingUp, AlertCircle
 } from 'lucide-react';
 
@@ -21,7 +21,7 @@ const ALL_NAVIGATION_TABS = [
     label: 'Overview',
     icon: Target,
     required: true,
-    description: 'High-level dashboard with key metrics'
+    description: 'Dream summary, budget, and key metrics'
   },
   {
     id: 'roadmap',
@@ -50,13 +50,6 @@ const ALL_NAVIGATION_TABS = [
     icon: CheckSquare,
     required: true,
     description: 'Assign and track tasks between partners'
-  },
-  {
-    id: 'status',
-    label: 'Status',
-    icon: Activity,
-    required: true,
-    description: 'Overall progress and completion tracking'
   }
 ];
 
@@ -159,8 +152,8 @@ export const shouldShowBudgetTab = (milestone) => {
     return true;
   }
 
-  // Default: hide if no monetary indicators
-  return false;
+  // Default: Always show budget tab - user can set budget anytime
+  return true;
 };
 
 /**
@@ -345,42 +338,148 @@ export const calculateClientMetrics = (milestone, tasks = [], expenses = []) => 
     : 0;
 
   let daysRemaining = null;
+  let totalDuration = null;
+  let timeElapsedPercentage = 0;
+
   if (milestone.target_date) {
-    daysRemaining = Math.ceil(
-      (new Date(milestone.target_date) - new Date()) / (1000 * 60 * 60 * 24)
-    );
+    const targetDate = new Date(milestone.target_date);
+    const createdDate = new Date(milestone.created_at || Date.now());
+    const now = new Date();
+
+    daysRemaining = Math.ceil((targetDate - now) / (1000 * 60 * 60 * 24));
+    totalDuration = Math.ceil((targetDate - createdDate) / (1000 * 60 * 60 * 24));
+    const timeElapsed = Math.ceil((now - createdDate) / (1000 * 60 * 60 * 24));
+
+    if (totalDuration > 0) {
+      timeElapsedPercentage = Math.min(100, Math.round((timeElapsed / totalDuration) * 100));
+    }
   }
 
-  // Calculate health score
-  let healthScore = 100;
+  /**
+   * IMPROVED HEALTH SCORE CALCULATION
+   * Weighted components (0-100 scale):
+   * - Progress Score: 50% weight (task completion + roadmap phases)
+   * - Timeline Score: 30% weight (progress vs. time)
+   * - Budget Score: 15% weight (spending efficiency)
+   * - Activity Score: 5% weight (recent engagement)
+   */
 
-  // Penalize for low progress with approaching deadline
-  if (progressPercentage < 50 && daysRemaining !== null && daysRemaining < 30) {
-    healthScore -= 20;
+  let healthScore = 0;
+
+  // 1. PROGRESS SCORE (50 points max)
+  // Directly from task completion
+  const progressScore = progressPercentage * 0.5;
+
+  // 2. TIMELINE SCORE (30 points max)
+  let timelineScore = 0;
+
+  if (!milestone.target_date) {
+    // No target date set: neutral score
+    timelineScore = 15;
+  } else if (daysRemaining < 0) {
+    // Overdue: 0 points
+    timelineScore = 0;
+  } else {
+    // Compare progress vs. time elapsed
+    const progressGap = progressPercentage - timeElapsedPercentage;
+
+    if (progressGap >= 10) {
+      // Ahead of schedule
+      timelineScore = 30;
+    } else if (progressGap >= 0) {
+      // On schedule
+      timelineScore = 25;
+    } else if (progressGap >= -15) {
+      // Slightly behind
+      timelineScore = 15;
+    } else if (progressGap >= -30) {
+      // Behind
+      timelineScore = 8;
+    } else {
+      // Significantly behind
+      timelineScore = 3;
+    }
   }
 
-  // Penalize for budget issues
-  if (budgetUsedPercentage > 100) {
-    healthScore -= 30;
-  } else if (budgetUsedPercentage > 90) {
-    healthScore -= 10;
+  // 3. BUDGET SCORE (15 points max)
+  let budgetScore = 0;
+
+  if (!milestone.budget_amount || milestone.budget_amount === 0) {
+    // No budget set: neutral score
+    budgetScore = 8;
+  } else if (budgetUsedPercentage > 100) {
+    // Over budget: 0 points
+    budgetScore = 0;
+  } else {
+    // Compare budget used vs. progress
+    const budgetEfficiency = progressPercentage - budgetUsedPercentage;
+
+    if (budgetEfficiency >= 10) {
+      // Spending less than progress (excellent!)
+      budgetScore = 15;
+    } else if (budgetEfficiency >= 0) {
+      // Balanced spending
+      budgetScore = 12;
+    } else if (budgetEfficiency >= -15) {
+      // Spending slightly more than progress
+      budgetScore = 8;
+    } else if (budgetEfficiency >= -30) {
+      // Overspending
+      budgetScore = 4;
+    } else {
+      // Significant overspending
+      budgetScore = 1;
+    }
   }
 
-  // Penalize for overdue
-  if (daysRemaining !== null && daysRemaining < 0) {
-    healthScore -= 40;
+  // 4. ACTIVITY SCORE (5 points max)
+  let activityScore = 0;
+
+  if (totalTasks === 0) {
+    // New milestone, no tasks yet: neutral
+    activityScore = 3;
+  } else {
+    // Check for recent activity (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const recentTasks = tasks.filter(t => {
+      const completedAt = t.completed_at ? new Date(t.completed_at) : null;
+      const createdAt = t.created_at ? new Date(t.created_at) : null;
+
+      return (completedAt && completedAt > sevenDaysAgo) ||
+             (createdAt && createdAt > sevenDaysAgo);
+    });
+
+    if (recentTasks.length > 0) {
+      activityScore = 5;
+    } else {
+      // Stalled (no activity in 7 days)
+      activityScore = 0;
+    }
   }
+
+  // TOTAL HEALTH SCORE
+  healthScore = Math.round(progressScore + timelineScore + budgetScore + activityScore);
+  healthScore = Math.max(0, Math.min(100, healthScore)); // Clamp to 0-100
 
   const onTrack = healthScore >= 70;
 
   return {
     progress_percentage: progressPercentage,
     completion_percentage: progressPercentage,
-    health_score: Math.max(0, healthScore),
+    health_score: healthScore,
+    health_breakdown: {
+      progress: Math.round(progressScore),
+      timeline: timelineScore,
+      budget: budgetScore,
+      activity: activityScore
+    },
     budget_used_percentage: budgetUsedPercentage,
     tasks_completed: completedTasks,
     tasks_total: totalTasks,
     days_remaining: daysRemaining,
+    time_elapsed_percentage: timeElapsedPercentage,
     on_track: onTrack,
     last_calculated: new Date().toISOString()
   };

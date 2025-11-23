@@ -845,6 +845,18 @@ async function handleGenerateMilestone(input, context) {
   // Return the first milestone (Luna will call this multiple times for full roadmap)
   const milestone = roadmap.milestones[0];
 
+  // CRITICAL FIX: Use Luna's provided title if it exists (more intuitive than template phase names)
+  // Example: Luna says "Plan Dream Wedding" → use that instead of "Engagement Celebration"
+  if (input.title && input.title.trim()) {
+    milestone.title = input.title.trim();
+    console.log(`✅ Using Luna's title: "${milestone.title}" instead of template: "${roadmap.milestones[0].title}"`);
+  }
+
+  // CRITICAL FIX: Use Luna's provided description if it exists
+  if (input.description && input.description.trim()) {
+    milestone.description = input.description.trim();
+  }
+
   return {
     success: true,
     milestone,

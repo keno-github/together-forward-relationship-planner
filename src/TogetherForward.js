@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, Trophy, Brain, Cloud, CloudOff } from 'lucide-react';
+import { Heart, Trophy, Brain, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 
 import DeepDiveModal from './DeepDiveModal';
 import MileStoneCard from './MileStoneCard';
 import SampleData from './SampleData'; // contains roadmap, coupleData, etc.
 import AIAnalysisModal from './Components/AIAnalysisModal';
 import NavBar from './Components/NavBar';
-import BudgetOverview from './Components/BudgetOverview';
+import MilestoneOverview from './Components/MilestoneOverview';
+import MilestonePortfolioView from './Components/MilestonePortfolioView';
 
 import { convertGoalsToMilestones } from './utils/goalMappings';
 import { useAuth } from './context/AuthContext';
@@ -17,6 +18,7 @@ import {
   createMilestone,
   getMilestonesByRoadmap,
   updateMilestone,
+  deleteMilestone,
   createAchievement,
   getAchievementsByRoadmap
 } from './services/supabaseService';
@@ -189,14 +191,20 @@ const TogetherForward = ({
         icon: m.icon,
         color: m.color,
         category: m.category,
-        estimatedCost: m.estimated_cost,
+        estimatedCost: m.estimated_cost || m.estimatedCost,
+        budget_amount: m.budget_amount, // CRITICAL: Preserve budget amount!
+        target_date: m.target_date, // CRITICAL: Preserve target date!
+        milestone_metrics: m.milestone_metrics, // Preserve metrics
         duration: m.duration,
-        aiGenerated: m.ai_generated,
+        aiGenerated: m.ai_generated || m.aiGenerated,
         completed: m.completed,
-        deepDiveData: m.deep_dive_data,
+        deepDiveData: m.deep_dive_data || m.deepDiveData,
         tasks: [] // Tasks will be loaded separately if needed
       }));
-      console.log('✅ Formatted milestones:', formatted);
+      console.log('✅ Formatted milestones with budget_amount:');
+      formatted.forEach((m, idx) => {
+        console.log(`   ${idx + 1}. ${m.title}: budget_amount = ${m.budget_amount}, target_date = ${m.target_date}`);
+      });
       return formatted;
     }
 
@@ -229,7 +237,6 @@ const TogetherForward = ({
   const [selectedMilestone, setSelectedMilestone] = useState(null);
   const [deepDiveData, setDeepDiveData] = useState(null);
   const [analyzingMilestone, setAnalyzingMilestone] = useState(null);
-  const [viewMode, setViewMode] = useState('milestones'); // 'milestones' or 'budget'
 
   // Store user context for Luna
   const [userContext] = useState({
@@ -268,12 +275,13 @@ const TogetherForward = ({
     }
   }, [achievements]);
 
-  // Load roadmap from database when user logs in
+  // Load roadmap from database when user logs in OR when reload is triggered
   useEffect(() => {
     console.log('🔵 Database load useEffect triggered');
     console.log('user:', user);
     console.log('propCoupleData?.roadmapId:', propCoupleData?.roadmapId);
     console.log('propCoupleData?.existingMilestones:', propCoupleData?.existingMilestones);
+    console.log('propCoupleData?._reloadTimestamp:', propCoupleData?._reloadTimestamp);
 
     const loadFromDatabase = async () => {
       if (!user) {
@@ -281,11 +289,26 @@ const TogetherForward = ({
         return;
       }
 
+      // Check if this is a forced reload (from returning from MilestoneDetail)
+      const isForceReload = propCoupleData?._reloadTimestamp;
+
+      // Check if existingMilestones have budget_amount field (proper formatting)
+      const milestonesHaveBudgetField = propCoupleData?.existingMilestones?.[0]?.hasOwnProperty('budget_amount');
+
       // IMPORTANT: If we already loaded milestones from RoadmapProfile, skip database load
-      if (propCoupleData?.existingMilestones && propCoupleData.existingMilestones.length > 0) {
-        console.log('✅ Skipping database load - already loaded from RoadmapProfile');
+      // UNLESS: this is a forced reload OR milestones are missing budget_amount field
+      if (!isForceReload && milestonesHaveBudgetField && propCoupleData?.existingMilestones && propCoupleData.existingMilestones.length > 0) {
+        console.log('✅ Skipping database load - already loaded from RoadmapProfile with budget field');
         setCloudSyncStatus('synced');
         return;
+      }
+
+      if (isForceReload) {
+        console.log('🔄 Force reload triggered! Reloading milestones from database...');
+      }
+
+      if (!milestonesHaveBudgetField && propCoupleData?.existingMilestones?.length > 0) {
+        console.log('⚠️ Existing milestones missing budget_amount field - reloading from database...');
       }
 
       // CRITICAL: If a specific roadmap was passed but has no milestones,
@@ -348,6 +371,9 @@ const TogetherForward = ({
               color: m.color,
               category: m.category,
               estimatedCost: m.estimated_cost,
+              budget_amount: m.budget_amount, // CRITICAL: Include budget amount
+              target_date: m.target_date, // CRITICAL: Include target date
+              milestone_metrics: m.milestone_metrics, // Include metrics
               duration: m.duration,
               aiGenerated: m.ai_generated,
               completed: m.completed,
@@ -355,7 +381,10 @@ const TogetherForward = ({
               tasks: [] // Tasks will be loaded separately if needed
             }));
 
-            console.log('📝 Setting roadmap from database:', formattedMilestones);
+            console.log('📝 Setting roadmap from database with budget_amount:');
+            formattedMilestones.forEach((m, idx) => {
+              console.log(`   ${idx + 1}. ${m.title}: budget_amount = ${m.budget_amount}, target_date = ${m.target_date}`);
+            });
             setRoadmap(formattedMilestones);
           } else {
             console.log('⚠️ No milestones found in database');
@@ -383,7 +412,7 @@ const TogetherForward = ({
     };
 
     loadFromDatabase();
-  }, [user, propCoupleData?.roadmapId, propCoupleData?.existingMilestones]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, propCoupleData?.roadmapId, propCoupleData?.existingMilestones, propCoupleData?._reloadTimestamp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save to database whenever roadmap changes (debounced)
   useEffect(() => {
@@ -935,6 +964,101 @@ const TogetherForward = ({
     );
   };
 
+  const handleDeleteMilestone = async (milestoneId) => {
+    try {
+      console.log('🗑️ Deleting milestone:', milestoneId);
+
+      // Set loading state
+      setCloudSyncStatus('syncing');
+
+      // Delete from database
+      const { error } = await deleteMilestone(milestoneId);
+
+      if (error) {
+        console.error('❌ Failed to delete milestone:', error);
+        alert('Failed to delete milestone. Please try again.');
+        setCloudSyncStatus('error');
+        return;
+      }
+
+      // Remove from local state
+      setRoadmap(prevRoadmap => {
+        const updatedRoadmap = prevRoadmap.filter(m => m.id !== milestoneId);
+        console.log('✅ Milestone deleted successfully. Remaining milestones:', updatedRoadmap.length);
+        return updatedRoadmap;
+      });
+
+      // Update cloud sync status
+      setCloudSyncStatus('synced');
+
+      // Close any expanded milestone
+      setSelectedMilestone(null);
+
+      console.log('✅ Milestone deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting milestone:', error);
+      alert('An error occurred while deleting the milestone.');
+      setCloudSyncStatus('error');
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    try {
+      console.log('🔄 Manual refresh triggered...');
+      setCloudSyncStatus('loading');
+
+      // Get the current roadmap ID
+      const roadmapId = currentRoadmapId || propCoupleData?.roadmapId;
+
+      if (!roadmapId) {
+        console.error('No roadmap ID available');
+        setCloudSyncStatus('error');
+        return;
+      }
+
+      // Load fresh milestones from database
+      const { data: milestones, error } = await getMilestonesByRoadmap(roadmapId);
+
+      if (error) {
+        console.error('Error loading milestones:', error);
+        setCloudSyncStatus('error');
+        alert('Failed to refresh data. Please try again.');
+        return;
+      }
+
+      console.log('✅ Loaded', milestones?.length || 0, 'milestones from database');
+
+      // Format milestones
+      const formattedMilestones = (milestones || []).map(m => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        icon: m.icon,
+        color: m.color,
+        category: m.category,
+        estimatedCost: m.estimated_cost || 0,
+        budget_amount: m.budget_amount,
+        target_date: m.target_date,
+        milestone_metrics: m.milestone_metrics,
+        duration: m.duration,
+        aiGenerated: m.ai_generated,
+        completed: m.completed,
+        deepDiveData: m.deep_dive_data,
+        tasks: []
+      }));
+
+      // Update roadmap state
+      setRoadmap(formattedMilestones);
+      setCloudSyncStatus('synced');
+
+      console.log('✅ Refresh complete! Now showing', formattedMilestones.length, 'milestones');
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      setCloudSyncStatus('error');
+      alert('An error occurred while refreshing.');
+    }
+  };
+
   const sendChatMessage = (message) => {
     if (!message.trim()) return;
 
@@ -1061,6 +1185,14 @@ const TogetherForward = ({
               <span className="font-bold" style={{color: '#FFD580'}}>{xpPoints} XP</span>
             </div>
             <button
+              onClick={handleManualRefresh}
+              className="p-2 hover:glass-card-light rounded-lg smooth-transition"
+              title="Refresh milestones from database"
+              style={{color: '#10B981'}}
+            >
+              <RefreshCw className={`w-5 h-5 ${cloudSyncStatus === 'loading' ? 'animate-spin' : ''}`} />
+            </button>
+            <button
               onClick={() => {
                 if (window.confirm('Start over?')) {
                   localStorage.clear();
@@ -1075,63 +1207,34 @@ const TogetherForward = ({
         </div>
       </div>
 
-      {/* View Mode Tabs */}
-      <div className="container mx-auto px-4 pt-6">
-        <div className="flex gap-4 mb-2">
-          <button
-            onClick={() => setViewMode('milestones')}
-            className={`px-6 py-3 rounded-xl font-semibold smooth-transition ${
-              viewMode === 'milestones'
-                ? 'text-white'
-                : 'glass-card-light'
-            }`}
-            style={viewMode === 'milestones' ? {background: 'linear-gradient(135deg, #C084FC, #F8C6D0)'} : {color: '#2B2B2B', opacity: 0.7}}
-          >
-            Milestones
-          </button>
-          <button
-            onClick={() => setViewMode('budget')}
-            className={`px-6 py-3 rounded-xl font-semibold smooth-transition ${
-              viewMode === 'budget'
-                ? 'text-white'
-                : 'glass-card-light'
-            }`}
-            style={viewMode === 'budget' ? {background: 'linear-gradient(135deg, #C084FC, #F8C6D0)'} : {color: '#2B2B2B', opacity: 0.7}}
-          >
-            Budget Tracker
-          </button>
-        </div>
-      </div>
-
-      {/* Milestones View */}
-      {viewMode === 'milestones' && (
-        <div className="container mx-auto px-4 py-8 space-y-6">
-          {roadmap.map((milestone, index) => (
+      {/* NEW: Unified Portfolio View with Beautiful Design */}
+      <div className="container mx-auto px-4 py-8">
+        <MilestonePortfolioView
+          milestones={roadmap}
+          userContext={coupleData}
+          onMilestoneClick={(milestone) => {
+            console.log('📍 Milestone clicked:', milestone.title);
+            if (onOpenMilestoneDetail) {
+              onOpenMilestoneDetail(milestone, 'overview');
+            }
+          }}
+          renderMilestoneCard={(milestone) => (
             <MileStoneCard
               key={milestone.id}
               milestone={milestone}
               selectedMilestone={selectedMilestone}
               setSelectedMilestone={setSelectedMilestone}
               openDeepDive={openDeepDive}
-              openMilestoneDetail={onOpenMilestoneDetail} // NEW: Pass multi-section handler
+              openMilestoneDetail={onOpenMilestoneDetail}
               roadmap={roadmap}
               setRoadmap={setRoadmap}
               addAchievement={addAchievement}
               roadmapId={currentRoadmapId}
+              onDelete={handleDeleteMilestone}
             />
-          ))}
-        </div>
-      )}
-
-      {/* Budget View */}
-      {viewMode === 'budget' && currentRoadmapId && (
-        <div className="container mx-auto px-4 py-8">
-          <BudgetOverview
-            roadmapId={currentRoadmapId}
-            milestones={roadmap}
-          />
-        </div>
-      )}
+          )}
+        />
+      </div>
     </div>
   );
 };

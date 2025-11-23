@@ -169,11 +169,11 @@ const RoadmapProfile = ({ roadmap, onContinueJourney, onBack, onEdit, onDelete }
               <p className="text-3xl font-bold" style={{color: '#FFD580'}}>{roadmap.xp_points || 0}</p>
             </div>
 
-            {/* Milestones */}
+            {/* Roadmaps */}
             <div className="glass-card-light rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Target className="w-5 h-5" style={{color: '#C084FC'}} />
-                <span className="text-sm font-medium" style={{color: '#2B2B2B', opacity: 0.7}}>Milestones</span>
+                <span className="text-sm font-medium" style={{color: '#2B2B2B', opacity: 0.7}}>Roadmaps</span>
               </div>
               <p className="text-3xl font-bold" style={{color: '#2B2B2B'}}>
                 {stats.completedMilestones}/{stats.totalMilestones}
@@ -229,14 +229,14 @@ const RoadmapProfile = ({ roadmap, onContinueJourney, onBack, onEdit, onDelete }
           className="glass-card rounded-3xl p-8"
         >
           <h2 className="text-2xl font-bold mb-6" style={{color: '#2B2B2B'}}>
-            Your Milestones
+            Your Roadmaps
           </h2>
 
           {milestones.length === 0 ? (
             <div className="text-center py-12">
               <Target className="w-16 h-16 mx-auto mb-4" style={{color: '#C084FC', opacity: 0.3}} />
               <p className="text-lg" style={{color: '#2B2B2B', opacity: 0.5}}>
-                No milestones yet. Continue your journey to create them!
+                No roadmaps yet. Continue your journey to create them!
               </p>
             </div>
           ) : (

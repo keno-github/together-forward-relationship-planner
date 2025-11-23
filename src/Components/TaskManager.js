@@ -29,7 +29,7 @@ import { createTask, updateTask, getTasksByMilestone } from '../services/supabas
  * - Inline editing
  * - Real-time progress calculation
  */
-const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
+const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoadmap }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -41,7 +41,8 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
     description: '',
     assigned_to: '',
     priority: 'medium',
-    due_date: ''
+    due_date: '',
+    roadmap_phase_index: null
   });
 
   // Edit task state
@@ -81,6 +82,7 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
         assigned_to: newTask.assigned_to || null,
         priority: newTask.priority,
         due_date: newTask.due_date || null,
+        roadmap_phase_index: newTask.roadmap_phase_index,
         completed: false,
         ai_generated: false,
         order_index: tasks.length
@@ -102,7 +104,8 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
         description: '',
         assigned_to: '',
         priority: 'medium',
-        due_date: ''
+        due_date: '',
+        roadmap_phase_index: null
       });
       setShowAddForm(false);
 
@@ -149,18 +152,34 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
 
   const handleSaveEdit = async (taskId) => {
     try {
+      console.log('💾 Saving task edits...', editTask);
+
       const { data, error } = await updateTask(taskId, editTask);
 
       if (error) {
-        console.error('Error updating task:', error);
+        console.error('❌ Error updating task:', error);
+        alert('Failed to save changes: ' + error.message);
         return;
       }
 
-      // Update local state
-      setTasks(tasks.map(t => t.id === taskId ? data : t));
+      if (!data) {
+        console.error('❌ No data returned from update');
+        alert('Failed to save changes: No data returned');
+        return;
+      }
+
+      console.log('✅ Task updated successfully:', data);
+
+      // Update local state with the returned data
+      setTasks(tasks.map(t => t.id === taskId ? { ...t, ...data } : t));
       setEditingTaskId(null);
+      setEditTask({});
+
+      // Notify parent to refresh if needed
+      onProgressUpdate?.();
     } catch (error) {
-      console.error('Error saving task:', error);
+      console.error('❌ Error saving task:', error);
+      alert('An error occurred while saving: ' + error.message);
     }
   };
 
@@ -216,18 +235,23 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Stats */}
+      {/* Header with Stats and Context */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Tasks</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            {completedCount} of {totalCount} completed • {progressPercentage}% progress
+          <p className="text-sm text-gray-500 mt-1">
+            For: <span className="font-medium text-gray-700">{milestone.title}</span>
           </p>
+          {totalCount > 0 && (
+            <p className="text-sm text-gray-600 mt-1">
+              {completedCount} of {totalCount} completed • {progressPercentage}% progress
+            </p>
+          )}
         </div>
 
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-medium"
+          className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 font-medium"
         >
           <Plus className="w-4 h-4" />
           Add Task
@@ -356,6 +380,33 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
                 />
               </div>
 
+              {/* Roadmap Phase */}
+              {milestone.deep_dive_data?.roadmapPhases && milestone.deep_dive_data.roadmapPhases.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Roadmap Phase (Optional)
+                  </label>
+                  <select
+                    value={newTask.roadmap_phase_index ?? ''}
+                    onChange={(e) => setNewTask({
+                      ...newTask,
+                      roadmap_phase_index: e.target.value === '' ? null : parseInt(e.target.value)
+                    })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="">No specific phase</option>
+                    {milestone.deep_dive_data.roadmapPhases.map((phase, idx) => (
+                      <option key={idx} value={idx}>
+                        {phase.title}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Assign this task to a specific phase in your roadmap
+                  </p>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-2">
                 <button
@@ -381,21 +432,33 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
       {/* Task List */}
       <div className="space-y-3">
         {tasks.length === 0 ? (
-          <div className="bg-white rounded-xl p-12 text-center border-2 border-dashed border-gray-200">
-            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-purple-500" />
+          <div className="bg-gray-50 rounded-lg p-8 text-center border border-gray-200">
+            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+              <CheckCircle className="w-6 h-6 text-gray-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks yet</h3>
-            <p className="text-gray-600 mb-4">
-              Add your first task to start tracking progress on this milestone
+            <h3 className="text-base font-semibold text-gray-900 mb-1">No tasks for this milestone</h3>
+            <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
+              {milestone.deep_dive_data?.roadmapPhases
+                ? "View the Roadmap tab to see Luna's recommended phases, then add tasks here."
+                : "Start by adding your first task to track progress on this milestone."}
             </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium hover:shadow-lg transition-all inline-flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Add First Task
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors inline-flex items-center gap-2 font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Add Task
+              </button>
+              {milestone.deep_dive_data?.roadmapPhases && (
+                <button
+                  onClick={onNavigateToRoadmap}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors inline-flex items-center gap-2 font-medium"
+                >
+                  View Roadmap →
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           tasks.map((task, index) => (
@@ -413,29 +476,93 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
               {editingTaskId === task.id ? (
                 // Edit Mode
                 <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={editTask.title}
-                    onChange={(e) => setEditTask({ ...editTask, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                  <textarea
-                    value={editTask.description}
-                    onChange={(e) => setEditTask({ ...editTask, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"
-                    rows={2}
-                  />
-                  <div className="flex items-center gap-2">
+                  {/* Title */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Task Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editTask.title}
+                      onChange={(e) => setEditTask({ ...editTask, title: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Task title"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={editTask.description}
+                      onChange={(e) => setEditTask({ ...editTask, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      rows={2}
+                      placeholder="Add details..."
+                    />
+                  </div>
+
+                  {/* Assign To & Priority */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Assign To
+                      </label>
+                      <select
+                        value={editTask.assigned_to}
+                        onChange={(e) => setEditTask({ ...editTask, assigned_to: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      >
+                        <option value="">Both Partners</option>
+                        <option value={userContext?.partner1}>{userContext?.partner1 || 'Partner 1'}</option>
+                        <option value={userContext?.partner2}>{userContext?.partner2 || 'Partner 2'}</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Priority
+                      </label>
+                      <select
+                        value={editTask.priority}
+                        onChange={(e) => setEditTask({ ...editTask, priority: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      >
+                        <option value="low">Low 🟢</option>
+                        <option value="medium">Medium 🟡</option>
+                        <option value="high">High 🔴</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Due Date */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Due Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={editTask.due_date}
+                      onChange={(e) => setEditTask({ ...editTask, due_date: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pt-2">
                     <button
                       onClick={() => handleSaveEdit(task.id)}
-                      className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm flex items-center gap-1 hover:bg-green-600"
+                      disabled={!editTask.title?.trim()}
+                      className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm flex items-center justify-center gap-1 hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Save className="w-3 h-3" />
-                      Save
+                      Save Changes
                     </button>
                     <button
                       onClick={handleCancelEdit}
-                      className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300"
+                      className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300 transition-colors"
                     >
                       Cancel
                     </button>
@@ -500,6 +627,14 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate }) => {
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
                           <Brain className="w-3 h-3" />
                           AI Generated
+                        </span>
+                      )}
+
+                      {/* Roadmap Phase Badge */}
+                      {task.roadmap_phase_index !== null && task.roadmap_phase_index !== undefined && milestone.deep_dive_data?.roadmapPhases?.[task.roadmap_phase_index] && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                          <Sparkles className="w-3 h-3" />
+                          {milestone.deep_dive_data.roadmapPhases[task.roadmap_phase_index].title}
                         </span>
                       )}
 

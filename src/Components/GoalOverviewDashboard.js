@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Target, TrendingUp, DollarSign, Clock, Users, AlertTriangle,
   CheckCircle, MapPin, Calendar, Award, Zap, Heart, ArrowRight,
-  TrendingDown, AlertCircle, Activity, Sparkles, Brain, Map
+  AlertCircle, Activity, Sparkles, Brain, Map, Edit2, Check, X
 } from 'lucide-react';
 import {
   generateSmartAlerts,
@@ -14,11 +14,13 @@ import {
   getPriorityColor,
   shouldShowBudgetTab
 } from '../utils/navigationHelpers';
+import { updateMilestone } from '../services/supabaseService';
 
 /**
  * Goal Overview Dashboard
  *
- * Smart, card-based overview showing intelligent metrics for a milestone
+ * Smart, card-based overview showing intelligent metrics for a roadmap
+ * (Note: milestone prop = roadmap in business logic)
  *
  * Features:
  * - Multi-dimensional progress tracking
@@ -33,11 +35,22 @@ const GoalOverviewDashboard = ({
   userContext,
   tasks = [],
   expenses = [],
-  onNavigateToSection
+  onNavigateToSection,
+  onUpdateMilestone
 }) => {
   const [metrics, setMetrics] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [healthStatus, setHealthStatus] = useState(null);
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [budgetAmount, setBudgetAmount] = useState(milestone.budget_amount || milestone.estimatedCost || 0);
+  const [editingTargetDate, setEditingTargetDate] = useState(false);
+  const [targetDate, setTargetDate] = useState(milestone.target_date || '');
+
+  // CRITICAL: Sync budgetAmount state when milestone prop changes
+  useEffect(() => {
+    console.log('🔄 Milestone prop changed, updating budgetAmount:', milestone.budget_amount);
+    setBudgetAmount(milestone.budget_amount || milestone.estimatedCost || 0);
+  }, [milestone.budget_amount, milestone.estimatedCost]);
 
   // Calculate metrics on mount and when data changes
   useEffect(() => {
@@ -64,6 +77,89 @@ const GoalOverviewDashboard = ({
     setHealthStatus(health);
   }, [milestone, tasks, expenses]);
 
+  // Update local budget amount when milestone changes
+  useEffect(() => {
+    setBudgetAmount(milestone.budget_amount || milestone.estimatedCost || 0);
+    setTargetDate(milestone.target_date || '');
+  }, [milestone]);
+
+  const handleSaveBudget = async () => {
+    const budget = parseFloat(budgetAmount);
+
+    if (isNaN(budget) || budget < 0) {
+      alert('Please enter a valid budget amount');
+      return;
+    }
+
+    try {
+      const { error } = await updateMilestone(milestone.id, {
+        budget_amount: budget
+      });
+
+      if (error) {
+        console.error('Error updating budget:', error);
+        alert('Failed to save budget');
+        return;
+      }
+
+      console.log('✅ Budget saved to database:', budget);
+
+      // Update parent component state FIRST
+      if (onUpdateMilestone) {
+        console.log('📤 Calling onUpdateMilestone with budget:', budget);
+        onUpdateMilestone({ ...milestone, budget_amount: budget });
+      } else {
+        console.warn('⚠️ onUpdateMilestone callback not provided!');
+      }
+
+      setEditingBudget(false);
+    } catch (error) {
+      console.error('Error saving budget:', error);
+      alert('An error occurred while saving');
+    }
+  };
+
+  const handleCancelBudget = () => {
+    setBudgetAmount(milestone.budget_amount || milestone.estimatedCost || 0);
+    setEditingBudget(false);
+  };
+
+  const handleSaveTargetDate = async () => {
+    if (!targetDate) {
+      alert('Please select a target date');
+      return;
+    }
+
+    try {
+      const { error } = await updateMilestone(milestone.id, {
+        target_date: targetDate
+      });
+
+      if (error) {
+        console.error('Error updating target date:', error);
+        alert('Failed to save target date');
+        return;
+      }
+
+      console.log('✅ Target date saved to database:', targetDate);
+
+      // Update parent component state
+      if (onUpdateMilestone) {
+        onUpdateMilestone({ ...milestone, target_date: targetDate });
+      }
+
+      setEditingTargetDate(false);
+    } catch (error) {
+      console.error('Error saving target date:', error);
+      alert('An error occurred while saving');
+    }
+  };
+
+  const handleCancelTargetDate = () => {
+    setTargetDate(milestone.target_date || '');
+    setEditingTargetDate(false);
+  };
+
   if (!milestone || !metrics) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -75,10 +171,7 @@ const GoalOverviewDashboard = ({
     );
   }
 
-  const showBudget = shouldShowBudgetTab(milestone);
-  const hasBudget = milestone.budget_amount && milestone.budget_amount > 0;
   const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-  const budgetRemaining = hasBudget ? milestone.budget_amount - totalExpenses : 0;
 
   // Get next 3 priority tasks
   const nextActions = tasks
@@ -139,54 +232,29 @@ const GoalOverviewDashboard = ({
 
       {/* Key Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Budget Status (conditional) */}
-        {showBudget && hasBudget && (
-          <MetricCard
-            icon={DollarSign}
-            label="Budget"
-            value={formatCurrency(milestone.budget_amount)}
-            subtitle={`${formatCurrency(budgetRemaining)} left`}
-            color="purple"
-            percentage={metrics.budget_used_percentage}
-            onClick={() => onNavigateToSection?.('budget')}
-          />
-        )}
+        {/* Budget Card - Always visible and editable */}
+        <EditableBudgetCard
+          budgetAmount={budgetAmount}
+          totalExpenses={totalExpenses}
+          budgetUsedPercentage={metrics.budget_used_percentage}
+          isEditing={editingBudget}
+          onEdit={() => setEditingBudget(true)}
+          onSave={handleSaveBudget}
+          onCancel={handleCancelBudget}
+          onChange={(value) => setBudgetAmount(value)}
+          onNavigate={() => onNavigateToSection?.('budget')}
+        />
 
-        {/* Budget - Fallback to estimatedCost if budget_amount not set (for Luna-generated milestones) */}
-        {!hasBudget && milestone.estimatedCost && milestone.estimatedCost > 0 && (
-          <MetricCard
-            icon={DollarSign}
-            label="Budget"
-            value={formatCurrency(milestone.estimatedCost)}
-            subtitle="Estimated cost"
-            color="purple"
-            onClick={() => onNavigateToSection?.('budget')}
-          />
-        )}
-
-        {/* Time Remaining - with target_date */}
-        {milestone.target_date && (
-          <MetricCard
-            icon={Clock}
-            label="Time Left"
-            value={formatDaysRemaining(metrics.days_remaining)}
-            subtitle={new Date(milestone.target_date).toLocaleDateString()}
-            color="blue"
-            onClick={() => onNavigateToSection?.('status')}
-          />
-        )}
-
-        {/* Timeline - Fallback to duration/timeline_months (for Luna-generated milestones) */}
-        {!milestone.target_date && (milestone.duration || milestone.timeline_months) && (
-          <MetricCard
-            icon={Calendar}
-            label="Timeline"
-            value={milestone.duration || `${milestone.timeline_months} months`}
-            subtitle="Estimated duration"
-            color="blue"
-            onClick={() => onNavigateToSection?.('roadmap')}
-          />
-        )}
+        {/* Target Date - Editable */}
+        <EditableTargetDateCard
+          targetDate={targetDate}
+          daysRemaining={metrics.days_remaining}
+          isEditing={editingTargetDate}
+          onEdit={() => setEditingTargetDate(true)}
+          onSave={handleSaveTargetDate}
+          onCancel={handleCancelTargetDate}
+          onChange={(value) => setTargetDate(value)}
+        />
 
         {/* Tasks */}
         <MetricCard
@@ -235,6 +303,16 @@ const GoalOverviewDashboard = ({
       {milestone.goal_summary && (
         <GoalSummaryCard summary={milestone.goal_summary} />
       )}
+
+      {/* Luna Insights - Smart suggestions based on health */}
+      <LunaInsightsCard
+        milestone={milestone}
+        metrics={metrics}
+        healthStatus={healthStatus}
+        tasks={tasks}
+        expenses={expenses}
+        userContext={userContext}
+      />
 
       {/* Quick Actions */}
       <QuickActionsSection
@@ -370,6 +448,475 @@ const HealthFactor = ({ label, value, positive }) => (
     </span>
   </div>
 );
+
+/**
+ * Luna Insights Card - AI-powered suggestions based on milestone health
+ */
+const LunaInsightsCard = ({ milestone, metrics, healthStatus, tasks, expenses, userContext }) => {
+  const [insights, setInsights] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    generateInsights();
+  }, [milestone, metrics, healthStatus]);
+
+  const generateInsights = () => {
+    const suggestions = [];
+
+    // Analyze health score
+    const healthScore = metrics?.health_score || 0;
+    const progressPercent = metrics?.progress_percentage || 0;
+    const tasksCompleted = metrics?.tasks_completed || 0;
+    const tasksTotal = metrics?.tasks_total || 0;
+    const daysRemaining = metrics?.days_remaining;
+
+    // 1. LOW HEALTH SCORE (< 50)
+    if (healthScore < 50) {
+      suggestions.push({
+        type: 'critical',
+        icon: '🚨',
+        title: 'Your milestone needs immediate attention',
+        message: `With a health score of ${healthScore}%, it's time to reassess your plan. Let's break this down together.`,
+        actions: [
+          'Review your roadmap phases - are they realistic?',
+          'Identify blockers preventing progress',
+          'Consider adjusting your timeline or scope'
+        ]
+      });
+    }
+
+    // 2. BEHIND SCHEDULE
+    if (daysRemaining !== null && daysRemaining > 0 && progressPercent < 30 && daysRemaining < 60) {
+      suggestions.push({
+        type: 'warning',
+        icon: '⏰',
+        title: `Only ${daysRemaining} days left, but ${100 - progressPercent}% to go`,
+        message: `Time is moving faster than your progress. Here's how to catch up:`,
+        actions: [
+          `Focus on the current phase: "${milestone.deep_dive_data?.roadmapPhases?.[0]?.title || 'first phase'}"`,
+          'Set aside dedicated time this week for milestone tasks',
+          'Divide remaining tasks between both partners'
+        ]
+      });
+    }
+
+    // 3. NO RECENT ACTIVITY
+    const recentTasks = tasks.filter(t => {
+      const completedRecently = t.completed_at &&
+        (new Date() - new Date(t.completed_at)) < (7 * 24 * 60 * 60 * 1000);
+      return completedRecently;
+    });
+
+    if (tasksTotal > 0 && recentTasks.length === 0) {
+      suggestions.push({
+        type: 'info',
+        icon: '💤',
+        title: 'This milestone has been quiet lately',
+        message: `No tasks completed in the past week. Let's reignite your momentum!`,
+        actions: [
+          'Schedule a 30-minute planning session with your partner',
+          'Pick one small task to complete today',
+          'Revisit why this milestone matters to you both'
+        ]
+      });
+    }
+
+    // 4. GOOD PROGRESS BUT NO TARGET DATE
+    if (progressPercent > 20 && !milestone.target_date) {
+      suggestions.push({
+        type: 'suggestion',
+        icon: '📅',
+        title: 'Set a target date to stay accountable',
+        message: `You're making progress! Setting a target date will help you maintain momentum.`,
+        actions: [
+          'Discuss a realistic completion date with your partner',
+          'Add it to your milestone settings',
+          'Break down remaining work by target date'
+        ]
+      });
+    }
+
+    // 5. IMBALANCED WORKLOAD
+    const partner1Tasks = tasks.filter(t => t.assigned_to === userContext?.partner1);
+    const partner2Tasks = tasks.filter(t => t.assigned_to === userContext?.partner2);
+    const imbalance = Math.abs(partner1Tasks.length - partner2Tasks.length);
+
+    if (imbalance > 5 && tasksTotal > 10) {
+      const heavierPartner = partner1Tasks.length > partner2Tasks.length
+        ? userContext?.partner1
+        : userContext?.partner2;
+
+      suggestions.push({
+        type: 'suggestion',
+        icon: '⚖️',
+        title: 'Task distribution could be more balanced',
+        message: `${heavierPartner} has significantly more tasks. Sharing the load strengthens your partnership!`,
+        actions: [
+          'Review unassigned tasks together',
+          'Assign based on each person\'s strengths and availability',
+          'Check in regularly about workload balance'
+        ]
+      });
+    }
+
+    // 6. BUDGET CONCERNS
+    const budgetUsed = metrics?.budget_used_percentage || 0;
+    if (budgetUsed > 90 && progressPercent < 70) {
+      suggestions.push({
+        type: 'warning',
+        icon: '💰',
+        title: 'Budget is running low faster than progress',
+        message: `You've used ${budgetUsed}% of your budget but only ${progressPercent}% complete.`,
+        actions: [
+          'Review recent expenses - any surprises?',
+          'Identify cost-effective alternatives for remaining tasks',
+          'Consider if additional budget is needed'
+        ]
+      });
+    }
+
+    // 7. EXCELLENT PROGRESS - ENCOURAGEMENT!
+    if (healthScore >= 80 && progressPercent >= 50) {
+      suggestions.push({
+        type: 'success',
+        icon: '🌟',
+        title: 'You\'re crushing it!',
+        message: `Health score of ${healthScore}% and ${progressPercent}% complete - you two are an amazing team!`,
+        actions: [
+          'Celebrate your progress together',
+          'Keep up the momentum with your current rhythm',
+          'Think about how this success applies to future milestones'
+        ]
+      });
+    }
+
+    setInsights(suggestions.slice(0, 2)); // Show top 2 most relevant insights
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center animate-pulse">
+            <Brain className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900">Luna's Insights</h3>
+            <p className="text-sm text-gray-600">Analyzing your milestone...</p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (insights.length === 0) {
+    return null;
+  }
+
+  const getInsightStyle = (type) => {
+    switch (type) {
+      case 'critical':
+        return 'bg-red-50 border-red-200';
+      case 'warning':
+        return 'bg-orange-50 border-orange-200';
+      case 'success':
+        return 'bg-green-50 border-green-200';
+      case 'guidance':
+        return 'bg-blue-50 border-blue-200';
+      default:
+        return 'bg-purple-50 border-purple-200';
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3 }}
+      className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200"
+    >
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+          <Brain className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h3 className="font-bold text-gray-900">Luna's Insights</h3>
+          <p className="text-sm text-gray-600">Personalized suggestions for you both</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {insights.map((insight, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 + index * 0.1 }}
+            className={`${getInsightStyle(insight.type)} rounded-xl p-4 border-2`}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl flex-shrink-0">{insight.icon}</span>
+              <div className="flex-1">
+                <h4 className="font-semibold text-gray-900 mb-1">{insight.title}</h4>
+                <p className="text-sm text-gray-700 mb-3">{insight.message}</p>
+
+                {insight.actions && insight.actions.length > 0 && (
+                  <div className="space-y-2">
+                    {insight.actions.map((action, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-purple-500 flex-shrink-0 mt-0.5">•</span>
+                        <span>{action}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-purple-200">
+        <p className="text-xs text-gray-600 text-center italic">
+          💜 Luna learns from your progress and adapts suggestions to your journey
+        </p>
+      </div>
+    </motion.div>
+  );
+};
+
+/**
+ * Editable Target Date Card - Always visible, click to edit
+ */
+const EditableTargetDateCard = ({
+  targetDate,
+  daysRemaining,
+  isEditing,
+  onEdit,
+  onSave,
+  onCancel,
+  onChange
+}) => {
+  const gradient = 'from-blue-500 to-cyan-500';
+  const borderColor = 'border-blue-200';
+
+  const formattedDate = targetDate
+    ? new Date(targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`bg-white rounded-xl p-4 border-2 ${isEditing ? 'border-blue-400 shadow-lg' : borderColor} transition-all relative group`}
+    >
+      {!isEditing ? (
+        <>
+          {/* View Mode */}
+          <div className={`w-10 h-10 bg-gradient-to-br ${gradient} rounded-lg flex items-center justify-center mb-3`}>
+            <Calendar className="w-5 h-5 text-white" />
+          </div>
+
+          <p className="text-sm text-gray-600 mb-1">Target Date</p>
+          <p className="text-xl font-bold text-gray-900 mb-1">
+            {formattedDate || 'Not set'}
+          </p>
+
+          {targetDate && daysRemaining !== null && (
+            <p className="text-xs text-gray-500 mb-2">
+              {daysRemaining > 0
+                ? `${daysRemaining} days left`
+                : daysRemaining === 0
+                ? 'Due today'
+                : `${Math.abs(daysRemaining)} days overdue`
+              }
+            </p>
+          )}
+
+          {!targetDate && (
+            <p className="text-xs text-gray-500 mb-2">Click to set date</p>
+          )}
+
+          {/* Edit button - visible on hover */}
+          <button
+            onClick={onEdit}
+            className="absolute top-2 right-2 p-1.5 bg-white rounded-lg border border-gray-200 opacity-0 group-hover:opacity-100 hover:bg-blue-50 hover:border-blue-300 transition-all"
+            title="Edit target date"
+          >
+            <Edit2 className="w-3 h-3 text-blue-600" />
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Edit Mode */}
+          <div className={`w-10 h-10 bg-gradient-to-br ${gradient} rounded-lg flex items-center justify-center mb-3`}>
+            <Calendar className="w-5 h-5 text-white" />
+          </div>
+
+          <p className="text-sm text-gray-600 mb-2">Set Target Date</p>
+
+          <input
+            type="date"
+            value={targetDate}
+            onChange={(e) => onChange(e.target.value)}
+            min={new Date().toISOString().split('T')[0]}
+            className="w-full px-2 py-1.5 text-sm border-b-2 border-blue-400 focus:outline-none focus:border-blue-600 bg-transparent mb-3"
+            autoFocus
+          />
+
+          {/* Save/Cancel buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={onSave}
+              className="flex-1 px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center gap-1"
+            >
+              <Check className="w-3 h-3" />
+              Save
+            </button>
+            <button
+              onClick={onCancel}
+              className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </motion.div>
+  );
+};
+
+/**
+ * Editable Budget Card - Always visible, click to edit
+ */
+const EditableBudgetCard = ({
+  budgetAmount,
+  totalExpenses,
+  budgetUsedPercentage,
+  isEditing,
+  onEdit,
+  onSave,
+  onCancel,
+  onChange,
+  onNavigate
+}) => {
+  const gradient = 'from-purple-500 to-indigo-500';
+  const borderColor = 'border-purple-200';
+
+  const currentBudget = parseFloat(budgetAmount) || 0;
+  const displayRemaining = currentBudget - totalExpenses;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`bg-white rounded-xl p-4 border-2 ${isEditing ? 'border-purple-400 shadow-lg' : borderColor} transition-all relative group`}
+    >
+      {!isEditing ? (
+        <>
+          {/* View Mode */}
+          <div className={`w-10 h-10 bg-gradient-to-br ${gradient} rounded-lg flex items-center justify-center mb-3`}>
+            <DollarSign className="w-5 h-5 text-white" />
+          </div>
+
+          <p className="text-sm text-gray-600 mb-1">Budget</p>
+          <p className="text-xl font-bold text-gray-900 mb-1">
+            {currentBudget === 0 ? '$0' : formatCurrency(currentBudget)}
+          </p>
+
+          {currentBudget > 0 && (
+            <>
+              <p className="text-xs text-gray-500 mb-2">
+                {formatCurrency(displayRemaining)} left
+              </p>
+
+              {budgetUsedPercentage !== undefined && (
+                <div className="mb-2">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                    <div
+                      className={`bg-gradient-to-r ${gradient} h-1.5 rounded-full transition-all duration-500`}
+                      style={{ width: `${Math.min(budgetUsedPercentage, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {currentBudget === 0 && (
+            <p className="text-xs text-gray-500 mb-2">Click to set budget</p>
+          )}
+
+          {/* Edit button - visible on hover */}
+          <button
+            onClick={onEdit}
+            className="absolute top-2 right-2 p-1.5 bg-white rounded-lg border border-gray-200 opacity-0 group-hover:opacity-100 hover:bg-purple-50 hover:border-purple-300 transition-all"
+            title="Edit budget"
+          >
+            <Edit2 className="w-3 h-3 text-purple-600" />
+          </button>
+
+          {/* View details button */}
+          {currentBudget > 0 && (
+            <button
+              onClick={onNavigate}
+              className="text-xs text-purple-600 hover:text-purple-700 font-medium mt-1"
+            >
+              View details →
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Edit Mode */}
+          <div className={`w-10 h-10 bg-gradient-to-br ${gradient} rounded-lg flex items-center justify-center mb-3`}>
+            <DollarSign className="w-5 h-5 text-white" />
+          </div>
+
+          <p className="text-sm text-gray-600 mb-2">Set Budget Amount</p>
+
+          <div className="flex items-center gap-1 mb-3">
+            <span className="text-lg font-bold text-gray-700">$</span>
+            <input
+              type="number"
+              value={budgetAmount}
+              onChange={(e) => onChange(e.target.value)}
+              min="0"
+              step="100"
+              className="flex-1 px-2 py-1 text-lg font-bold border-b-2 border-purple-400 focus:outline-none focus:border-purple-600 bg-transparent"
+              placeholder="0"
+              autoFocus
+            />
+          </div>
+
+          {/* Save/Cancel buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={onSave}
+              className="flex-1 px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center gap-1"
+            >
+              <Check className="w-3 h-3" />
+              Save
+            </button>
+            <button
+              onClick={onCancel}
+              className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </motion.div>
+  );
+};
 
 /**
  * Generic Metric Card

@@ -144,9 +144,19 @@ export const getMilestonesByRoadmap = async (roadmapId) => {
       .eq('roadmap_id', roadmapId)
       .order('order_index', { ascending: true })
 
-    console.log('📊 Database response - data:', data);
     console.log('📊 Database response - error:', error);
     console.log('📊 Number of milestones found:', data?.length || 0);
+
+    // CRITICAL: Log each milestone's budget_amount to verify DB has it
+    if (data && data.length > 0) {
+      console.log('💰 BUDGET CHECK - Milestones from database:');
+      data.forEach((m, idx) => {
+        console.log(`  ${idx + 1}. ${m.title}:`);
+        console.log(`     - budget_amount: ${m.budget_amount}`);
+        console.log(`     - target_date: ${m.target_date}`);
+        console.log(`     - estimated_cost: ${m.estimated_cost}`);
+      });
+    }
 
     if (error) throw error
     return { data, error: null }
@@ -161,6 +171,14 @@ export const getMilestonesByRoadmap = async (roadmapId) => {
  */
 export const updateMilestone = async (milestoneId, updates) => {
   try {
+    console.log('💾 updateMilestone called:');
+    console.log('   - milestoneId:', milestoneId);
+    console.log('   - updates:', updates);
+
+    if (updates.budget_amount !== undefined) {
+      console.log('   🔴 BUDGET UPDATE: Setting budget_amount to', updates.budget_amount);
+    }
+
     const { data, error } = await supabase
       .from('milestones')
       .update(updates)
@@ -168,7 +186,15 @@ export const updateMilestone = async (milestoneId, updates) => {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Update milestone failed:', error);
+      throw error;
+    }
+
+    console.log('✅ Update milestone success! Returned data:');
+    console.log('   - budget_amount:', data.budget_amount);
+    console.log('   - target_date:', data.target_date);
+
     return { data, error: null }
   } catch (error) {
     console.error('Update milestone error:', error)
@@ -229,7 +255,11 @@ export const getTasksByMilestone = async (milestoneId) => {
       .order('order_index', { ascending: true })
 
     if (error) throw error
-    return { data, error: null }
+
+    // Filter out deleted tasks client-side
+    const filteredData = data ? data.filter(task => !task.deleted) : [];
+
+    return { data: filteredData, error: null }
   } catch (error) {
     console.error('Get tasks error:', error)
     return { data: null, error }
@@ -279,6 +309,103 @@ export const deleteTask = async (taskId) => {
   } catch (error) {
     console.error('Delete task error:', error)
     return { error }
+  }
+}
+
+/**
+ * Get tasks for a specific roadmap phase
+ */
+export const getTasksByPhase = async (milestoneId, phaseIndex) => {
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('milestone_id', milestoneId)
+      .eq('roadmap_phase_index', phaseIndex)
+      .order('order_index', { ascending: true })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get tasks by phase error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get tasks assigned to a specific partner
+ */
+export const getTasksByPartner = async (milestoneId, partnerName) => {
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('milestone_id', milestoneId)
+      .or(`assigned_to.eq.${partnerName},assigned_to.is.null`)
+      .order('order_index', { ascending: true })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get tasks by partner error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Create a task linked to a specific roadmap phase
+ */
+export const createPhaseTask = async (taskData, phaseIndex) => {
+  try {
+    const taskWithPhase = {
+      ...taskData,
+      roadmap_phase_index: phaseIndex
+    }
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert([taskWithPhase])
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Create phase task error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get phase completion statistics
+ * Returns: { total, completed, percentage, allCompleted }
+ */
+export const getPhaseProgress = async (milestoneId, phaseIndex) => {
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('completed')
+      .eq('milestone_id', milestoneId)
+      .eq('roadmap_phase_index', phaseIndex)
+
+    if (error) throw error
+
+    const total = data?.length || 0
+    const completed = data?.filter(t => t.completed).length || 0
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
+
+    return {
+      data: {
+        total,
+        completed,
+        percentage,
+        allCompleted: total > 0 && completed === total
+      },
+      error: null
+    }
+  } catch (error) {
+    console.error('Get phase progress error:', error)
+    return { data: null, error }
   }
 }
 
