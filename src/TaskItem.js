@@ -7,7 +7,17 @@ const TaskItem = ({ task, milestone, addAchievement, updateMilestone }) => {
       t.id === task.id ? { ...t, completed: !t.completed } : t
     );
     updateMilestone({ ...milestone, tasks: updatedTasks });
-    if (!task.completed) addAchievement('✅ Task Complete', `Completed: ${task.title}`, 10);
+
+    if (!task.completed) {
+      // Award XP for task completion
+      addAchievement('✅ Task Complete', `Completed: ${task.title}`, 10);
+
+      // Check if this was the last task - award bonus XP for roadmap completion
+      const allTasksComplete = updatedTasks.every(t => t.completed);
+      if (allTasksComplete && updatedTasks.length > 0) {
+        addAchievement('🎯 Roadmap Complete!', `All tasks completed for: ${milestone.title}`, 50);
+      }
+    }
   };
 
   return (

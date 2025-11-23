@@ -10,7 +10,9 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.13.1",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
+    "dompurify": "^3.3.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "framer-motion": "^12.23.24",
@@ -20,15 +22,26 @@
     "react-confetti": "^6.4.0",
     "react-dom": "^19.2.0",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "yup": "^1.7.1"
   },
   "scripts": {
     "start": "react-scripts start",
     "backend": "node server.js",
     "dev": "concurrently \"npm start\" \"npm run backend\"",
+    "dev:pm2": "concurrently \"npm start\" \"npm run pm2:start:watch\"",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:start:watch": "pm2 start ecosystem.config.js --watch",
+    "pm2:stop": "pm2 stop together-forward-backend",
+    "pm2:restart": "pm2 restart together-forward-backend",
+    "pm2:delete": "pm2 delete together-forward-backend",
+    "pm2:logs": "pm2 logs together-forward-backend --lines 100",
+    "pm2:logs:error": "pm2 logs together-forward-backend --err",
+    "pm2:status": "pm2 status",
+    "pm2:monit": "pm2 monit"
   },
   "eslintConfig": {
     "extends": [
@@ -52,7 +65,9 @@
     "autoprefixer": "^10.4.21",
     "concurrently": "^8.2.2",
     "nodemon": "^3.0.1",
+    "pm2": "^6.0.13",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.1"
-  }
+  },
+  "proxy": "http://localhost:3001"
 }

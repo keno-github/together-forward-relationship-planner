@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Luna Test</title>
+</head>
+<body>
+    <h1>Luna Direct API Test</h1>
+    <button onclick="testLuna()">Test Luna</button>
+    <div id="output"></div>
+
+    <script>
+        async function testLuna() {
+            const output = document.getElementById('output');
+            output.innerHTML = 'Testing...';
+
+            try {
+                const response = await fetch('http://localhost:3005/api/claude', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: [{ role: 'user', content: 'Hi, we want to plan a wedding' }],
+                        systemPrompt: 'You are Luna, an AI planning assistant for couples.',
+                        tools: [],
+                        maxTokens: 500
+                    })
+                });
+
+                const data = await response.json();
+                output.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                output.innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

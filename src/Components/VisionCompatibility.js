@@ -454,9 +454,9 @@ const VisionCompatibility = ({ onComplete, location, onBack = null }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-4 relative">
       {/* Back Button */}
-      {onBack && stage === 'intro' && (
+      {onBack && (stage === 'intro' || stage === 'form' || stage === 'questions') && (
         <div className="absolute top-4 left-4 z-50">
-          <BackButton onClick={onBack} label="Back" />
+          <BackButton onClick={onBack} label="Back to Path Selection" />
         </div>
       )}
 

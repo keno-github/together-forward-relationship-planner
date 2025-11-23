@@ -7,6 +7,7 @@ import ChallengesSection from './ChallengesSection';
 import ChatPanel from './ChatPanel';
 import OverviewSection from './Components/OverviewSection';
 import CustomizationModal from './Components/CustomizationModal';
+import BudgetAllocation from './Components/BudgetAllocation';
 
 const DeepDiveModal = ({
   deepDiveData: initialDeepDiveData,
@@ -14,7 +15,8 @@ const DeepDiveModal = ({
   onClose,
   chatProps,
   userContext,
-  onUpdateMilestone
+  onUpdateMilestone,
+  roadmapId // NEW: Pass roadmap ID for budget tracking
 }) => {
   const [activeDeepDiveTab, setActiveDeepDiveTab] = useState(activeTab || 'overview');
 
@@ -64,7 +66,7 @@ const DeepDiveModal = ({
 
           {/* Tabs */}
           <div className="flex gap-2 mb-6 overflow-x-auto">
-            {['overview', 'cost', 'steps', 'tips', 'challenges', 'chat'].map(tab => (
+            {['overview', 'budget', 'cost', 'steps', 'tips', 'challenges', 'chat'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveDeepDiveTab(tab)}
@@ -75,7 +77,8 @@ const DeepDiveModal = ({
                 }`}
               >
                 {tab === 'overview' ? '📊 Overview' :
-                 tab === 'cost' ? '💰 Cost' :
+                 tab === 'budget' ? '💰 Budget & Savings' :
+                 tab === 'cost' ? '💵 Cost Breakdown' :
                  tab === 'steps' ? '📋 Steps' :
                  tab === 'tips' ? '💡 Tips' :
                  tab === 'challenges' ? '⚠️ Challenges' :
@@ -91,6 +94,16 @@ const DeepDiveModal = ({
                 deepDiveData={deepDiveData}
                 userContext={userContext}
                 onCustomize={handleCustomize}
+              />
+            )}
+            {activeDeepDiveTab === 'budget' && roadmapId && (
+              <BudgetAllocation
+                milestone={deepDiveData}
+                roadmapId={roadmapId}
+                onProgressUpdate={(budgetProgress) => {
+                  console.log('Budget progress updated:', budgetProgress);
+                  // Optionally notify parent of budget progress
+                }}
               />
             )}
             {activeDeepDiveTab === 'cost' && (

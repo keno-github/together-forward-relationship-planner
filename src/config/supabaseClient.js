@@ -1,9 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
+import config from './env'
 
 // Supabase configuration
 // Get these from your Supabase project dashboard: https://app.supabase.com
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || ''
+const supabaseUrl = config.supabase.url
+const supabaseAnonKey = config.supabase.anonKey
+
+// Validate configuration
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase configuration is missing. Please check your .env file.')
+}
 
 // Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

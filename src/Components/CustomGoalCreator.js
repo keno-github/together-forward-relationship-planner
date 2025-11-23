@@ -214,7 +214,7 @@ const CustomGoalCreator = ({ onBack, onComplete }) => {
               onClick={handleCreate}
               className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98] transition-all"
             >
-              {getLunaHelp ? 'Create & Refine with Luna →' : 'Create Goal & See Roadmap →'}
+              Add to Goal Basket →
             </button>
           </div>
         </motion.div>

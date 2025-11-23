@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProfileProvider } from './context/ProfileContext';
 import ErrorBoundary from './Components/ErrorBoundary';
-import LandingPage from './Components/LandingPage';
+import LandingPage from './Components/LandingPageNew';
 import Dashboard from './Components/Dashboard';
 import RoadmapProfile from './Components/RoadmapProfile';
+import Profile from './Components/Profile';
+import Settings from './Components/Settings';
 import VisionCompatibility from './Components/VisionCompatibility';
 import CompatibilityResults from './Components/CompatibilityResults';
 import CompatibilityTransition from './Components/CompatibilityTransition';
 import TogetherForward from './TogetherForward';
+import DeepDivePage from './Components/DeepDivePage';
+import MilestoneDetailPage from './Components/MilestoneDetailPage';
 import AuthTest from './Components/AuthTest';
+import GoalBuilder from './Components/GoalBuilder';
+import LunaOptimization from './Components/LunaOptimization';
+import LunaAssessment from './Components/LunaAssessment';
+import PortfolioOverview from './Components/PortfolioOverview';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseService';
@@ -18,14 +27,26 @@ import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseServ
 const AppContent = () => {
   const { user, loading: authLoading } = useAuth();
 
-  // Track app stage: landing, dashboard, roadmapProfile, compatibility, results, transition, main, authTest
-  const [stage, setStage] = useState('loading'); // Start with loading
+  // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, showcase, colorTest, goalBuilder, lunaOptimization, assessment, portfolioOverview
+  const [stage, setStage] = useState('landing'); // Start with landing page
   const [userData, setUserData] = useState(null);
   const [compatibilityData, setCompatibilityData] = useState(null);
   const [selectedGoalsFromTransition, setSelectedGoalsFromTransition] = useState([]);
   const [selectedRoadmap, setSelectedRoadmap] = useState(null);
   const [checkingRoadmaps, setCheckingRoadmaps] = useState(true);
   const [initialCheckDone, setInitialCheckDone] = useState(false); // NEW: Track if initial check completed
+  const [deepDiveMilestone, setDeepDiveMilestone] = useState(null); // NEW: Track milestone for Deep Dive page
+  const [goalOrchestrator, setGoalOrchestrator] = useState(null); // NEW: Track goal orchestrator for Luna optimization
+
+  // NEW: Milestone Detail state
+  const [milestoneDetailState, setMilestoneDetailState] = useState({
+    milestone: null,
+    section: 'overview' // default section: overview, roadmap, budget, assessment, tasks, status
+  });
+
+  // Chat state for Deep Dive
+  const [deepDiveChatMessages, setDeepDiveChatMessages] = useState([]);
+  const [isDeepDiveChatLoading, setIsDeepDiveChatLoading] = useState(false);
 
   // Initialize app - always show landing page (no automatic dashboard redirect)
   useEffect(() => {
@@ -66,8 +87,30 @@ const AppContent = () => {
     if (data.chosenPath === 'compatibility') {
       // User chose compatibility path
       setStage('compatibility');
+    } else if (data.chosenPath === 'luna') {
+      // User chose Luna AI path - go to main app with Luna generated data
+      // Luna returns: milestones, deepDives, partner1, partner2, location, etc.
+      setUserData({
+        ...data,
+        // Convert Luna milestones to existingMilestones format for TogetherForward
+        existingMilestones: data.milestones || [],
+        lunaDeepDives: data.deepDives || [], // Store deep dives separately
+        openLunaOnStart: true // Flag to open Luna immediately
+      });
+      setStage('main');
+    } else if (data.chosenPath === 'ready') {
+      // User chose "ready" path - check if they want templates or custom goal creator
+      if (data.showTemplates || data.showCustomCreator) {
+        // Go to unified goal builder
+        setUserData(data);
+        setStage('goalBuilder');
+      } else {
+        // Go straight to main app
+        setUserData(data);
+        setStage('main');
+      }
     } else {
-      // User chose "ready" path - go straight to main app
+      // Default: go to main app
       setUserData(data);
       setStage('main');
     }
@@ -148,9 +191,47 @@ const AppContent = () => {
 
   // Handle dashboard actions
   const handleContinueRoadmap = async (roadmap) => {
-    // Go to roadmap profile page (not directly to main)
+    // NEW UX: Go directly to Dreams Overview (skip RoadmapProfile)
+    console.log('🎯 Opening roadmap:', roadmap.id);
+
+    // Load milestones
+    const { data: milestones } = await getMilestonesByRoadmap(roadmap.id);
+    console.log('📦 Dashboard: Loaded', milestones?.length || 0, 'milestones from database');
+
+    const userData = {
+      partner1: roadmap.partner1_name,
+      partner2: roadmap.partner2_name,
+      location: roadmap.location || 'Unknown',
+      roadmapId: roadmap.id,
+      xp_points: roadmap.xp_points || 0
+    };
+
+    // Format milestones with all required fields
+    if (milestones && milestones.length > 0) {
+      const formattedMilestones = milestones.map(m => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        icon: m.icon,
+        color: m.color,
+        category: m.category,
+        estimatedCost: m.estimated_cost,
+        budget_amount: m.budget_amount,
+        target_date: m.target_date,
+        milestone_metrics: m.milestone_metrics,
+        duration: m.duration,
+        aiGenerated: m.ai_generated,
+        completed: m.completed,
+        deepDiveData: m.deep_dive_data,
+        tasks: []
+      }));
+      userData.existingMilestones = formattedMilestones;
+      console.log('✅ Loaded milestones:', formattedMilestones.map(m => m.title).join(', '));
+    }
+
+    setUserData(userData);
     setSelectedRoadmap(roadmap);
-    setStage('roadmapProfile');
+    setStage('main');
   };
 
   const handleContinueFromProfile = async () => {
@@ -160,15 +241,46 @@ const AppContent = () => {
     // Load milestones
     const { data: milestones } = await getMilestonesByRoadmap(selectedRoadmap.id);
 
-    setUserData({
+    console.log('📦 RoadmapProfile: Loaded', milestones?.length || 0, 'milestones from database');
+
+    // CRITICAL FIX: Don't pass existingMilestones if database is empty
+    // This lets TogetherForward use sample data instead of overwriting with empty array
+    const userData = {
       partner1: selectedRoadmap.partner1_name,
       partner2: selectedRoadmap.partner2_name,
       location: selectedRoadmap.location || 'Unknown',
       roadmapId: selectedRoadmap.id,
-      existingMilestones: milestones || [],
       xp_points: selectedRoadmap.xp_points || 0 // Pass XP points from roadmap
-    });
+    };
 
+    // Only add existingMilestones if we actually have some
+    // CRITICAL: Format milestones to include ALL fields (budget_amount, target_date, etc.)
+    if (milestones && milestones.length > 0) {
+      const formattedMilestones = milestones.map(m => {
+        console.log(`Formatting milestone: ${m.title}, budget_amount: ${m.budget_amount}`);
+        return {
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          icon: m.icon,
+          color: m.color,
+          category: m.category,
+          estimatedCost: m.estimated_cost,
+          budget_amount: m.budget_amount, // CRITICAL: Include budget
+          target_date: m.target_date, // CRITICAL: Include target date
+          milestone_metrics: m.milestone_metrics, // Include metrics
+          duration: m.duration,
+          aiGenerated: m.ai_generated,
+          completed: m.completed,
+          deepDiveData: m.deep_dive_data,
+          tasks: []
+        };
+      });
+      userData.existingMilestones = formattedMilestones;
+      console.log('✅ Formatted milestones with budgets:', formattedMilestones.map(m => `${m.title}: $${m.budget_amount || 0}`));
+    }
+
+    setUserData(userData);
     setStage('main');
   };
 
@@ -198,6 +310,14 @@ const AppContent = () => {
     setStage('dashboard');
   };
 
+  const handleGoToProfile = () => {
+    setStage('profile');
+  };
+
+  const handleGoToSettings = () => {
+    setStage('settings');
+  };
+
   const handleBackToDashboard = () => {
     if (user) {
       setStage('dashboard');
@@ -210,8 +330,205 @@ const AppContent = () => {
     setStage('landing');
   };
 
+  const handleOpenAssessment = () => {
+    setStage('assessment');
+  };
+
+  const handleOpenPortfolioOverview = () => {
+    setStage('portfolioOverview');
+  };
+
+  // Goal Builder handlers
+  const handleGoalBuilderComplete = (roadmapData) => {
+    // User completed building goals and created roadmap
+    console.log('🎯 Goal Builder Complete - roadmapData:', roadmapData);
+    console.log('👤 Current userData:', userData);
+
+    const preparedUserData = {
+      ...userData,
+      // Convert roadmap milestones to existingMilestones format
+      existingMilestones: roadmapData.milestones || [],
+      goals: roadmapData.milestones?.map(m => m.title) || [],
+      createdFrom: 'goalBuilder'
+    };
+
+    console.log('✅ Prepared userData for TogetherForward:', preparedUserData);
+    console.log('📋 Milestones count:', preparedUserData.existingMilestones?.length);
+    console.log('👥 Partner names:', preparedUserData.partner1, '&', preparedUserData.partner2);
+    console.log('📍 Location:', preparedUserData.location);
+
+    setUserData(preparedUserData);
+    setStage('main');
+  };
+
+  const handleGoalBuilderEnhanceWithLuna = (data) => {
+    // User wants Luna to enhance/optimize their goal basket
+    // Phase 3: Open Luna optimization conversation with rich context
+    console.log('🎯 Luna enhancement requested:', data);
+
+    // Store orchestrator and go to Luna optimization stage
+    if (data.orchestrator) {
+      setGoalOrchestrator(data.orchestrator);
+      setStage('lunaOptimization');
+    } else {
+      console.error('⚠️ No orchestrator provided to Luna enhancement');
+      handleGoalBuilderComplete(data);
+    }
+  };
+
+  const handleLunaOptimizationComplete = (optimizedData) => {
+    // Luna has optimized the roadmap - go to main app
+    console.log('✨ Luna optimization complete:', optimizedData);
+
+    const preparedUserData = {
+      ...userData,
+      // Use Luna's optimized milestones
+      existingMilestones: optimizedData.milestones || [],
+      goals: optimizedData.milestones?.map(m => m.title) || [],
+      createdFrom: 'lunaOptimization',
+      lunaOptimized: true,
+      lunaContext: optimizedData.context,
+      conversationHistory: optimizedData.conversationHistory
+    };
+
+    setUserData(preparedUserData);
+    setGoalOrchestrator(null); // Clear orchestrator
+    setStage('main');
+  };
+
+  const handleBackFromLunaOptimization = () => {
+    // User went back from Luna optimization - return to goal builder
+    setGoalOrchestrator(null);
+    setStage('goalBuilder');
+  };
+
+  // Deep Dive handlers
+  const handleOpenDeepDive = (milestone) => {
+    setDeepDiveMilestone(milestone);
+    setDeepDiveChatMessages([]); // Reset chat for new deep dive
+    setStage('deepDive');
+  };
+
+  const handleBackFromDeepDive = () => {
+    setDeepDiveMilestone(null);
+    setDeepDiveChatMessages([]); // Clear chat when leaving deep dive
+    setStage('main'); // Return to main app
+  };
+
+  const handleUpdateMilestoneFromDeepDive = (updatedMilestone) => {
+    // Update the milestone in the parent state
+    // This will be passed to TogetherForward to update its milestone list
+    setDeepDiveMilestone(updatedMilestone);
+  };
+
+  // NEW: Milestone Detail handlers (multi-section navigation)
+  const handleOpenMilestoneDetail = (milestone, section = 'overview') => {
+    setMilestoneDetailState({ milestone, section });
+    setStage('milestoneDetail');
+  };
+
+  const handleMilestoneDetailSectionChange = (section) => {
+    setMilestoneDetailState(prev => ({ ...prev, section }));
+  };
+
+  const handleBackFromMilestoneDetail = () => {
+    console.log('🔙 Returning from MilestoneDetail to TogetherForward');
+    console.log('🔄 Setting forceReload flag to refresh TogetherForward data');
+
+    setMilestoneDetailState({ milestone: null, section: 'overview' });
+
+    // Force TogetherForward to reload by temporarily setting userData to trigger useEffect
+    // This ensures budget changes are reflected in Milestone Overview
+    if (userData?.roadmapId) {
+      setUserData(prev => ({
+        ...prev,
+        _reloadTimestamp: Date.now() // Trigger reload
+      }));
+    }
+
+    setStage('main'); // Return to main app
+  };
+
+  const handleUpdateMilestoneFromDetail = (updatedMilestone) => {
+    console.log('🔄 App.js: handleUpdateMilestoneFromDetail called with:', updatedMilestone);
+    console.log('📊 Budget amount in update:', updatedMilestone.budget_amount);
+
+    // Update the milestone in the detail state
+    setMilestoneDetailState(prev => {
+      console.log('🔄 Updating milestoneDetailState from:', prev.milestone);
+      console.log('🔄 Updating milestoneDetailState to:', updatedMilestone);
+      return { ...prev, milestone: updatedMilestone };
+    });
+
+    // CRITICAL: Also update in userData.existingMilestones for consistency
+    if (userData?.existingMilestones) {
+      setUserData(prev => {
+        const updatedMilestones = prev.existingMilestones.map(m =>
+          m.id === updatedMilestone.id ? updatedMilestone : m
+        );
+        console.log('✅ Updated userData.existingMilestones with new budget');
+        return {
+          ...prev,
+          existingMilestones: updatedMilestones
+        };
+      });
+    }
+  };
+
+  // Chat handler for Deep Dive
+  const handleSendDeepDiveMessage = async (message) => {
+    if (!message.trim()) return;
+
+    const userMsg = { role: 'user', content: message };
+    setDeepDiveChatMessages(prev => [...prev, userMsg]);
+    setIsDeepDiveChatLoading(true);
+
+    try {
+      // Import Luna service
+      const { converseWithLuna } = await import('./services/lunaService');
+
+      // Build context with deep dive information
+      const context = {
+        partner1: userData?.partner1 || 'Partner 1',
+        partner2: userData?.partner2 || 'Partner 2',
+        location: userData?.location || 'Unknown',
+        currentMilestone: deepDiveMilestone,
+        deepDiveContext: true, // Flag to indicate this is deep dive chat
+        // Include deep dive specific data
+        ...(deepDiveMilestone && {
+          milestoneTitle: deepDiveMilestone.title,
+          totalBudget: deepDiveMilestone.totalBudget,
+          timeline: deepDiveMilestone.timeline_months,
+          personalizedInsights: deepDiveMilestone.personalizedInsights,
+          intelligentTips: deepDiveMilestone.intelligentTips,
+          riskAnalysis: deepDiveMilestone.riskAnalysis
+        })
+      };
+
+      // Build message history
+      const messages = [...deepDiveChatMessages, userMsg];
+
+      // Call Luna with context
+      const response = await converseWithLuna(messages, context);
+
+      const assistantMsg = { role: 'assistant', content: response };
+      setDeepDiveChatMessages(prev => [...prev, assistantMsg]);
+    } catch (error) {
+      console.error('Deep Dive chat error:', error);
+      const errorMsg = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again!'
+      };
+      setDeepDiveChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsDeepDiveChatLoading(false);
+    }
+  };
+
   return (
     <ErrorBoundary>
+      {/* COLOR TEST and SHOWCASE stages removed - moved to feature/design-system branch */}
+
       {/* TEST STAGE: Auth Test */}
       {stage === 'authTest' && (
         <AuthTest />
@@ -222,6 +539,9 @@ const AppContent = () => {
         <Dashboard
           onContinueRoadmap={handleContinueRoadmap}
           onCreateNew={handleCreateNewRoadmap}
+          onBackToHome={() => setStage('landing')}
+          onOpenAssessment={handleOpenAssessment}
+          onOpenPortfolioOverview={handleOpenPortfolioOverview}
         />
       )}
 
@@ -234,13 +554,46 @@ const AppContent = () => {
         />
       )}
 
+      {/* STAGE: Profile */}
+      {stage === 'profile' && (
+        <Profile onBack={handleBackToLanding} />
+      )}
+
+      {/* STAGE: Settings */}
+      {stage === 'settings' && (
+        <Settings onBack={handleBackToLanding} />
+      )}
+
       {/* STAGE 1: Landing Page */}
       {stage === 'landing' && (
         <LandingPage
           onComplete={handleLandingComplete}
           onBack={user ? handleBackToDashboard : null} // Only show back button if user is logged in
           onGoToDashboard={handleGoToDashboard} // Navigate to dashboard
+          onGoToProfile={handleGoToProfile} // Navigate to profile
+          onGoToSettings={handleGoToSettings} // Navigate to settings
           isReturningUser={userData?.isReturningUser} // Pass flag to skip hero
+        />
+      )}
+
+      {/* STAGE 1.5: Goal Builder (Unified templates + custom goals) */}
+      {stage === 'goalBuilder' && (
+        <GoalBuilder
+          onBack={handleBackToLanding}
+          onComplete={handleGoalBuilderComplete}
+          onEnhanceWithLuna={handleGoalBuilderEnhanceWithLuna}
+          user={user}
+          locationData={userData?.locationData}
+        />
+      )}
+
+      {/* STAGE 1.6: Luna Optimization (Phase 3) */}
+      {stage === 'lunaOptimization' && goalOrchestrator && (
+        <LunaOptimization
+          orchestrator={goalOrchestrator}
+          userData={userData}
+          onComplete={handleLunaOptimizationComplete}
+          onBack={handleBackFromLunaOptimization}
         />
       )}
 
@@ -294,7 +647,90 @@ const AppContent = () => {
             instantGoals={userData?.instantGoals || []} // NEW: Pass instant goals from transition
             roadmap={roadmap}
             deepDiveData={deepDiveData}
-            onBack={handleBackToDashboard} // NEW: Back navigation handler
+            onBack={handleBackToDashboard} // Back navigation handler
+            onGoToDashboard={handleGoToDashboard} // Navigate to dashboard
+            onGoToProfile={handleGoToProfile} // Navigate to profile
+            onGoToSettings={handleGoToSettings} // Navigate to settings
+            onOpenDeepDive={handleOpenDeepDive} // Navigate to full-page Deep Dive (legacy)
+            onOpenMilestoneDetail={handleOpenMilestoneDetail} // NEW: Navigate to multi-section milestone detail
+          />
+        )}
+
+        {/* STAGE 6: Milestone Detail Page (NEW - Multi-section navigation) */}
+        {stage === 'milestoneDetail' && milestoneDetailState.milestone && (
+          <MilestoneDetailPage
+            milestone={milestoneDetailState.milestone}
+            section={milestoneDetailState.section}
+            onSectionChange={handleMilestoneDetailSectionChange}
+            onBack={handleBackFromMilestoneDetail}
+            onUpdateMilestone={handleUpdateMilestoneFromDetail}
+            roadmapId={userData?.roadmapId}
+            userContext={{
+              partner1: userData?.partner1 || coupleData.partner1,
+              partner2: userData?.partner2 || coupleData.partner2,
+              location: userData?.location || 'Unknown'
+            }}
+          />
+        )}
+
+        {/* STAGE 7: Deep Dive Full Page (Legacy - for backward compatibility) */}
+        {stage === 'deepDive' && deepDiveMilestone && (
+          <DeepDivePage
+            milestone={deepDiveMilestone}
+            onBack={handleBackFromDeepDive}
+            onUpdateMilestone={handleUpdateMilestoneFromDeepDive}
+            roadmapId={userData?.roadmapId}
+            chatProps={{
+              chatMessages: deepDiveChatMessages,
+              sendChatMessage: handleSendDeepDiveMessage,
+              isChatLoading: isDeepDiveChatLoading
+            }}
+            userContext={{
+              partner1: userData?.partner1 || coupleData.partner1,
+              partner2: userData?.partner2 || coupleData.partner2,
+              location: userData?.location || 'Unknown'
+            }}
+          />
+        )}
+
+        {/* STAGE 8: Luna Assessment (Journey Intelligence) */}
+        {stage === 'assessment' && (
+          <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+            <div className="container mx-auto px-6 py-8 max-w-6xl">
+              <div className="mb-6">
+                <button
+                  onClick={handleBackToDashboard}
+                  className="px-4 py-2 bg-white border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors flex items-center gap-2 text-stone-700"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to Dashboard
+                </button>
+              </div>
+              <LunaAssessment
+                userId={user?.id}
+                roadmapId={userData?.roadmapId || selectedRoadmap?.id}
+                userContext={{
+                  partner1_name: userData?.partner1 || selectedRoadmap?.partner1_name || coupleData.partner1,
+                  partner2_name: userData?.partner2 || selectedRoadmap?.partner2_name || coupleData.partner2,
+                  location: userData?.location || selectedRoadmap?.location || 'Unknown'
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* STAGE 9: Portfolio Overview (Cross-Dream Intelligence) - NEW */}
+        {stage === 'portfolioOverview' && (
+          <PortfolioOverview
+            onBack={handleBackToDashboard}
+            userId={user?.id}
+            userContext={{
+              partner1_name: userData?.partner1 || selectedRoadmap?.partner1_name || coupleData.partner1,
+              partner2_name: userData?.partner2 || selectedRoadmap?.partner2_name || coupleData.partner2,
+              partner1: userData?.partner1 || selectedRoadmap?.partner1_name || coupleData.partner1,
+              partner2: userData?.partner2 || selectedRoadmap?.partner2_name || coupleData.partner2,
+              location: userData?.location || selectedRoadmap?.location || 'Unknown'
+            }}
           />
         )}
     </ErrorBoundary>
