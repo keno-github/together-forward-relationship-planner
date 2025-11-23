@@ -9,7 +9,7 @@
  * - Roadmap generation coordination
  */
 
-const BACKEND_URL = 'http://localhost:3001'; // Backend server with detailed logging
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001'; // Use env var in production, localhost in dev
 
 /**
  * System prompt that defines Luna's role and behavior
