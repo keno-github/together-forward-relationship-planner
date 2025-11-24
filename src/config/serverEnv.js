@@ -64,7 +64,7 @@ const getServerConfig = () => {
       // In production, only allow specific origins
       // In development, allow localhost on various ports
       allowedOrigins: process.env.NODE_ENV === 'production'
-        ? (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean)
+        ? (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean)
         : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3006'],
     },
     isDevelopment: process.env.NODE_ENV === 'development',
