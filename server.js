@@ -27,8 +27,6 @@ const allowedOrigins = config.cors.allowedOrigins && config.cors.allowedOrigins.
   ? config.cors.allowedOrigins
   : ['http://localhost:3000', 'http://localhost:3001'];
 
-console.log('🔐 CORS allowed origins:', allowedOrigins);
-
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, curl, etc.)
@@ -37,7 +35,6 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.warn(`⚠️ Blocked CORS request from origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },

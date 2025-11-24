@@ -22,6 +22,7 @@ import PortfolioOverview from './Components/PortfolioOverview';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseService';
+import { initGA, trackPageView } from './utils/analytics';
 
 // Inner component that uses auth context
 const AppContent = () => {
@@ -47,6 +48,35 @@ const AppContent = () => {
   // Chat state for Deep Dive
   const [deepDiveChatMessages, setDeepDiveChatMessages] = useState([]);
   const [isDeepDiveChatLoading, setIsDeepDiveChatLoading] = useState(false);
+
+  // Initialize Google Analytics on mount
+  useEffect(() => {
+    initGA();
+  }, []);
+
+  // Track page views when stage changes
+  useEffect(() => {
+    const pageNames = {
+      'landing': 'Landing Page',
+      'dashboard': 'Dashboard',
+      'roadmapProfile': 'Roadmap Profile',
+      'profile': 'User Profile',
+      'settings': 'Settings',
+      'compatibility': 'Vision Compatibility',
+      'results': 'Compatibility Results',
+      'transition': 'Compatibility Transition',
+      'main': 'Main App',
+      'deepDive': 'Deep Dive',
+      'milestoneDetail': 'Milestone Detail',
+      'goalBuilder': 'Goal Builder',
+      'lunaOptimization': 'Luna Optimization',
+      'assessment': 'Luna Assessment',
+      'portfolioOverview': 'Portfolio Overview',
+    };
+
+    const pageName = pageNames[stage] || stage;
+    trackPageView(`/${stage}`, pageName);
+  }, [stage]);
 
   // Initialize app - always show landing page (no automatic dashboard redirect)
   useEffect(() => {
