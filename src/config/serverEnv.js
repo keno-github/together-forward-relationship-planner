@@ -51,6 +51,28 @@ const validateServerEnv = () => {
  * @returns {Object} Server configuration object
  */
 const getServerConfig = () => {
+  // DEBUG: Log environment variables
+  console.log('🔍 DEBUG - NODE_ENV:', process.env.NODE_ENV);
+  console.log('🔍 DEBUG - ALLOWED_ORIGINS raw:', process.env.ALLOWED_ORIGINS);
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  let allowedOrigins;
+
+  if (isProduction) {
+    const rawOrigins = process.env.ALLOWED_ORIGINS || '';
+    console.log('🔍 DEBUG - Processing production origins from:', rawOrigins);
+    allowedOrigins = rawOrigins.split(',').map(o => o.trim()).filter(Boolean);
+    console.log('🔍 DEBUG - Processed origins array:', allowedOrigins);
+
+    // If no origins set in production, this is an error!
+    if (allowedOrigins.length === 0) {
+      console.error('❌ ERROR: ALLOWED_ORIGINS is empty in production!');
+      console.error('❌ Please set ALLOWED_ORIGINS environment variable in Render');
+    }
+  } else {
+    allowedOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3006'];
+  }
+
   return {
     claude: {
       apiKey: process.env.CLAUDE_API_KEY,
@@ -61,14 +83,10 @@ const getServerConfig = () => {
       nodeEnv: process.env.NODE_ENV || 'development',
     },
     cors: {
-      // In production, only allow specific origins
-      // In development, allow localhost on various ports
-      allowedOrigins: process.env.NODE_ENV === 'production'
-        ? (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean)
-        : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3006'],
+      allowedOrigins: allowedOrigins,
     },
-    isDevelopment: process.env.NODE_ENV === 'development',
-    isProduction: process.env.NODE_ENV === 'production',
+    isDevelopment: !isProduction,
+    isProduction: isProduction,
   };
 };
 
