@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase, isSupabaseConfigured } from '../config/supabaseClient'
+import { getOrCreateUserProfile } from '../services/supabaseService'
 
 const AuthContext = createContext({})
 
@@ -32,10 +33,19 @@ export const AuthProvider = ({ children }) => {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+
+      // Auto-create profile for new users (on SIGNED_IN or SIGNED_UP)
+      if (session?.user && (event === 'SIGNED_IN' || event === 'SIGNED_UP')) {
+        const { user } = session
+        await getOrCreateUserProfile(user.id, {
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || null
+        })
+      }
     })
 
     return () => subscription.unsubscribe()

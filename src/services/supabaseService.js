@@ -773,6 +773,61 @@ export const updateUserProfile = async (userId, updates) => {
   }
 }
 
+
+/**
+ * Create user profile (called after signup)
+ */
+export const createUserProfile = async (userId, profileData = {}) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert([{
+        id: userId,
+        email: profileData.email || null,
+        full_name: profileData.full_name || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Create profile error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get or create user profile (ensures profile exists)
+ */
+export const getOrCreateUserProfile = async (userId, profileData = {}) => {
+  try {
+    const { data: existingProfile, error: getError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (existingProfile) {
+      return { data: existingProfile, error: null }
+    }
+
+    // If not found (PGRST116 = no rows returned), create it
+    if (getError?.code === 'PGRST116') {
+      return await createUserProfile(userId, profileData)
+    }
+
+    if (getError) throw getError
+    return { data: null, error: getError }
+  } catch (error) {
+    console.error('Get or create profile error:', error)
+    return { data: null, error }
+  }
+}
+
+
 // =====================================================
 // REAL-TIME SUBSCRIPTIONS
 // =====================================================

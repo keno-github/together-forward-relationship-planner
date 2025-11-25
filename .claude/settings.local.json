@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(npm run pm2:start:*)"
+      "Bash(npm run pm2:start:*)",
+      "Skill(frontend-design:frontend-design)"
     ],
     "deny": [],
     "ask": []
