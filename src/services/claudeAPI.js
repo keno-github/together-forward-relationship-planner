@@ -42,10 +42,22 @@ export const callClaude = async (messages, options = {}) => {
     }
 
     const data = await response.json();
+
+    // Claude API returns text in content[0].text format
+    // The backend returns the raw Claude response
+    const responseText = data.content?.[0]?.text || data.text || '';
+
+    if (!responseText) {
+      console.error('❌ Unexpected response format:', data);
+      throw new Error('Empty or invalid response from Claude API');
+    }
+
     console.log('✅ Luna: Real AI response received!', {
-      responseLength: data.text.length
+      responseLength: responseText.length,
+      model: data.model,
+      stopReason: data.stop_reason
     });
-    return data.text;
+    return responseText;
   } catch (error) {
     console.error('❌ Error calling backend:', error.message);
     console.warn('⚠️  Is backend running? Start it with: npm run backend');

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, Sparkles, X, Heart } from 'lucide-react';
+
 import { GOAL_CATEGORIES, getTemplatesByCategory } from '../data/goalTemplates';
 
 // Inline styles for custom fonts
@@ -75,10 +76,10 @@ const TemplateGallery = ({ onBack, onComplete }) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        {/* Back Button */}
-        <motion.button
+        <div className="flex items-center justify-between mb-6">
+          <motion.button
           onClick={onBack}
-          className="flex items-center gap-2 mb-6 group"
+          className="flex items-center gap-2 group"
           style={{ color: '#6B5E54' }}
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -87,7 +88,9 @@ const TemplateGallery = ({ onBack, onComplete }) => {
         >
           <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
           <span className="text-sm font-medium tracking-wide uppercase">Back</span>
-        </motion.button>
+          </motion.button>
+        </div>
+
 
         {/* Hero Content - More compact */}
         <div className="max-w-3xl">
@@ -240,19 +243,18 @@ const TemplateGallery = ({ onBack, onComplete }) => {
                         whileHover={{ y: -4 }}
                         transition={{ duration: 0.2 }}
                       >
-                        {/* Card Header - Compact gradient */}
-                        <div className={`h-20 relative overflow-hidden ${template.color}`}>
-                          {/* Large emoji */}
-                          <motion.span
-                            className="absolute inset-0 flex items-center justify-center text-4xl"
-                            animate={{
-                              scale: isHovered ? 1.15 : 1,
-                              rotate: isHovered ? 5 : 0
+                        {/* Card Header - Image */}
+                        <div className="h-24 relative overflow-hidden">
+                          <img
+                            src={template.image}
+                            alt={template.title}
+                            className="w-full h-full object-cover"
+                            style={{
+                              transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                              transition: 'transform 0.3s ease'
                             }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            {template.icon}
-                          </motion.span>
+                          />
+                          <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 50%)' }} />
 
                           {/* Selection indicator */}
                           <AnimatePresence>

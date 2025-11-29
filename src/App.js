@@ -10,9 +10,9 @@ import Dashboard from './Components/Dashboard';
 import RoadmapProfile from './Components/RoadmapProfile';
 import Profile from './Components/Profile';
 import Settings from './Components/Settings';
-import VisionCompatibility from './Components/VisionCompatibility';
 import CompatibilityResults from './Components/CompatibilityResults';
 import CompatibilityTransition from './Components/CompatibilityTransition';
+import AssessmentHub from './Components/Assessment/AssessmentHub';
 import TogetherForward from './TogetherForward';
 import DeepDivePage from './Components/DeepDivePage';
 import MilestoneDetailPage from './Components/MilestoneDetailPage';
@@ -50,6 +50,9 @@ const AppContent = () => {
     section: 'overview' // default section: overview, roadmap, budget, assessment, tasks, status
   });
 
+  // NEW: Assessment Hub state (Luna-powered alignment assessment)
+  const [assessmentJoinCode, setAssessmentJoinCode] = useState(null);
+
   // Chat state for Deep Dive
   const [deepDiveChatMessages, setDeepDiveChatMessages] = useState([]);
   const [isDeepDiveChatLoading, setIsDeepDiveChatLoading] = useState(false);
@@ -67,7 +70,7 @@ const AppContent = () => {
       'roadmapProfile': 'Roadmap Profile',
       'profile': 'User Profile',
       'settings': 'Settings',
-      'compatibility': 'Vision Compatibility',
+      'compatibility': 'Alignment Assessment',
       'results': 'Compatibility Results',
       'transition': 'Compatibility Transition',
       'main': 'Main App',
@@ -518,6 +521,17 @@ const AppContent = () => {
     setStage('portfolioOverview');
   };
 
+  // Handle alignment assessment completion (Luna-powered)
+  const handleAlignmentAssessmentComplete = () => {
+    // After assessment completion, return to landing or dashboard
+    setAssessmentJoinCode(null);
+    if (user) {
+      setStage('dashboard');
+    } else {
+      setStage('landing');
+    }
+  };
+
   // Goal Builder handlers
   const handleGoalBuilderComplete = (roadmapData) => {
     // User completed building goals and created roadmap
@@ -785,12 +799,12 @@ const AppContent = () => {
         />
       )}
 
-        {/* STAGE 2: Compatibility Assessment */}
+        {/* STAGE 2: Compatibility Assessment (Luna-Powered) */}
         {stage === 'compatibility' && (
-          <VisionCompatibility
-            onComplete={handleCompatibilityComplete}
-            location="Unknown" // You can get this from geolocation if needed
+          <AssessmentHub
+            joinCode={assessmentJoinCode}
             onBack={handleBackToLanding}
+            onComplete={handleAlignmentAssessmentComplete}
           />
         )}
 
@@ -921,6 +935,7 @@ const AppContent = () => {
             }}
           />
         )}
+
     </ErrorBoundary>
   );
 };
