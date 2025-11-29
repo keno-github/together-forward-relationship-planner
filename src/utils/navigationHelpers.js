@@ -324,7 +324,21 @@ export const generateSmartAlerts = (milestone, expenses = [], tasks = []) => {
  * @returns {Object} Calculated metrics object
  */
 export const calculateClientMetrics = (milestone, tasks = [], expenses = []) => {
-  if (!milestone) return {};
+  // CRITICAL: Return default metrics instead of empty object to prevent blank page
+  if (!milestone) {
+    return {
+      tasks_completed: 0,
+      tasks_total: 0,
+      progress_percentage: 0,
+      completion_percentage: 0,
+      health_score: 50,
+      budget_used_percentage: 0,
+      days_remaining: null,
+      time_elapsed_percentage: 0,
+      on_track: true,
+      budget_amount: 0
+    };
+  }
 
   const completedTasks = tasks.filter(t => t.completed).length;
   const totalTasks = tasks.length;
@@ -492,6 +506,17 @@ export const calculateClientMetrics = (milestone, tasks = [], expenses = []) => 
  * @returns {Object} {label, color, icon}
  */
 export const getHealthStatus = (healthScore) => {
+  // Handle null/undefined - return neutral status
+  if (healthScore === null || healthScore === undefined) {
+    return {
+      label: 'Getting Started',
+      color: 'gray',
+      colorClass: 'text-gray-600 bg-gray-100',
+      icon: 'Activity',
+      message: 'Begin your journey!'
+    };
+  }
+
   if (healthScore >= 80) {
     return {
       label: 'Excellent',

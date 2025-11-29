@@ -212,7 +212,7 @@ class GoalOrchestrator {
 
   normalizeGoal(goal) {
     return {
-      id: goal.id || `goal_${Date.now()}`,
+      id: goal.id || crypto.randomUUID(),  // Generate proper UUID for database
       title: goal.title,
       description: goal.description || '',
       category: goal.category || 'custom',
@@ -222,9 +222,20 @@ class GoalOrchestrator {
       duration: goal.duration || 'Flexible',
       tasks: goal.tasks || [],
       customDetails: goal.customDetails || goal.details || '',
-      source: goal.source || (goal.id?.startsWith('custom_') ? 'custom' : 'template'),
+      source: goal.source || 'custom',  // Default to custom for new goals
       deepDiveData: goal.deepDiveData || null,
-      needsLunaRefinement: goal.needsLunaRefinement || false
+      needsLunaRefinement: goal.needsLunaRefinement || false,
+
+      // Preserve Luna-enhanced fields
+      roadmapPhases: goal.roadmapPhases || [],
+      detailedSteps: goal.detailedSteps || [],
+      milestones: goal.milestones || [],
+      expertTips: goal.expertTips || [],
+      challenges: goal.challenges || [],
+      successMetrics: goal.successMetrics || [],
+      budgetBreakdown: goal.budgetBreakdown || [],
+      lunaEnhanced: goal.lunaEnhanced || false,
+      generatedAt: goal.generatedAt || null
     };
   }
 
@@ -624,8 +635,31 @@ class GoalOrchestrator {
       tasks: goal.tasks || [],
       aiGenerated: goal.source === 'template',
       completed: false,
-      deepDiveData: goal.deepDiveData
+
+      // CRITICAL: Put ALL Luna-enhanced fields INSIDE deepDiveData so RoadmapTreeView can find them
+      deepDiveData: {
+        ...(goal.deepDiveData || {}),
+        roadmapPhases: goal.roadmapPhases || [],
+        detailedSteps: goal.detailedSteps || [],
+        milestones: goal.milestones || [],
+        expertTips: goal.expertTips || [],
+        challenges: goal.challenges || [],
+        successMetrics: goal.successMetrics || [],
+        budgetBreakdown: goal.budgetBreakdown || [],
+        lunaEnhanced: goal.lunaEnhanced || false,
+        generatedAt: goal.generatedAt || null
+      }
     }));
+
+    console.log('🎯 Created roadmap with', milestones.length, 'milestones');
+    milestones.forEach(m => {
+      console.log(`  📌 ${m.title}:`, {
+        hasDeepDiveData: !!m.deepDiveData,
+        roadmapPhases: m.deepDiveData?.roadmapPhases?.length || 0,
+        detailedSteps: m.deepDiveData?.detailedSteps?.length || 0,
+        lunaEnhanced: m.deepDiveData?.lunaEnhanced
+      });
+    });
 
     return {
       success: true,

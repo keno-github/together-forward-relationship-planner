@@ -10,6 +10,8 @@
  * - Every goal deserves a custom journey, not forced categorization
  */
 
+import { callClaudeGenerate } from '../claudeAPI';
+
 /**
  * Generates a roadmap using Claude with optional template guidance
  * @param {string} goalDescription - User's goal in their own words
@@ -17,21 +19,6 @@
  * @returns {Promise<Object>} Complete roadmap with milestones
  */
 export const generateIntelligentRoadmap = async (goalDescription, userContext) => {
-  // Import Anthropic SDK
-  let Anthropic;
-  try {
-    Anthropic = (await import('@anthropic-ai/sdk')).default;
-  } catch (error) {
-    throw new Error('Anthropic SDK not available in browser environment');
-  }
-
-  const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY not found in environment');
-  }
-
-  const anthropic = new Anthropic({ apiKey });
-
   const prompt = `You are an expert journey planner. Create a comprehensive roadmap for someone's goal.
 
 **User's Goal:**
@@ -117,20 +104,13 @@ For "Start a bakery business":
 Return ONLY valid JSON, nothing else.`;
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 4096,
-      temperature: 0.7,
-      messages: [{
-        role: 'user',
-        content: prompt
-      }]
+    const responseText = await callClaudeGenerate(prompt, {
+      maxTokens: 4096,
+      temperature: 0.7
     });
 
-    const responseText = message.content[0].text.trim();
-
     // Extract JSON from response
-    let jsonText = responseText;
+    let jsonText = responseText.trim();
     if (jsonText.includes('```')) {
       const match = jsonText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
       if (match) {
@@ -153,7 +133,7 @@ Return ONLY valid JSON, nothing else.`;
     roadmap.metadata = {
       generatedAt: new Date().toISOString(),
       generationMethod: 'claude_intelligent',
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-haiku-4-5',
       userGoal: goalDescription,
       location: userContext.location?.text,
       confidence: calculateConfidenceScore(userContext, roadmap)

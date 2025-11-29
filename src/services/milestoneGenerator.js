@@ -161,10 +161,10 @@ function getLocationMultiplier(location) {
 }
 
 /**
- * Generate unique milestone ID
+ * Generate unique milestone ID (UUID format for database compatibility)
  */
 function generateMilestoneId() {
-  return `milestone_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return crypto.randomUUID();
 }
 
 /**

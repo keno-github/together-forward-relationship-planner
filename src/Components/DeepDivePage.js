@@ -15,7 +15,7 @@ import CostBreakdown from '../CostBreakdown';
 import IntelligentCostBreakdown from './IntelligentCostBreakdown';
 import ChatPanel from '../ChatPanel';
 import TimelineView from './TimelineView';
-import { callClaude } from '../services/claudeAPI';
+import { callClaudeStreaming } from '../services/claudeAPI';
 
 const DeepDivePage = ({
   milestone,
@@ -30,59 +30,161 @@ const DeepDivePage = ({
   // Chat state
   const [chatMessages, setChatMessages] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
 
-  // Send chat message to Claude
+  // Send chat message to Claude with streaming
   const sendChatMessage = async (userMessage) => {
     // Add user message to chat
     const newUserMessage = { role: 'user', content: userMessage };
     setChatMessages(prev => [...prev, newUserMessage]);
     setIsChatLoading(true);
+    setIsStreaming(true);
 
-    try {
-      // Build context-aware system prompt
-      const systemPrompt = `You are Luna, an empathetic and intelligent AI relationship advisor helping couples achieve their milestones.
+    // Build comprehensive context with full milestone data
+    const tasksContext = milestone?.tasks?.length > 0
+      ? milestone.tasks.map((t, i) => `  ${i + 1}. [${t.completed ? '✓' : ' '}] ${t.title}${t.phase ? ` (${t.phase})` : ''}`).join('\n')
+      : '  No tasks yet';
 
-CURRENT MILESTONE CONTEXT:
-- Goal: ${milestone?.title || 'Unknown'}
-- Description: ${milestone?.description || 'Not provided'}
-- Budget: ${milestone?.budget_amount ? `$${milestone?.budget_amount}` : 'Not set'}
-- Timeline: ${milestone?.duration || 'Not specified'}
-- Partners: ${userContext?.partner1 || 'Partner 1'} and ${userContext?.partner2 || 'Partner 2'}
-- Location: ${userContext?.location || 'Not specified'}
+    const completedTasks = milestone?.tasks?.filter(t => t.completed)?.length || 0;
+    const totalTasks = milestone?.tasks?.length || 0;
+    const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-Your role is to:
-1. Provide specific, actionable advice tailored to THIS milestone
-2. Ask thoughtful follow-up questions to understand their situation better
-3. Help them overcome challenges and make decisions
-4. Be empathetic, encouraging, and supportive
-5. Draw connections between their goals and practical next steps
+    const budgetBreakdown = milestone?.budgetBreakdown?.length > 0
+      ? milestone.budgetBreakdown.map(b => `  - ${b.category}: ${b.percentage}% ${b.notes ? `(${b.notes})` : ''}`).join('\n')
+      : '  Not specified';
 
-Keep responses concise but helpful (2-4 paragraphs max).`;
+    const expertTips = milestone?.expertTips?.length > 0
+      ? milestone.expertTips.map((tip, i) => `  ${i + 1}. ${tip}`).join('\n')
+      : '  None available';
 
-      // Call Claude with conversation history
-      const response = await callClaude(
-        [...chatMessages, newUserMessage],
-        {
-          systemPrompt,
-          maxTokens: 1500,
-          temperature: 0.8
+    const challenges = milestone?.challenges?.length > 0
+      ? milestone.challenges.map((c, i) => `  ${i + 1}. ${c.challenge} → Solution: ${c.solution}`).join('\n')
+      : '  None identified';
+
+    const successMetrics = milestone?.successMetrics?.length > 0
+      ? milestone.successMetrics.map((m, i) => `  ${i + 1}. ${m}`).join('\n')
+      : '  Not defined';
+
+    const systemPrompt = `You are Luna, an empathetic and intelligent AI relationship advisor helping couples achieve their milestones.
+
+═══════════════════════════════════════════════════════════════
+MILESTONE OVERVIEW
+═══════════════════════════════════════════════════════════════
+• Goal: ${milestone?.title || 'Unknown'}
+• Description: ${milestone?.description || 'Not provided'}
+• Category: ${milestone?.category || 'General'}
+• Budget: ${milestone?.budget_amount ? `€${milestone?.budget_amount?.toLocaleString()}` : milestone?.estimatedCost ? `€${milestone?.estimatedCost?.toLocaleString()}` : 'Not set'}
+• Timeline: ${milestone?.duration || 'Not specified'}
+• Progress: ${progress}% (${completedTasks}/${totalTasks} tasks completed)
+
+═══════════════════════════════════════════════════════════════
+COUPLE CONTEXT
+═══════════════════════════════════════════════════════════════
+• Partners: ${userContext?.partner1 || 'Partner 1'} and ${userContext?.partner2 || 'Partner 2'}
+• Location: ${userContext?.location || 'Not specified'}
+
+═══════════════════════════════════════════════════════════════
+TASKS & PROGRESS
+═══════════════════════════════════════════════════════════════
+${tasksContext}
+
+═══════════════════════════════════════════════════════════════
+BUDGET BREAKDOWN
+═══════════════════════════════════════════════════════════════
+${budgetBreakdown}
+
+═══════════════════════════════════════════════════════════════
+EXPERT TIPS
+═══════════════════════════════════════════════════════════════
+${expertTips}
+
+═══════════════════════════════════════════════════════════════
+POTENTIAL CHALLENGES & SOLUTIONS
+═══════════════════════════════════════════════════════════════
+${challenges}
+
+═══════════════════════════════════════════════════════════════
+SUCCESS METRICS
+═══════════════════════════════════════════════════════════════
+${successMetrics}
+
+═══════════════════════════════════════════════════════════════
+YOUR CAPABILITIES AS LUNA
+═══════════════════════════════════════════════════════════════
+You can help the couple by:
+1. Answering questions about their milestone, budget, or tasks
+2. Suggesting modifications to tasks or timeline based on their situation
+3. Providing specific, actionable advice tailored to their progress
+4. Helping them overcome challenges and make decisions
+5. Recommending new tasks or adjustments based on their feedback
+6. Giving encouragement and celebrating their progress
+
+IMPORTANT: You have full context of their milestone. Reference specific tasks, budget items, or challenges when relevant. Be specific and practical.
+
+Keep responses concise but helpful (2-4 paragraphs max). Use the context above to give personalized advice.`;
+
+    // Add empty assistant message that will be populated via streaming
+    setChatMessages(prev => [...prev, { role: 'assistant', content: '', isStreaming: true }]);
+
+    // Track accumulated text for state updates
+    let accumulatedText = '';
+
+    await callClaudeStreaming(
+      [...chatMessages, newUserMessage],
+      {
+        systemPrompt,
+        maxTokens: 1500,
+        temperature: 0.8
+      },
+      {
+        onChunk: (text) => {
+          // Append new text chunk
+          accumulatedText += text;
+          // Update the last message with new content
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            updated[lastIdx] = {
+              role: 'assistant',
+              content: accumulatedText,
+              isStreaming: true
+            };
+            return updated;
+          });
+        },
+        onDone: () => {
+          // Mark streaming as complete
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            updated[lastIdx] = {
+              role: 'assistant',
+              content: accumulatedText,
+              isStreaming: false
+            };
+            return updated;
+          });
+          setIsChatLoading(false);
+          setIsStreaming(false);
+        },
+        onError: (error) => {
+          console.error('Error calling Claude:', error);
+          // Update last message with error
+          setChatMessages(prev => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            updated[lastIdx] = {
+              role: 'assistant',
+              content: "I'm having trouble connecting right now. Please make sure the backend server is running (npm run backend) and try again.",
+              isStreaming: false
+            };
+            return updated;
+          });
+          setIsChatLoading(false);
+          setIsStreaming(false);
         }
-      );
-
-      // Add Luna's response to chat
-      const lunaMessage = { role: 'assistant', content: response };
-      setChatMessages(prev => [...prev, lunaMessage]);
-    } catch (error) {
-      console.error('Error calling Claude:', error);
-      // Add error message
-      const errorMessage = {
-        role: 'assistant',
-        content: "I'm having trouble connecting right now. Please make sure the backend server is running (npm run backend) and try again."
-      };
-      setChatMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsChatLoading(false);
-    }
+      }
+    );
   };
 
   // Navigation items

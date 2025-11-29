@@ -159,9 +159,40 @@ export const getMilestonesByRoadmap = async (roadmapId) => {
     }
 
     if (error) throw error
-    return { data, error: null }
+
+    // Mark all milestones as saved to database (they came from DB, so they exist)
+    const milestonesWithFlag = data?.map(m => ({ ...m, _savedToDb: true })) || [];
+
+    return { data: milestonesWithFlag, error: null }
   } catch (error) {
     console.error('❌ Get milestones error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Check if a string is a valid UUID
+ */
+const isValidUUID = (str) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+};
+
+/**
+ * Get a milestone by ID
+ */
+export const getMilestoneById = async (milestoneId) => {
+  try {
+    const { data, error } = await supabase
+      .from('milestones')
+      .select('*')
+      .eq('id', milestoneId)
+      .maybeSingle()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get milestone by ID error:', error)
     return { data: null, error }
   }
 }
@@ -174,6 +205,18 @@ export const updateMilestone = async (milestoneId, updates) => {
     console.log('💾 updateMilestone called:');
     console.log('   - milestoneId:', milestoneId);
     console.log('   - updates:', updates);
+
+    // Check if the milestone ID is a valid UUID
+    if (!isValidUUID(milestoneId)) {
+      console.warn('⚠️ Milestone ID is not a valid UUID:', milestoneId);
+      console.warn('   This milestone may not exist in the database yet.');
+      console.warn('   Updates will only be applied locally. Please recreate the goal for full database sync.');
+      return {
+        data: { id: milestoneId, ...updates },
+        error: null,
+        warning: 'Local-only update: milestone ID is not a valid UUID'
+      };
+    }
 
     if (updates.budget_amount !== undefined) {
       console.log('   🔴 BUDGET UPDATE: Setting budget_amount to', updates.budget_amount);
@@ -928,6 +971,73 @@ export const subscribeToExpenses = (roadmapId, callback) => {
 }
 
 // =====================================================
+// MILESTONE CONVERSATION OPERATIONS (Luna Overview Chat)
+// =====================================================
+
+/**
+ * Get conversation for a milestone
+ */
+export const getMilestoneConversation = async (milestoneId) => {
+  try {
+    const { data, error } = await supabase
+      .from('milestone_conversations')
+      .select('*')
+      .eq('milestone_id', milestoneId)
+      .maybeSingle()  // Returns null if no row, doesn't error
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get milestone conversation error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Save/update conversation for a milestone (upsert pattern)
+ */
+export const saveMilestoneConversation = async (milestoneId, messages) => {
+  try {
+    // Use upsert - insert or update if exists
+    const { data, error } = await supabase
+      .from('milestone_conversations')
+      .upsert({
+        milestone_id: milestoneId,
+        messages: messages,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'milestone_id'
+      })
+      .select()
+      .maybeSingle()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Save milestone conversation error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Clear conversation for a milestone
+ */
+export const clearMilestoneConversation = async (milestoneId) => {
+  try {
+    const { error } = await supabase
+      .from('milestone_conversations')
+      .delete()
+      .eq('milestone_id', milestoneId)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Clear milestone conversation error:', error)
+    return { error }
+  }
+}
+
+// =====================================================
 // HELPER FUNCTIONS
 // =====================================================
 
@@ -966,7 +1076,19 @@ export const migrateLocalStorageToSupabase = async () => {
         estimated_cost: milestone.estimatedCost || 0,
         duration: milestone.duration,
         ai_generated: milestone.aiGenerated || false,
-        deep_dive_data: milestone.deepDiveData || {},
+        deep_dive_data: {
+          ...(milestone.deepDiveData || {}),
+          // Preserve Luna-enhanced fields for roadmap visualization
+          roadmapPhases: milestone.roadmapPhases || [],
+          detailedSteps: milestone.detailedSteps || [],
+          milestones: milestone.milestones || [],
+          expertTips: milestone.expertTips || [],
+          challenges: milestone.challenges || [],
+          successMetrics: milestone.successMetrics || [],
+          budgetBreakdown: milestone.budgetBreakdown || [],
+          lunaEnhanced: milestone.lunaEnhanced || false,
+          generatedAt: milestone.generatedAt || null
+        },
         order_index: localRoadmap.indexOf(milestone)
       })
 

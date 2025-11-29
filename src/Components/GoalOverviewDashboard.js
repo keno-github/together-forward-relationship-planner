@@ -15,6 +15,7 @@ import {
   shouldShowBudgetTab
 } from '../utils/navigationHelpers';
 import { updateMilestone } from '../services/supabaseService';
+import { useLuna } from '../context/LunaContext';
 
 /**
  * Goal Overview Dashboard
@@ -36,15 +37,46 @@ const GoalOverviewDashboard = ({
   tasks = [],
   expenses = [],
   onNavigateToSection,
-  onUpdateMilestone
+  onUpdateMilestone,
+  onRefreshTasks,
+  onRefreshMilestone
 }) => {
-  const [metrics, setMetrics] = useState(null);
+  // CRITICAL: Initialize with default metrics to prevent blank page
+  const [metrics, setMetrics] = useState({
+    tasks_completed: 0,
+    tasks_total: 0,
+    progress_percentage: 0,
+    health_score: 50,
+    on_track: true,
+    budget_amount: 0,
+    budget_used_percentage: 0,
+    days_remaining: null
+  });
   const [alerts, setAlerts] = useState([]);
   const [healthStatus, setHealthStatus] = useState(null);
   const [editingBudget, setEditingBudget] = useState(false);
   const [budgetAmount, setBudgetAmount] = useState(milestone.budget_amount || milestone.estimatedCost || 0);
   const [editingTargetDate, setEditingTargetDate] = useState(false);
   const [targetDate, setTargetDate] = useState(milestone.target_date || '');
+
+  // Connect to global Luna context
+  const { setLunaContext, clearLunaContext } = useLuna();
+
+  // Set Luna context when component mounts or milestone changes
+  useEffect(() => {
+    if (milestone) {
+      setLunaContext(milestone, tasks, userContext, {
+        onMilestoneUpdate: onUpdateMilestone,
+        onTasksUpdate: onRefreshTasks,
+        onRefreshMilestone: onRefreshMilestone
+      });
+    }
+
+    // Clear context when component unmounts
+    return () => {
+      // Don't clear if there are pending changes - let the panel handle it
+    };
+  }, [milestone?.id, tasks, userContext, onUpdateMilestone, onRefreshTasks, onRefreshMilestone, setLunaContext]);
 
   // CRITICAL: Sync budgetAmount state when milestone prop changes
   useEffect(() => {
@@ -61,7 +93,18 @@ const GoalOverviewDashboard = ({
     const clientMetrics = calculateClientMetrics(milestone, tasks, expenses);
 
     // Merge database and client metrics (db takes precedence)
+    // CRITICAL: Always provide default values to prevent blank page
     const mergedMetrics = {
+      // Default values for required fields
+      tasks_completed: 0,
+      tasks_total: 0,
+      progress_percentage: 0,
+      health_score: 50,
+      on_track: true,
+      budget_amount: milestone.budget_amount || milestone.estimatedCost || 0,
+      budget_used_percentage: 0,
+      days_remaining: null,
+      // Override with calculated/database values
       ...clientMetrics,
       ...dbMetrics
     };
@@ -73,7 +116,7 @@ const GoalOverviewDashboard = ({
     setAlerts(generatedAlerts);
 
     // Get health status
-    const health = getHealthStatus(mergedMetrics.health_score || 0);
+    const health = getHealthStatus(mergedMetrics.health_score || 50);
     setHealthStatus(health);
   }, [milestone, tasks, expenses]);
 
@@ -313,6 +356,8 @@ const GoalOverviewDashboard = ({
         expenses={expenses}
         userContext={userContext}
       />
+
+      {/* Luna Chat is now a floating panel - accessible via the floating button */}
 
       {/* Quick Actions */}
       <QuickActionsSection

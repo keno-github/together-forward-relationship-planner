@@ -37,6 +37,10 @@ const ChatPanel = ({ chatMessages, sendChatMessage, isChatLoading }) => {
                 msg.role === 'user' ? 'text-white' : 'text-gray-800'
               }`}>
                 {msg.content}
+                {/* Typing cursor for streaming messages */}
+                {msg.isStreaming && (
+                  <span className="inline-block w-2 h-4 ml-1 bg-purple-500 animate-pulse rounded-sm" />
+                )}
               </p>
             </div>
             {msg.role === 'user' && (
@@ -47,7 +51,8 @@ const ChatPanel = ({ chatMessages, sendChatMessage, isChatLoading }) => {
           </div>
         ))}
 
-        {isChatLoading && (
+        {/* Only show loading spinner if loading but no streaming message exists yet */}
+        {isChatLoading && !chatMessages.some(m => m.isStreaming) && (
           <div className="flex gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
               <Bot className="w-6 h-6 text-white" />

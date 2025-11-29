@@ -214,15 +214,22 @@ const TogetherForward = ({
       return generateRoadmapFromGoals(userGoals);
     }
 
-    // PRIORITY 3: Try to load from storage
+    // CRITICAL FIX: If we have a roadmapId but no milestones, DON'T use sample data
+    // This prevents "Save for Vacation" from appearing for real dreams
+    if (propCoupleData?.roadmapId) {
+      console.log('⚠️ Real roadmap exists but no milestones - returning empty array (NOT sample data)');
+      return [];
+    }
+
+    // PRIORITY 3: Try to load from storage (only if no roadmapId)
     const saved = loadFromStorage('roadmap', null);
     if (saved && saved.length > 0) {
       console.log('📍 Loading from localStorage');
       return saved;
     }
 
-    // PRIORITY 4: Fallback to sample data
-    console.log('📍 Using sample data');
+    // PRIORITY 4: Fallback to sample data ONLY for completely new users
+    console.log('📍 Using sample data (new user without roadmap)');
     return SampleData.roadmap || [];
   });
   const [coupleData] = useState(propCoupleData || SampleData.coupleData || { partner1: '', partner2: '', timeline: 0 });
@@ -414,7 +421,7 @@ const TogetherForward = ({
     loadFromDatabase();
   }, [user, propCoupleData?.roadmapId, propCoupleData?.existingMilestones, propCoupleData?._reloadTimestamp]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save to database whenever roadmap changes (debounced)
+  // Save to database whenever roadmap changes (immediate for new milestones, debounced for updates)
   useEffect(() => {
     if (!user || cloudSyncStatus === 'loading') return;
 
@@ -479,22 +486,24 @@ const TogetherForward = ({
         let hasNewMilestones = false;
 
         for (const milestone of roadmap) {
-          // Check if milestone has a database UUID
-          const isUUID = milestone.id && typeof milestone.id === 'string' && milestone.id.includes('-') && milestone.id.length > 30;
+          // Check if milestone has been saved to database (use _savedToDb flag, not UUID format)
+          const isSavedToDb = milestone._savedToDb === true;
 
-          if (isUUID) {
+          if (isSavedToDb) {
             // Already exists in database, update it
             console.log('🔄 Updating existing milestone:', milestone.id);
             await updateMilestone(milestone.id, {
               completed: milestone.completed || false,
-              deep_dive_data: milestone.deepDiveData
+              deep_dive_data: milestone.deepDiveData,
+              budget_amount: milestone.budget_amount || milestone.estimatedCost || 0
             });
             updatedRoadmap.push(milestone);
           } else {
-            // New milestone, create it
+            // New milestone, create it (even if it has a UUID - could be from custom goal)
             hasNewMilestones = true;
-            console.log('✨ Creating new milestone:', milestone.title);
+            console.log('✨ Creating new milestone:', milestone.title, 'ID:', milestone.id);
             const { data: newMilestone, error } = await createMilestone({
+              id: milestone.id, // Use existing UUID if present
               roadmap_id: roadmapId,
               title: milestone.title,
               description: milestone.description,
@@ -502,6 +511,7 @@ const TogetherForward = ({
               color: milestone.color,
               category: milestone.category || 'relationship',
               estimated_cost: milestone.estimatedCost || 0,
+              budget_amount: milestone.budget_amount || milestone.estimatedCost || 0, // Include budget!
               duration: milestone.duration,
               ai_generated: milestone.aiGenerated || false,
               deep_dive_data: milestone.deepDiveData,
@@ -509,10 +519,11 @@ const TogetherForward = ({
             });
 
             if (!error && newMilestone) {
-              // Update the milestone with the database ID
+              // Update the milestone with the database ID and mark as saved
               updatedRoadmap.push({
                 ...milestone,
-                id: newMilestone.id
+                id: newMilestone.id,
+                _savedToDb: true  // Mark as saved to database
               });
             } else {
               console.error('Error creating milestone:', error);
@@ -538,9 +549,19 @@ const TogetherForward = ({
       }
     };
 
-    // Debounce saves (wait 2 seconds after last change)
-    const timeoutId = setTimeout(saveToDatabase, 2000);
-    return () => clearTimeout(timeoutId);
+    // CRITICAL FIX: Check if there are NEW milestones that haven't been saved yet
+    const hasUnsavedMilestones = roadmap.some(m => m._savedToDb !== true);
+
+    if (hasUnsavedMilestones) {
+      // Save IMMEDIATELY for new milestones - don't debounce!
+      // This prevents data loss if user navigates away quickly
+      console.log('⚡ New milestones detected - saving immediately');
+      saveToDatabase();
+    } else {
+      // Debounce saves for updates only (wait 2 seconds after last change)
+      const timeoutId = setTimeout(saveToDatabase, 2000);
+      return () => clearTimeout(timeoutId);
+    }
   }, [roadmap, xpPoints, achievements, user, currentRoadmapId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chat props for DeepDiveModal

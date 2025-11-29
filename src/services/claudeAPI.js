@@ -545,8 +545,136 @@ const fallbackExtraction = (conversationHistory) => {
   };
 };
 
+/**
+ * Call Claude API for content generation (simple prompt/response)
+ * Uses the /api/claude-generate endpoint optimized for single prompts
+ * @param {string} prompt - The prompt to send
+ * @param {Object} options - Additional options (systemPrompt, maxTokens, temperature)
+ * @returns {Promise<string>} Generated content
+ */
+export const callClaudeGenerate = async (prompt, options = {}) => {
+  const {
+    systemPrompt = "You are an expert assistant that provides helpful, accurate responses.",
+    maxTokens = 2048,
+    temperature = 0.7
+  } = options;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/claude-generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt,
+        systemPrompt,
+        maxTokens,
+        temperature
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Backend error: ${error.error || response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.content;
+  } catch (error) {
+    console.error('Error calling claude-generate:', error);
+    throw error;
+  }
+};
+
+/**
+ * Call Claude API with streaming responses (like ChatGPT/Claude)
+ * Returns an object with a method to read the stream
+ * @param {Array} messages - Array of message objects with role and content
+ * @param {Object} options - Additional options (systemPrompt, maxTokens, etc.)
+ * @param {Function} onChunk - Callback called for each text chunk received
+ * @param {Function} onDone - Callback called when stream completes
+ * @param {Function} onError - Callback called on error
+ */
+export const callClaudeStreaming = async (messages, options = {}, { onChunk, onDone, onError }) => {
+  const {
+    systemPrompt = "You are Luna, an empathetic and intelligent AI relationship advisor.",
+    maxTokens = 1024,
+    temperature = 1.0
+  } = options;
+
+  console.log('🌊 Luna: Starting streaming response...', {
+    backend: BACKEND_URL,
+    messageCount: messages.length
+  });
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/claude-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: messages,
+        systemPrompt: systemPrompt,
+        maxTokens: maxTokens,
+        temperature: temperature
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend error: ${response.statusText}`);
+    }
+
+    // Read the SSE stream
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        if (onDone) onDone();
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+
+      // Keep last incomplete line in buffer
+      buffer = lines.pop() || '';
+
+      let currentEvent = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (currentEvent === 'text' && data.text) {
+              if (onChunk) onChunk(data.text);
+            } else if (currentEvent === 'done') {
+              if (onDone) onDone();
+            } else if (currentEvent === 'error') {
+              if (onError) onError(new Error(data.error || 'Stream error'));
+            }
+          } catch (e) {
+            // Skip non-JSON data lines
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('❌ Streaming error:', error.message);
+    if (onError) onError(error);
+  }
+};
+
 export default {
   callClaude,
+  callClaudeGenerate,
+  callClaudeStreaming,
   getLunaOnboardingResponse,
   getLunaDeepDiveResponse,
   extractUserDataFromConversation

@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProfileProvider } from './context/ProfileContext';
+import { LunaProvider } from './context/LunaContext';
 import ErrorBoundary from './Components/ErrorBoundary';
+import { LunaFloatingButton, LunaChatPanel, LunaPendingBanner } from './Components/Luna';
 import LandingPage from './Components/LandingPageNew';
 import Dashboard from './Components/Dashboard';
 import RoadmapProfile from './Components/RoadmapProfile';
@@ -19,6 +21,7 @@ import GoalBuilder from './Components/GoalBuilder';
 import LunaOptimization from './Components/LunaOptimization';
 import LunaAssessment from './Components/LunaAssessment';
 import PortfolioOverview from './Components/PortfolioOverview';
+import DevTools from './Components/DevTools';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseService';
@@ -30,6 +33,7 @@ const AppContent = () => {
 
   // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, showcase, colorTest, goalBuilder, lunaOptimization, assessment, portfolioOverview
   const [stage, setStage] = useState('landing'); // Start with landing page
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0); // Force Dashboard remount
   const [userData, setUserData] = useState(null);
   const [compatibilityData, setCompatibilityData] = useState(null);
   const [selectedGoalsFromTransition, setSelectedGoalsFromTransition] = useState([]);
@@ -38,6 +42,7 @@ const AppContent = () => {
   const [initialCheckDone, setInitialCheckDone] = useState(false); // NEW: Track if initial check completed
   const [deepDiveMilestone, setDeepDiveMilestone] = useState(null); // NEW: Track milestone for Deep Dive page
   const [goalOrchestrator, setGoalOrchestrator] = useState(null); // NEW: Track goal orchestrator for Luna optimization
+  const [isNavigating, setIsNavigating] = useState(false); // Prevent double-clicks on navigation
 
   // NEW: Milestone Detail state
   const [milestoneDetailState, setMilestoneDetailState] = useState({
@@ -221,47 +226,166 @@ const AppContent = () => {
 
   // Handle dashboard actions
   const handleContinueRoadmap = async (roadmap) => {
-    // NEW UX: Go directly to Dreams Overview (skip RoadmapProfile)
+    // Prevent double-clicks
+    if (isNavigating) {
+      console.log('⏳ Navigation already in progress, ignoring click');
+      return;
+    }
+    setIsNavigating(true);
+
+    // IMPROVED UX: Go directly to MilestoneDetailPage (skip TogetherForward intermediate view)
     console.log('🎯 Opening roadmap:', roadmap.id);
 
-    // Load milestones
-    const { data: milestones } = await getMilestonesByRoadmap(roadmap.id);
-    console.log('📦 Dashboard: Loaded', milestones?.length || 0, 'milestones from database');
+    try {
+      // Load milestones
+      const { data: milestones, error } = await getMilestonesByRoadmap(roadmap.id);
 
-    const userData = {
-      partner1: roadmap.partner1_name,
-      partner2: roadmap.partner2_name,
-      location: roadmap.location || 'Unknown',
-      roadmapId: roadmap.id,
-      xp_points: roadmap.xp_points || 0
-    };
+      if (error) {
+        console.error('❌ Error loading milestones:', error);
+      }
 
-    // Format milestones with all required fields
-    if (milestones && milestones.length > 0) {
-      const formattedMilestones = milestones.map(m => ({
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        icon: m.icon,
-        color: m.color,
-        category: m.category,
-        estimatedCost: m.estimated_cost,
-        budget_amount: m.budget_amount,
-        target_date: m.target_date,
-        milestone_metrics: m.milestone_metrics,
-        duration: m.duration,
-        aiGenerated: m.ai_generated,
-        completed: m.completed,
-        deepDiveData: m.deep_dive_data,
-        tasks: []
-      }));
-      userData.existingMilestones = formattedMilestones;
-      console.log('✅ Loaded milestones:', formattedMilestones.map(m => m.title).join(', '));
+      console.log('📦 Dashboard: Loaded', milestones?.length || 0, 'milestones from database');
+
+      const newUserData = {
+        partner1: roadmap.partner1_name,
+        partner2: roadmap.partner2_name,
+        location: roadmap.location || 'Unknown',
+        roadmapId: roadmap.id,
+        xp_points: roadmap.xp_points || 0
+      };
+
+      // Format milestones with all required fields and proper defaults
+      let formattedMilestones = [];
+      if (milestones && milestones.length > 0) {
+        formattedMilestones = milestones.map(m => ({
+          id: m.id,
+          roadmap_id: m.roadmap_id, // CRITICAL: Include roadmap_id for Luna updates
+          title: m.title || 'Untitled Goal',
+          description: m.description || '',
+          icon: m.icon || 'Target',
+          color: m.color || 'bg-gradient-to-br from-amber-500 to-orange-500',
+          category: m.category || 'relationship',
+          estimatedCost: m.estimated_cost || 0,
+          budget_amount: m.budget_amount || m.estimated_cost || 0,
+          target_date: m.target_date || null,
+          // CRITICAL: Provide default milestone_metrics to prevent blank page
+          milestone_metrics: m.milestone_metrics || {
+            tasks_completed: 0,
+            tasks_total: 0,
+            progress_percentage: 0,
+            health_score: 50,
+            on_track: true
+          },
+          duration: m.duration || '3-6 months',
+          aiGenerated: m.ai_generated || false,
+          completed: m.completed || false,
+          // CRITICAL: Provide default deepDiveData structure
+          deepDiveData: m.deep_dive_data || {
+            roadmapPhases: [],
+            detailedSteps: [],
+            expertTips: [],
+            challenges: [],
+            successMetrics: []
+          },
+          tasks: [],
+          _savedToDb: true // Mark as coming from database
+        }));
+        newUserData.existingMilestones = formattedMilestones;
+        console.log('✅ Loaded milestones:', formattedMilestones.map(m => m.title).join(', '));
+      }
+
+      // CRITICAL FIX: If no milestones in DB, create a placeholder from the roadmap info
+      // This prevents sample data ("Save for Vacation") from being used
+      if (formattedMilestones.length === 0) {
+        console.log('⚠️ No milestones found in DB, creating placeholder from roadmap');
+        const placeholderMilestone = {
+          id: `placeholder-${roadmap.id}`,
+          roadmap_id: roadmap.id,
+          title: roadmap.title || 'Your Dream',
+          description: `Your ${roadmap.title || 'dream'} journey starts here.`,
+          icon: 'Target',
+          color: 'bg-gradient-to-br from-amber-500 to-orange-500',
+          category: 'relationship',
+          estimatedCost: 0,
+          budget_amount: 0,
+          target_date: null,
+          milestone_metrics: {
+            tasks_completed: 0,
+            tasks_total: 0,
+            progress_percentage: 0,
+            health_score: 50,
+            on_track: true
+          },
+          duration: '3-6 months',
+          aiGenerated: false,
+          completed: false,
+          deepDiveData: {
+            roadmapPhases: [],
+            detailedSteps: [],
+            expertTips: [],
+            challenges: [],
+            successMetrics: []
+          },
+          tasks: [],
+          _savedToDb: false,
+          _isPlaceholder: true
+        };
+        formattedMilestones = [placeholderMilestone];
+        newUserData.existingMilestones = formattedMilestones;
+      }
+
+      setUserData(newUserData);
+      setSelectedRoadmap(roadmap);
+
+      // DIRECT NAVIGATION: Go straight to MilestoneDetailPage (skip intermediate view)
+      // Find the first non-completed milestone (or first if all completed)
+      const activeMilestone = formattedMilestones.find(m => !m.completed) || formattedMilestones[0];
+      console.log('🚀 Direct navigation to milestone:', activeMilestone.title);
+      setMilestoneDetailState({ milestone: activeMilestone, section: 'overview' });
+      setStage('milestoneDetail');
+    } catch (err) {
+      console.error('❌ handleContinueRoadmap error:', err);
+      // Even on error, create placeholder milestone to avoid sample data
+      const placeholderMilestone = {
+        id: `placeholder-${roadmap.id}`,
+        roadmap_id: roadmap.id,
+        title: roadmap.title || 'Your Dream',
+        description: `Your ${roadmap.title || 'dream'} journey starts here.`,
+        icon: 'Target',
+        color: 'bg-gradient-to-br from-amber-500 to-orange-500',
+        category: 'relationship',
+        estimatedCost: 0,
+        budget_amount: 0,
+        target_date: null,
+        milestone_metrics: {
+          tasks_completed: 0,
+          tasks_total: 0,
+          progress_percentage: 0,
+          health_score: 50,
+          on_track: true
+        },
+        duration: '3-6 months',
+        aiGenerated: false,
+        completed: false,
+        deepDiveData: { roadmapPhases: [], detailedSteps: [], expertTips: [], challenges: [], successMetrics: [] },
+        tasks: [],
+        _savedToDb: false,
+        _isPlaceholder: true
+      };
+      setUserData({
+        partner1: roadmap.partner1_name,
+        partner2: roadmap.partner2_name,
+        location: roadmap.location || 'Unknown',
+        roadmapId: roadmap.id,
+        xp_points: roadmap.xp_points || 0,
+        existingMilestones: [placeholderMilestone]
+      });
+      setSelectedRoadmap(roadmap);
+      setMilestoneDetailState({ milestone: placeholderMilestone, section: 'overview' });
+      setStage('milestoneDetail');
+    } finally {
+      setIsNavigating(false);
     }
-
-    setUserData(userData);
-    setSelectedRoadmap(roadmap);
-    setStage('main');
   };
 
   const handleContinueFromProfile = async () => {
@@ -284,26 +408,52 @@ const AppContent = () => {
     };
 
     // Only add existingMilestones if we actually have some
-    // CRITICAL: Format milestones to include ALL fields (budget_amount, target_date, etc.)
+    // CRITICAL: Format milestones to include ALL fields with proper defaults
     if (milestones && milestones.length > 0) {
       const formattedMilestones = milestones.map(m => {
         console.log(`Formatting milestone: ${m.title}, budget_amount: ${m.budget_amount}`);
+
+        // Extract Luna-enhanced fields from deep_dive_data
+        const deepDive = m.deep_dive_data || {};
+
         return {
           id: m.id,
-          title: m.title,
-          description: m.description,
-          icon: m.icon,
-          color: m.color,
-          category: m.category,
-          estimatedCost: m.estimated_cost,
-          budget_amount: m.budget_amount, // CRITICAL: Include budget
-          target_date: m.target_date, // CRITICAL: Include target date
-          milestone_metrics: m.milestone_metrics, // Include metrics
-          duration: m.duration,
-          aiGenerated: m.ai_generated,
-          completed: m.completed,
-          deepDiveData: m.deep_dive_data,
-          tasks: []
+          roadmap_id: m.roadmap_id, // CRITICAL: Include roadmap_id for Luna updates
+          title: m.title || 'Untitled Goal',
+          description: m.description || '',
+          icon: m.icon || 'Target',
+          color: m.color || 'bg-gradient-to-br from-amber-500 to-orange-500',
+          category: m.category || 'relationship',
+          estimatedCost: m.estimated_cost || 0,
+          budget_amount: m.budget_amount || m.estimated_cost || 0,
+          target_date: m.target_date || null,
+          // CRITICAL: Provide default milestone_metrics to prevent blank page
+          milestone_metrics: m.milestone_metrics || {
+            tasks_completed: 0,
+            tasks_total: 0,
+            progress_percentage: 0,
+            health_score: 50,
+            on_track: true
+          },
+          duration: m.duration || '3-6 months',
+          aiGenerated: m.ai_generated || false,
+          completed: m.completed || false,
+          tasks: [],
+          _savedToDb: true, // Mark as coming from database
+
+          // CRITICAL: Keep Luna fields inside deepDiveData with defaults
+          deepDiveData: {
+            ...deepDive,
+            roadmapPhases: deepDive.roadmapPhases || [],
+            detailedSteps: deepDive.detailedSteps || [],
+            milestones: deepDive.milestones || [],
+            expertTips: deepDive.expertTips || [],
+            challenges: deepDive.challenges || [],
+            successMetrics: deepDive.successMetrics || [],
+            budgetBreakdown: deepDive.budgetBreakdown || [],
+            lunaEnhanced: deepDive.lunaEnhanced || false,
+            generatedAt: deepDive.generatedAt || null
+          }
         };
       });
       userData.existingMilestones = formattedMilestones;
@@ -374,12 +524,25 @@ const AppContent = () => {
     console.log('🎯 Goal Builder Complete - roadmapData:', roadmapData);
     console.log('👤 Current userData:', userData);
 
+    // Log milestone data structure for debugging
+    roadmapData.milestones?.forEach(m => {
+      console.log(`  🏆 Milestone: ${m.title}`, {
+        hasDeepDiveData: !!m.deepDiveData,
+        roadmapPhases: m.deepDiveData?.roadmapPhases?.length || 0,
+        detailedSteps: m.deepDiveData?.detailedSteps?.length || 0,
+        lunaEnhanced: m.deepDiveData?.lunaEnhanced
+      });
+    });
+
     const preparedUserData = {
       ...userData,
       // Convert roadmap milestones to existingMilestones format
       existingMilestones: roadmapData.milestones || [],
       goals: roadmapData.milestones?.map(m => m.title) || [],
-      createdFrom: 'goalBuilder'
+      createdFrom: 'goalBuilder',
+      // Use partner names from roadmap if provided, otherwise keep existing
+      partner1: roadmapData.partner1_name || userData?.partner1 || '',
+      partner2: roadmapData.partner2_name || userData?.partner2 || ''
     };
 
     console.log('✅ Prepared userData for TogetherForward:', preparedUserData);
@@ -462,21 +625,15 @@ const AppContent = () => {
   };
 
   const handleBackFromMilestoneDetail = () => {
-    console.log('🔙 Returning from MilestoneDetail to TogetherForward');
-    console.log('🔄 Setting forceReload flag to refresh TogetherForward data');
+    console.log('🔙 Returning from MilestoneDetail to Dashboard');
 
     setMilestoneDetailState({ milestone: null, section: 'overview' });
 
-    // Force TogetherForward to reload by temporarily setting userData to trigger useEffect
-    // This ensures budget changes are reflected in Milestone Overview
-    if (userData?.roadmapId) {
-      setUserData(prev => ({
-        ...prev,
-        _reloadTimestamp: Date.now() // Trigger reload
-      }));
-    }
+    // Force Dashboard to refresh with latest data
+    setDashboardRefreshKey(prev => prev + 1);
 
-    setStage('main'); // Return to main app
+    // Go back to Dashboard (improved UX - skip intermediate view)
+    setStage('dashboard');
   };
 
   const handleUpdateMilestoneFromDetail = (updatedMilestone) => {
@@ -567,6 +724,7 @@ const AppContent = () => {
       {/* STAGE 0: Dashboard (for returning users) */}
       {stage === 'dashboard' && (
         <Dashboard
+          key={dashboardRefreshKey}
           onContinueRoadmap={handleContinueRoadmap}
           onCreateNew={handleCreateNewRoadmap}
           onBackToHome={() => setStage('landing')}
@@ -772,7 +930,14 @@ const App = () => {
   return (
     <AuthProvider>
       <ProfileProvider>
-        <AppContent />
+        <LunaProvider>
+          <AppContent />
+          {/* Luna Floating Chat System */}
+          <LunaPendingBanner />
+          <LunaFloatingButton />
+          <LunaChatPanel />
+          <DevTools />
+        </LunaProvider>
       </ProfileProvider>
     </AuthProvider>
   );

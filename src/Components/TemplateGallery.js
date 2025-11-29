@@ -1,16 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Check, Sparkles, X, Heart } from 'lucide-react';
 import { GOAL_CATEGORIES, getTemplatesByCategory } from '../data/goalTemplates';
+
+// Inline styles for custom fonts
+const fontStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap');
+`;
 
 const TemplateGallery = ({ onBack, onComplete }) => {
   const [selectedGoals, setSelectedGoals] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const categoryRefs = useRef({});
+
+  // Inject fonts
+  useEffect(() => {
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = fontStyles;
+    document.head.appendChild(styleSheet);
+    return () => document.head.removeChild(styleSheet);
+  }, []);
 
   const toggleGoal = (template) => {
     setSelectedGoals(prev => {
       const isSelected = prev.some(g => g.id === template.id);
       if (isSelected) {
-        return prev.filter(g => g.id === template.id);
+        return prev.filter(g => g.id !== template.id);
       } else {
         return [...prev, template];
       }
@@ -25,159 +41,422 @@ const TemplateGallery = ({ onBack, onComplete }) => {
     onComplete(selectedGoals);
   };
 
+  const scrollToCategory = (categoryKey) => {
+    const element = categoryRefs.current[categoryKey];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveCategory(categoryKey);
+    }
+  };
+
+  const totalEstimate = selectedGoals.reduce((sum, g) => sum + g.estimatedCost, 0);
+  const categoryKeys = Object.keys(GOAL_CATEGORIES);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-6 transition-colors"
+    <div
+      className="min-h-screen relative"
+      style={{
+        backgroundColor: '#FAF7F2',
+        fontFamily: "'DM Sans', sans-serif"
+      }}
+    >
+      {/* Subtle texture overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-[0.02]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      {/* Hero Section - Compact */}
+      <motion.div
+        className="relative pt-6 pb-8 px-4 md:px-8 lg:px-12"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        {/* Back Button */}
+        <motion.button
+          onClick={onBack}
+          className="flex items-center gap-2 mb-6 group"
+          style={{ color: '#6B5E54' }}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          whileHover={{ x: -4 }}
+        >
+          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+          <span className="text-sm font-medium tracking-wide uppercase">Back</span>
+        </motion.button>
+
+        {/* Hero Content - More compact */}
+        <div className="max-w-3xl">
+          <motion.p
+            className="text-xs font-medium tracking-[0.2em] uppercase mb-2"
+            style={{ color: '#C4785A' }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
-            <ArrowLeft className="w-5 h-5" />
-            Back
-          </button>
+            Your Shared Journey Begins
+          </motion.p>
 
-          <h1 className="text-4xl font-bold text-gray-800 mb-3">
-            Choose Your Goals 💕
-          </h1>
-          <p className="text-lg text-gray-600">
-            Select the goals that matter to you both (pick as many as you'd like - you can always add more later!)
-          </p>
+          <motion.h1
+            className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.15] mb-3"
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              color: '#2D2926'
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            Curate Your <span className="italic font-medium" style={{ color: '#C4785A' }}>Dreams Together</span>
+          </motion.h1>
+
+          <motion.p
+            className="text-sm md:text-base max-w-lg leading-relaxed"
+            style={{ color: '#6B5E54' }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            Select the milestones that resonate with your vision.
+          </motion.p>
         </div>
+      </motion.div>
 
-        {/* Goal Categories */}
-        {Object.entries(GOAL_CATEGORIES).map(([categoryKey, category]) => {
+      {/* Category Navigation - Sticky */}
+      <motion.div
+        className="sticky top-0 z-40 px-4 md:px-8 lg:px-12 py-3"
+        style={{ backgroundColor: 'rgba(250, 247, 242, 0.97)', backdropFilter: 'blur(8px)' }}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {categoryKeys.map((key, index) => {
+            const category = GOAL_CATEGORIES[key];
+            const selectedCount = selectedGoals.filter(g => g.category === key).length;
+
+            return (
+              <motion.button
+                key={key}
+                onClick={() => scrollToCategory(key)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap transition-all duration-200"
+                style={{
+                  backgroundColor: activeCategory === key ? '#2D2926' : 'white',
+                  color: activeCategory === key ? 'white' : '#2D2926',
+                  border: '1px solid',
+                  borderColor: activeCategory === key ? '#2D2926' : '#E8E2DA',
+                  fontSize: '13px'
+                }}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 + index * 0.03 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <span className="text-sm">{category.icon}</span>
+                <span className="font-medium">{category.name}</span>
+                {selectedCount > 0 && (
+                  <span
+                    className="ml-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    style={{ backgroundColor: '#C4785A', color: 'white' }}
+                  >
+                    {selectedCount}
+                  </span>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+      </motion.div>
+
+      {/* Categories with Grid Layout */}
+      <div className="px-4 md:px-8 lg:px-12 pb-36">
+        {categoryKeys.map((categoryKey) => {
+          const category = GOAL_CATEGORIES[categoryKey];
           const templates = getTemplatesByCategory(categoryKey);
           if (templates.length === 0) return null;
 
           return (
-            <div key={categoryKey} className="mb-12">
-              {/* Category Header */}
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span>{category.icon}</span>
-                {category.name}
-              </h2>
-
-              {/* Goal Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {templates.map((template, index) => (
-                  <motion.div
-                    key={template.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
+            <motion.section
+              key={categoryKey}
+              ref={el => categoryRefs.current[categoryKey] = el}
+              className="py-6 scroll-mt-16"
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.4 }}
+            >
+              {/* Category Header - Compact */}
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-2xl">{category.icon}</span>
+                <div>
+                  <h2
+                    className="text-xl md:text-2xl font-light"
+                    style={{
+                      fontFamily: "'Cormorant Garamond', serif",
+                      color: '#2D2926'
+                    }}
                   >
-                    <div
-                      className={`bg-white rounded-xl p-6 border-2 transition-all duration-300 cursor-pointer h-full flex flex-col ${
-                        isSelected(template.id)
-                          ? 'border-purple-500 shadow-lg scale-[1.02]'
-                          : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
-                      }`}
-                      onClick={() => toggleGoal(template)}
-                    >
-                      {/* Icon */}
-                      <div className="text-center mb-4">
-                        <div className={`w-16 h-16 ${template.color} rounded-full flex items-center justify-center mx-auto mb-3 relative`}>
-                          <span className="text-3xl">{template.icon}</span>
-                          {isSelected(template.id) && (
-                            <motion.div
-                              className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: 'spring' }}
-                            >
-                              <Check className="w-4 h-4 text-white" />
-                            </motion.div>
-                          )}
-                        </div>
-                        <h3 className="font-bold text-gray-800 text-lg mb-1">
-                          {template.title}
-                        </h3>
-                      </div>
-
-                      {/* Details */}
-                      <div className="space-y-2 text-sm text-gray-600 mb-4 flex-1">
-                        <div className="flex items-center justify-center gap-1">
-                          <span>💰</span>
-                          <span>€{template.estimatedCost.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-1">
-                          <span>⏱️</span>
-                          <span>{template.duration}</span>
-                        </div>
-                      </div>
-
-                      {/* Button */}
-                      <button
-                        className={`w-full py-2 rounded-lg font-semibold transition-all ${
-                          isSelected(template.id)
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleGoal(template);
-                        }}
-                      >
-                        {isSelected(template.id) ? 'Selected ✓' : 'Select'}
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+                    {category.name}
+                  </h2>
+                  <p className="text-xs" style={{ color: '#8B8178' }}>
+                    {category.description}
+                  </p>
+                </div>
               </div>
-            </div>
+
+              {/* Responsive Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {templates.map((template, index) => {
+                  const selected = isSelected(template.id);
+                  const isHovered = hoveredCard === template.id;
+
+                  return (
+                    <motion.div
+                      key={template.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.03, duration: 0.3 }}
+                    >
+                      <motion.div
+                        className="relative h-full rounded-xl overflow-hidden cursor-pointer"
+                        style={{
+                          backgroundColor: 'white',
+                          boxShadow: selected
+                            ? '0 8px 24px -6px rgba(196, 120, 90, 0.3)'
+                            : isHovered
+                              ? '0 8px 20px -6px rgba(45, 41, 38, 0.15)'
+                              : '0 2px 8px -2px rgba(45, 41, 38, 0.08)',
+                          border: selected ? '2px solid #C4785A' : '1px solid #E8E2DA'
+                        }}
+                        onClick={() => toggleGoal(template)}
+                        onHoverStart={() => setHoveredCard(template.id)}
+                        onHoverEnd={() => setHoveredCard(null)}
+                        whileHover={{ y: -4 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {/* Card Header - Compact gradient */}
+                        <div className={`h-20 relative overflow-hidden ${template.color}`}>
+                          {/* Large emoji */}
+                          <motion.span
+                            className="absolute inset-0 flex items-center justify-center text-4xl"
+                            animate={{
+                              scale: isHovered ? 1.15 : 1,
+                              rotate: isHovered ? 5 : 0
+                            }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {template.icon}
+                          </motion.span>
+
+                          {/* Selection indicator */}
+                          <AnimatePresence>
+                            {selected && (
+                              <motion.div
+                                className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center"
+                                style={{ backgroundColor: 'white' }}
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0 }}
+                                transition={{ type: 'spring', stiffness: 500 }}
+                              >
+                                <Check className="w-4 h-4" style={{ color: '#C4785A' }} strokeWidth={3} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        {/* Card Content - Compact */}
+                        <div className="p-3">
+                          <h3
+                            className="text-sm font-semibold mb-1 leading-tight"
+                            style={{
+                              fontFamily: "'Cormorant Garamond', serif",
+                              color: '#2D2926'
+                            }}
+                          >
+                            {template.title}
+                          </h3>
+
+                          {/* Meta info */}
+                          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#8B8178' }}>
+                            <span className="font-medium" style={{ color: '#2D2926' }}>
+                              €{template.estimatedCost.toLocaleString()}
+                            </span>
+                            <span>•</span>
+                            <span>{template.duration}</span>
+                          </div>
+
+                          {/* Select indicator */}
+                          <div
+                            className="mt-2 py-1.5 rounded-lg text-center text-xs font-medium transition-all"
+                            style={{
+                              backgroundColor: selected ? '#C4785A' : '#F5F1EC',
+                              color: selected ? 'white' : '#6B5E54'
+                            }}
+                          >
+                            {selected ? '✓ Added' : 'Add'}
+                          </div>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.section>
           );
         })}
+      </div>
 
-        {/* Selected Goals Summary - Fixed at bottom */}
-        <AnimatePresence>
-          {selectedGoals.length > 0 && (
-            <motion.div
-              className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-purple-200 shadow-2xl z-50"
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
+      {/* Selection Summary - Elegant Bottom Panel */}
+      <AnimatePresence>
+        {selectedGoals.length > 0 && (
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-50"
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            exit={{ y: 100 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          >
+            {/* Gradient fade */}
+            <div
+              className="absolute inset-x-0 -top-16 h-16 pointer-events-none"
+              style={{
+                background: 'linear-gradient(to top, rgba(250, 247, 242, 0.95), transparent)'
+              }}
+            />
+
+            <div
+              className="relative px-4 md:px-8 lg:px-12 py-4"
+              style={{
+                backgroundColor: 'white',
+                borderTop: '1px solid #E8E2DA',
+                boxShadow: '0 -4px 20px -4px rgba(45, 41, 38, 0.1)'
+              }}
             >
-              <div className="max-w-7xl mx-auto p-6">
-                <div className="flex items-center justify-between gap-6">
-                  {/* Selected Count */}
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">
-                      ✨ Your Selected Goals ({selectedGoals.length})
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedGoals.map(goal => (
+              <div className="max-w-7xl mx-auto">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Left - Selection Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Heart className="w-4 h-4 flex-shrink-0" style={{ color: '#C4785A' }} fill="#C4785A" />
+                      <span
+                        className="text-lg font-semibold"
+                        style={{
+                          fontFamily: "'Cormorant Garamond', serif",
+                          color: '#2D2926'
+                        }}
+                      >
+                        {selectedGoals.length} {selectedGoals.length === 1 ? 'Dream' : 'Dreams'}
+                      </span>
+                      <span className="text-xs" style={{ color: '#8B8178' }}>
+                        • Est. €{totalEstimate.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Selected Goals Pills - Scrollable */}
+                    <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+                      {selectedGoals.slice(0, 6).map((goal) => (
                         <div
                           key={goal.id}
-                          className="flex items-center gap-2 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm"
+                          className="flex items-center gap-1 px-2 py-1 rounded-full flex-shrink-0"
+                          style={{
+                            backgroundColor: '#F5F1EC',
+                            border: '1px solid #E8E2DA'
+                          }}
                         >
-                          <span>{goal.icon}</span>
-                          <span className="font-medium">{goal.title}</span>
+                          <span className="text-xs">{goal.icon}</span>
+                          <span className="text-xs font-medium" style={{ color: '#2D2926' }}>
+                            {goal.title.length > 12 ? goal.title.slice(0, 12) + '...' : goal.title}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleGoal(goal);
+                            }}
+                            className="hover:scale-110 transition-transform"
+                          >
+                            <X className="w-3 h-3" style={{ color: '#8B8178' }} />
+                          </button>
                         </div>
                       ))}
+                      {selectedGoals.length > 6 && (
+                        <div
+                          className="px-2 py-1 rounded-full text-xs font-medium flex-shrink-0"
+                          style={{ backgroundColor: '#F5F1EC', color: '#6B5E54' }}
+                        >
+                          +{selectedGoals.length - 6}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Action Button */}
-                  <div className="flex gap-3 flex-shrink-0">
+                  {/* Right - Action Buttons */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      onClick={handleAddToBasket}
-                      className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                      onClick={() => setSelectedGoals([])}
+                      className="px-3 py-2 rounded-lg font-medium text-xs transition-all hover:bg-gray-100"
+                      style={{ color: '#6B5E54' }}
                     >
-                      Add to Goal Basket
-                      <CheckCircle2 className="w-5 h-5" />
+                      Clear
                     </button>
+                    <motion.button
+                      onClick={handleAddToBasket}
+                      className="px-5 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2"
+                      style={{
+                        backgroundColor: '#2D2926',
+                        color: 'white'
+                      }}
+                      whileHover={{ scale: 1.02, backgroundColor: '#C4785A' }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Begin Journey
+                    </motion.button>
                   </div>
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Spacer for fixed footer */}
-        {selectedGoals.length > 0 && <div className="h-32"></div>}
-      </div>
+      {/* Empty state encouragement */}
+      <AnimatePresence>
+        {selectedGoals.length === 0 && (
+          <motion.div
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+          >
+            <div
+              className="px-4 py-2 rounded-full flex items-center gap-2"
+              style={{
+                backgroundColor: 'white',
+                boxShadow: '0 2px 12px -2px rgba(45, 41, 38, 0.15)',
+                border: '1px solid #E8E2DA'
+              }}
+            >
+              <span>💫</span>
+              <span className="text-xs font-medium" style={{ color: '#6B5E54' }}>
+                Tap any card to start
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Scrollbar hide styles */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 };

@@ -1,8 +1,8 @@
 // SampleData.js
 
 export const coupleData = {
-  partner1: 'Alice',
-  partner2: 'Bob',
+  partner1: '', // User will set their own names in GoalBuilder
+  partner2: '', // User will set their own names in GoalBuilder
   timeline: 12, // months
 };
 

@@ -4,6 +4,13 @@ import './index.css';
 import './styles/glassmorphism.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { initializeStorage } from './utils/storageManager';
+
+// Initialize storage - clears cache if app version changed
+const storageResult = initializeStorage();
+if (storageResult.wasCleared) {
+  console.log('📦 Fresh start - localStorage was cleared due to version change');
+}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

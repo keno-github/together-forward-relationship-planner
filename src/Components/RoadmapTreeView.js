@@ -18,7 +18,8 @@ import {
   Flag,
   Plus,
   X,
-  Save
+  Save,
+  Sparkles
 } from 'lucide-react';
 import { createPhaseTask } from '../services/supabaseService';
 
@@ -216,31 +217,34 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
   if (phases === null) {
     return (
       <div className="space-y-4 p-6">
-        <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-8 text-center">
-          <Lightbulb className="w-16 h-16 mx-auto mb-4 text-purple-600" />
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl p-8 text-center">
+          <Sparkles className="w-16 h-16 mx-auto mb-4 text-amber-500" />
           <h3 className="text-2xl font-bold text-gray-900 mb-3">
-            Roadmap Not Generated
+            Let Luna Create Your Roadmap
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            Luna hasn't created a personalized roadmap for "{milestone.title}" yet.
-            This usually happens if the generation was interrupted or failed.
+            Luna can generate a personalized step-by-step roadmap for "{milestone.title}"
+            with detailed phases, actionable tasks, and expert tips.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
-              onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+              onClick={() => {
+                // Open Luna panel and send a message to generate roadmap
+                if (window.openLunaWithMessage) {
+                  window.openLunaWithMessage(`Please generate a detailed roadmap for my goal "${milestone.title}". Create phases with specific steps I can follow.`);
+                } else {
+                  // Fallback: just alert that Luna chat is available via floating button
+                  alert('Click the Luna button (✨) in the bottom right corner to chat with Luna and generate your roadmap!');
+                }
+              }}
+              className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:to-orange-600 transition-colors font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 justify-center"
             >
-              Refresh Page
-            </button>
-            <button
-              onClick={() => alert('Chat with Luna feature coming soon!')}
-              className="px-6 py-3 bg-white text-purple-600 border-2 border-purple-600 rounded-lg hover:bg-purple-50 transition-colors font-medium"
-            >
-              Chat with Luna to Generate
+              <Sparkles className="w-5 h-5" />
+              Generate Roadmap with Luna
             </button>
           </div>
           <p className="text-sm text-gray-500 mt-4">
-            If this issue persists, please contact support
+            Or click the ✨ button in the bottom right corner anytime to chat with Luna
           </p>
         </div>
       </div>

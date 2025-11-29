@@ -15,6 +15,7 @@
  */
 
 import { generateMilestone, MILESTONE_TEMPLATES } from '../milestoneGenerator';
+import { callClaudeGenerate } from '../claudeAPI';
 
 /**
  * Generates a comprehensive roadmap from user context
@@ -676,27 +677,6 @@ export const adaptRoadmap = (roadmap, changes) => {
  * @returns {Promise<Object>} { approved: boolean, customizedSequence: Array, insights: string }
  */
 export const validateAndCustomizeTemplate = async (templateSequence, goalType, goalDescription, userContext) => {
-  // Import Anthropic SDK (only works in Node.js/server environment)
-  let Anthropic;
-  try {
-    Anthropic = (await import('@anthropic-ai/sdk')).default;
-  } catch (error) {
-    // Running in browser - cannot use Anthropic SDK
-    console.warn('Anthropic SDK not available in browser, skipping validation');
-    return {
-      approved: false,
-      customizedSequence: templateSequence,
-      insights: 'Validation skipped - SDK not available in browser environment'
-    };
-  }
-
-  const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY not found in environment');
-  }
-
-  const anthropic = new Anthropic({ apiKey });
-
   const prompt = `You are a roadmap planning expert helping couples achieve their dreams. Your job is to VALIDATE and CUSTOMIZE a template roadmap to ensure it truly serves their specific goal.
 
 **Template Roadmap (baseline for ${goalType}):**
@@ -744,17 +724,10 @@ ${templateSequence.map((m, i) => `${i + 1}. ${m}`).join('\n')}
 Return ONLY valid JSON, nothing else.`;
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 2048,
-      temperature: 0.7,
-      messages: [{
-        role: 'user',
-        content: prompt
-      }]
+    const responseText = await callClaudeGenerate(prompt, {
+      maxTokens: 2048,
+      temperature: 0.7
     });
-
-    const responseText = message.content[0].text.trim();
 
     // Extract JSON from response (handle markdown code blocks)
     let jsonText = responseText;
@@ -818,22 +791,6 @@ Return ONLY valid JSON, nothing else.`;
  * @returns {Promise<Array>} Refined milestone sequence
  */
 export const refineSequenceWithClaude = async (templateSequence, goalType, goalDescription, userContext) => {
-  // Import Anthropic SDK (only works in Node.js/server environment)
-  let Anthropic;
-  try {
-    Anthropic = (await import('@anthropic-ai/sdk')).default;
-  } catch (error) {
-    console.warn('Anthropic SDK not available, skipping refinement');
-    return templateSequence;
-  }
-
-  const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY not found in environment');
-  }
-
-  const anthropic = new Anthropic({ apiKey });
-
   const prompt = `You are a roadmap planning expert. Your task is to refine a template milestone sequence to better match the user's specific goal.
 
 **Template Sequence (baseline):**
@@ -865,20 +822,13 @@ ${goalDescription}
 Return ONLY a valid JSON array of milestone strings, nothing else.`;
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      temperature: 0.7,
-      messages: [{
-        role: 'user',
-        content: prompt
-      }]
+    const responseText = await callClaudeGenerate(prompt, {
+      maxTokens: 1024,
+      temperature: 0.7
     });
 
-    const responseText = message.content[0].text.trim();
-
     // Extract JSON array from response (handle markdown code blocks)
-    let jsonText = responseText;
+    let jsonText = responseText.trim();
     if (jsonText.includes('```')) {
       const match = jsonText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
       if (match) {
@@ -914,22 +864,6 @@ Return ONLY a valid JSON array of milestone strings, nothing else.`;
  * @returns {Promise<Array>} Generated milestone sequence
  */
 export const generateMilestonesWithClaude = async (goalDescription, userContext) => {
-  // Import Anthropic SDK (only works in Node.js/server environment)
-  let Anthropic;
-  try {
-    Anthropic = (await import('@anthropic-ai/sdk')).default;
-  } catch (error) {
-    console.warn('Anthropic SDK not available, cannot generate milestones');
-    throw new Error('Anthropic SDK not available in browser environment');
-  }
-
-  const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY not found in environment');
-  }
-
-  const anthropic = new Anthropic({ apiKey });
-
   const prompt = `You are a roadmap planning expert. Create a comprehensive JOURNEY roadmap with specific stages from start to completion.
 
 **User's Goal:**
@@ -965,20 +899,13 @@ Example format:
 ["milestone_one", "milestone_two", "milestone_three"]`;
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      temperature: 0.8, // Higher temperature for more creative generation
-      messages: [{
-        role: 'user',
-        content: prompt
-      }]
+    const responseText = await callClaudeGenerate(prompt, {
+      maxTokens: 1024,
+      temperature: 0.8 // Higher temperature for more creative generation
     });
 
-    const responseText = message.content[0].text.trim();
-
     // Extract JSON array from response (handle markdown code blocks)
-    let jsonText = responseText;
+    let jsonText = responseText.trim();
     if (jsonText.includes('```')) {
       const match = jsonText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
       if (match) {

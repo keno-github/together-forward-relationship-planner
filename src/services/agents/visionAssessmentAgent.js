@@ -1,13 +1,9 @@
 /**
  * Vision Assessment Agent - Luna's intelligent compatibility assessment
+ *
+ * Note: Claude API calls should be made through the backend API (claudeAPI.js)
+ * to avoid exposing API keys in the browser.
  */
-
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY,
-  dangerouslyAllowBrowser: true
-});
 
 console.log('Vision Assessment Agent loaded');
 

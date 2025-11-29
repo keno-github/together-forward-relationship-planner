@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronRight, Calendar, Check, X } from 'lucide-react';
 import { getVisibleNavigationTabs, calculateClientMetrics } from '../utils/navigationHelpers';
-import { getTasksByMilestone, updateMilestone } from '../services/supabaseService';
+import { getTasksByMilestone, updateMilestone, getMilestoneById } from '../services/supabaseService';
 import RoadmapTreeView from './RoadmapTreeView'; // NEW: Tree-based roadmap
 import BudgetAllocation from './BudgetAllocation'; // Budget section
 import TaskManager from './TaskManager'; // NEW: Full-featured task management
@@ -79,6 +79,21 @@ const MilestoneDetailPage = ({
       setTasks([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Refresh milestone from database (for Luna chat updates)
+  const refreshMilestone = async () => {
+    if (!milestone?.id) return;
+
+    try {
+      const { data, error } = await getMilestoneById(milestone.id);
+      if (!error && data && onUpdateMilestone) {
+        console.log('🔄 Refreshing milestone from database:', data.id);
+        onUpdateMilestone(data);
+      }
+    } catch (error) {
+      console.error('Error refreshing milestone:', error);
     }
   };
 
@@ -339,6 +354,8 @@ const MilestoneDetailPage = ({
                   expenses={expenses}
                   onNavigateToSection={handleSectionChange}
                   onUpdateMilestone={onUpdateMilestone}
+                  onRefreshTasks={loadTasks}
+                  onRefreshMilestone={refreshMilestone}
                 />
               </div>
             )}

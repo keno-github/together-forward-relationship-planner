@@ -1,7 +1,9 @@
-// 12 Core Goal Templates for Phase 1 MVP
+// 30 Rich Goal Templates - Covering All Aspects of Life
 
 export const GOAL_TEMPLATES = [
-  // Relationship Milestones (4)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RELATIONSHIP & FAMILY (6)
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: 'engaged',
     title: 'Get Engaged',
@@ -9,8 +11,8 @@ export const GOAL_TEMPLATES = [
     category: 'relationship',
     estimatedCost: 5000,
     duration: '1-3 months',
-    description: 'Pop the question and start your journey to marriage!',
-    color: 'bg-gradient-to-br from-purple-500 to-pink-500',
+    description: 'Pop the question and start your journey to forever together',
+    color: 'bg-gradient-to-br from-rose-400 to-pink-600',
     tasks: [
       { id: 1, title: 'Choose engagement ring', completed: false, aiGenerated: false },
       { id: 2, title: 'Plan proposal location and moment', completed: false, aiGenerated: false },
@@ -18,85 +20,127 @@ export const GOAL_TEMPLATES = [
     ]
   },
   {
-    id: 'marry',
+    id: 'wedding',
     title: 'Plan Dream Wedding',
     icon: '💒',
     category: 'relationship',
     estimatedCost: 25000,
     duration: '12-18 months',
-    description: 'From engagement to the big day - make it unforgettable!',
-    color: 'bg-gradient-to-br from-pink-500 to-rose-500',
+    description: 'Create the wedding celebration of your dreams',
+    color: 'bg-gradient-to-br from-pink-400 to-rose-600',
     tasks: [
       { id: 1, title: 'Set wedding budget', completed: false, aiGenerated: false },
-      { id: 2, title: 'Choose wedding date', completed: false, aiGenerated: false },
-      { id: 3, title: 'Book venue', completed: false, aiGenerated: false },
-      { id: 4, title: 'Send invitations', completed: false, aiGenerated: false }
+      { id: 2, title: 'Choose wedding date and venue', completed: false, aiGenerated: false },
+      { id: 3, title: 'Book vendors and send invitations', completed: false, aiGenerated: false }
     ]
   },
   {
-    id: 'honeymoon',
-    title: 'Honeymoon Getaway',
-    icon: '🌙',
-    category: 'travel',
-    estimatedCost: 8000,
-    duration: '3-6 months',
-    description: 'Create unforgettable memories on your romantic escape',
-    color: 'bg-gradient-to-br from-orange-500 to-amber-500',
-    tasks: [
-      { id: 1, title: 'Choose dream destination', completed: false, aiGenerated: false },
-      { id: 2, title: 'Set honeymoon budget', completed: false, aiGenerated: false },
-      { id: 3, title: 'Book flights and accommodation', completed: false, aiGenerated: false },
-      { id: 4, title: 'Plan activities and experiences', completed: false, aiGenerated: false }
-    ]
-  },
-  {
-    id: 'family',
+    id: 'baby',
     title: 'Start a Family',
     icon: '👶',
     category: 'relationship',
     estimatedCost: 15000,
-    duration: '9-12 months',
+    duration: '12-18 months',
     description: 'Prepare for the beautiful journey of parenthood',
-    color: 'bg-gradient-to-br from-green-500 to-emerald-500',
+    color: 'bg-gradient-to-br from-amber-300 to-orange-500',
     tasks: [
-      { id: 1, title: 'Prepare nursery', completed: false, aiGenerated: false },
-      { id: 2, title: 'Review insurance coverage', completed: false, aiGenerated: false },
-      { id: 3, title: 'Take parenting classes', completed: false, aiGenerated: false },
-      { id: 4, title: 'Build baby emergency fund', completed: false, aiGenerated: false }
+      { id: 1, title: 'Prepare nursery and essentials', completed: false, aiGenerated: false },
+      { id: 2, title: 'Review health insurance and finances', completed: false, aiGenerated: false },
+      { id: 3, title: 'Take parenting and birthing classes', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'anniversary',
+    title: 'Plan Anniversary Trip',
+    icon: '❤️',
+    category: 'relationship',
+    estimatedCost: 5000,
+    duration: '2-4 months',
+    description: 'Celebrate your love with an unforgettable getaway',
+    color: 'bg-gradient-to-br from-red-400 to-pink-600',
+    tasks: [
+      { id: 1, title: 'Choose romantic destination', completed: false, aiGenerated: false },
+      { id: 2, title: 'Book accommodations and experiences', completed: false, aiGenerated: false },
+      { id: 3, title: 'Plan special surprises', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'vow-renewal',
+    title: 'Renew Wedding Vows',
+    icon: '💝',
+    category: 'relationship',
+    estimatedCost: 8000,
+    duration: '3-6 months',
+    description: 'Reaffirm your commitment with a meaningful ceremony',
+    color: 'bg-gradient-to-br from-purple-400 to-pink-500',
+    tasks: [
+      { id: 1, title: 'Choose venue and date', completed: false, aiGenerated: false },
+      { id: 2, title: 'Write personal vows', completed: false, aiGenerated: false },
+      { id: 3, title: 'Plan celebration with loved ones', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'date-nights',
+    title: 'Monthly Date Nights',
+    icon: '🌹',
+    category: 'relationship',
+    estimatedCost: 2400,
+    duration: '12 months',
+    description: 'Commit to regular quality time and romance',
+    color: 'bg-gradient-to-br from-fuchsia-400 to-purple-600',
+    tasks: [
+      { id: 1, title: 'Create date night budget', completed: false, aiGenerated: false },
+      { id: 2, title: 'Plan 12 unique experiences', completed: false, aiGenerated: false },
+      { id: 3, title: 'Schedule dates in calendar', completed: false, aiGenerated: false }
     ]
   },
 
-  // Home & Living (4)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HOME & LIVING (5)
+  // ═══════════════════════════════════════════════════════════════════════════
   {
-    id: 'home',
+    id: 'first-home',
     title: 'Buy First Home',
     icon: '🏡',
     category: 'home',
     estimatedCost: 50000,
     duration: '12-24 months',
-    description: 'Build equity and create your perfect nest together',
-    color: 'bg-gradient-to-br from-blue-500 to-indigo-500',
+    description: 'Achieve the dream of homeownership',
+    color: 'bg-gradient-to-br from-blue-400 to-indigo-600',
     tasks: [
       { id: 1, title: 'Save for down payment', completed: false, aiGenerated: false },
       { id: 2, title: 'Get pre-approved for mortgage', completed: false, aiGenerated: false },
-      { id: 3, title: 'Start house hunting', completed: false, aiGenerated: false },
-      { id: 4, title: 'Make an offer', completed: false, aiGenerated: false }
+      { id: 3, title: 'Find and close on dream home', completed: false, aiGenerated: false }
     ]
   },
   {
     id: 'renovation',
     title: 'Home Renovation',
-    icon: '🏗️',
+    icon: '🔨',
     category: 'home',
     estimatedCost: 30000,
-    duration: '6-9 months',
+    duration: '3-9 months',
     description: 'Transform your space into your dream home',
-    color: 'bg-gradient-to-br from-cyan-500 to-blue-500',
+    color: 'bg-gradient-to-br from-slate-400 to-zinc-600',
     tasks: [
-      { id: 1, title: 'Plan renovation scope', completed: false, aiGenerated: false },
-      { id: 2, title: 'Get contractor quotes', completed: false, aiGenerated: false },
-      { id: 3, title: 'Secure permits', completed: false, aiGenerated: false },
-      { id: 4, title: 'Begin construction', completed: false, aiGenerated: false }
+      { id: 1, title: 'Plan renovation scope and budget', completed: false, aiGenerated: false },
+      { id: 2, title: 'Hire contractors and get permits', completed: false, aiGenerated: false },
+      { id: 3, title: 'Complete renovation and final touches', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'move-in',
+    title: 'Move In Together',
+    icon: '📦',
+    category: 'home',
+    estimatedCost: 5000,
+    duration: '1-3 months',
+    description: 'Take the exciting step of sharing a home',
+    color: 'bg-gradient-to-br from-teal-400 to-cyan-600',
+    tasks: [
+      { id: 1, title: 'Find the perfect place', completed: false, aiGenerated: false },
+      { id: 2, title: 'Merge belongings and declutter', completed: false, aiGenerated: false },
+      { id: 3, title: 'Set up your shared space', completed: false, aiGenerated: false }
     ]
   },
   {
@@ -107,94 +151,331 @@ export const GOAL_TEMPLATES = [
     estimatedCost: 2000,
     duration: '1-2 months',
     description: 'Welcome a furry family member into your home',
-    color: 'bg-gradient-to-br from-yellow-500 to-orange-500',
+    color: 'bg-gradient-to-br from-amber-400 to-yellow-600',
     tasks: [
-      { id: 1, title: 'Research pet breeds and needs', completed: false, aiGenerated: false },
-      { id: 2, title: 'Pet-proof your home', completed: false, aiGenerated: false },
-      { id: 3, title: 'Visit shelters or breeders', completed: false, aiGenerated: false },
-      { id: 4, title: 'Schedule vet appointment', completed: false, aiGenerated: false }
+      { id: 1, title: 'Research breeds and needs', completed: false, aiGenerated: false },
+      { id: 2, title: 'Prepare home and supplies', completed: false, aiGenerated: false },
+      { id: 3, title: 'Adopt and schedule vet visit', completed: false, aiGenerated: false }
     ]
   },
   {
-    id: 'move',
-    title: 'Move Together',
-    icon: '🌳',
+    id: 'garden',
+    title: 'Create Dream Garden',
+    icon: '🌻',
     category: 'home',
-    estimatedCost: 5000,
-    duration: '2-4 months',
-    description: 'Start your shared life in a new place',
-    color: 'bg-gradient-to-br from-teal-500 to-green-500',
+    estimatedCost: 3000,
+    duration: '3-6 months',
+    description: 'Design and grow your perfect outdoor oasis',
+    color: 'bg-gradient-to-br from-green-400 to-emerald-600',
     tasks: [
-      { id: 1, title: 'Find new place together', completed: false, aiGenerated: false },
-      { id: 2, title: 'Coordinate move-in date', completed: false, aiGenerated: false },
-      { id: 3, title: 'Pack and organize belongings', completed: false, aiGenerated: false },
-      { id: 4, title: 'Set up utilities', completed: false, aiGenerated: false }
+      { id: 1, title: 'Design garden layout', completed: false, aiGenerated: false },
+      { id: 2, title: 'Prepare soil and buy plants', completed: false, aiGenerated: false },
+      { id: 3, title: 'Plant and set up irrigation', completed: false, aiGenerated: false }
     ]
   },
 
-  // Financial Goals (4)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FINANCIAL (5)
+  // ═══════════════════════════════════════════════════════════════════════════
   {
-    id: 'emergency',
-    title: 'Emergency Fund',
-    icon: '💎',
+    id: 'emergency-fund',
+    title: 'Build Emergency Fund',
+    icon: '🛡️',
     category: 'financial',
-    estimatedCost: 10000,
+    estimatedCost: 15000,
     duration: '6-12 months',
-    description: 'Build a 6-month safety net for peace of mind',
-    color: 'bg-gradient-to-br from-emerald-500 to-teal-500',
+    description: 'Create a 6-month safety net for peace of mind',
+    color: 'bg-gradient-to-br from-emerald-400 to-green-600',
     tasks: [
-      { id: 1, title: 'Calculate monthly expenses', completed: false, aiGenerated: false },
+      { id: 1, title: 'Calculate 6 months of expenses', completed: false, aiGenerated: false },
       { id: 2, title: 'Open high-yield savings account', completed: false, aiGenerated: false },
-      { id: 3, title: 'Automate monthly savings', completed: false, aiGenerated: false },
-      { id: 4, title: 'Track progress monthly', completed: false, aiGenerated: false }
+      { id: 3, title: 'Automate monthly contributions', completed: false, aiGenerated: false }
     ]
   },
   {
-    id: 'debt',
-    title: 'Pay Off Debt',
-    icon: '📊',
+    id: 'debt-free',
+    title: 'Become Debt Free',
+    icon: '⛓️‍💥',
     category: 'financial',
     estimatedCost: 20000,
-    duration: '12-24 months',
-    description: 'Become debt-free and financially empowered',
-    color: 'bg-gradient-to-br from-red-500 to-pink-500',
+    duration: '12-36 months',
+    description: 'Break free from debt and gain financial freedom',
+    color: 'bg-gradient-to-br from-red-400 to-orange-600',
     tasks: [
-      { id: 1, title: 'List all debts and interest rates', completed: false, aiGenerated: false },
-      { id: 2, title: 'Choose payoff strategy (avalanche/snowball)', completed: false, aiGenerated: false },
-      { id: 3, title: 'Create debt payment budget', completed: false, aiGenerated: false },
-      { id: 4, title: 'Make extra payments', completed: false, aiGenerated: false }
+      { id: 1, title: 'List all debts and rates', completed: false, aiGenerated: false },
+      { id: 2, title: 'Choose payoff strategy', completed: false, aiGenerated: false },
+      { id: 3, title: 'Execute plan and celebrate wins', completed: false, aiGenerated: false }
     ]
   },
   {
     id: 'invest',
     title: 'Start Investing',
-    icon: '🏦',
+    icon: '📈',
     category: 'financial',
     estimatedCost: 5000,
-    duration: '3-6 months',
-    description: 'Build wealth together for your future',
-    color: 'bg-gradient-to-br from-violet-500 to-purple-500',
+    duration: '2-4 months',
+    description: 'Build wealth for your future through smart investing',
+    color: 'bg-gradient-to-br from-violet-400 to-purple-600',
     tasks: [
-      { id: 1, title: 'Learn investment basics together', completed: false, aiGenerated: false },
-      { id: 2, title: 'Open investment accounts', completed: false, aiGenerated: false },
-      { id: 3, title: 'Choose investment strategy', completed: false, aiGenerated: false },
-      { id: 4, title: 'Make first investment', completed: false, aiGenerated: false }
+      { id: 1, title: 'Learn investment fundamentals', completed: false, aiGenerated: false },
+      { id: 2, title: 'Open brokerage account', completed: false, aiGenerated: false },
+      { id: 3, title: 'Create diversified portfolio', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'retirement',
+    title: 'Max Retirement Savings',
+    icon: '🏖️',
+    category: 'financial',
+    estimatedCost: 25000,
+    duration: '12 months',
+    description: 'Maximize contributions for a comfortable retirement',
+    color: 'bg-gradient-to-br from-sky-400 to-blue-600',
+    tasks: [
+      { id: 1, title: 'Review retirement accounts', completed: false, aiGenerated: false },
+      { id: 2, title: 'Increase contribution rate', completed: false, aiGenerated: false },
+      { id: 3, title: 'Optimize investment allocation', completed: false, aiGenerated: false }
     ]
   },
   {
     id: 'downpayment',
     title: 'Save Down Payment',
-    icon: '🎯',
+    icon: '🏠',
     category: 'financial',
     estimatedCost: 40000,
-    duration: '12-18 months',
-    description: 'Save for your dream home down payment',
-    color: 'bg-gradient-to-br from-indigo-500 to-blue-500',
+    duration: '18-36 months',
+    description: 'Save 20% down payment for your dream home',
+    color: 'bg-gradient-to-br from-indigo-400 to-blue-600',
     tasks: [
-      { id: 1, title: 'Set down payment target', completed: false, aiGenerated: false },
-      { id: 2, title: 'Create savings plan', completed: false, aiGenerated: false },
-      { id: 3, title: 'Cut unnecessary expenses', completed: false, aiGenerated: false },
-      { id: 4, title: 'Track savings progress', completed: false, aiGenerated: false }
+      { id: 1, title: 'Set target amount and timeline', completed: false, aiGenerated: false },
+      { id: 2, title: 'Create aggressive savings plan', completed: false, aiGenerated: false },
+      { id: 3, title: 'Track progress and adjust', completed: false, aiGenerated: false }
+    ]
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRAVEL & ADVENTURE (5)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'honeymoon',
+    title: 'Dream Honeymoon',
+    icon: '🌴',
+    category: 'travel',
+    estimatedCost: 10000,
+    duration: '3-6 months',
+    description: 'Plan the romantic trip of a lifetime',
+    color: 'bg-gradient-to-br from-cyan-400 to-teal-600',
+    tasks: [
+      { id: 1, title: 'Choose dream destination', completed: false, aiGenerated: false },
+      { id: 2, title: 'Book flights and luxury stay', completed: false, aiGenerated: false },
+      { id: 3, title: 'Plan romantic activities', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'europe-trip',
+    title: 'European Adventure',
+    icon: '🗼',
+    category: 'travel',
+    estimatedCost: 8000,
+    duration: '4-8 months',
+    description: 'Explore the history and culture of Europe',
+    color: 'bg-gradient-to-br from-blue-400 to-indigo-500',
+    tasks: [
+      { id: 1, title: 'Plan itinerary and countries', completed: false, aiGenerated: false },
+      { id: 2, title: 'Book transportation and stays', completed: false, aiGenerated: false },
+      { id: 3, title: 'Research must-see experiences', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'road-trip',
+    title: 'Epic Road Trip',
+    icon: '🚗',
+    category: 'travel',
+    estimatedCost: 3000,
+    duration: '2-4 months',
+    description: 'Hit the open road for an unforgettable journey',
+    color: 'bg-gradient-to-br from-orange-400 to-red-500',
+    tasks: [
+      { id: 1, title: 'Plan route and destinations', completed: false, aiGenerated: false },
+      { id: 2, title: 'Prepare vehicle and supplies', completed: false, aiGenerated: false },
+      { id: 3, title: 'Book accommodations along way', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'adventure-trip',
+    title: 'Adventure Expedition',
+    icon: '🏔️',
+    category: 'travel',
+    estimatedCost: 6000,
+    duration: '3-6 months',
+    description: 'Challenge yourselves with an outdoor adventure',
+    color: 'bg-gradient-to-br from-stone-400 to-slate-600',
+    tasks: [
+      { id: 1, title: 'Choose adventure type and location', completed: false, aiGenerated: false },
+      { id: 2, title: 'Get gear and training', completed: false, aiGenerated: false },
+      { id: 3, title: 'Book guides and permits', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'sabbatical',
+    title: 'Travel Sabbatical',
+    icon: '🌍',
+    category: 'travel',
+    estimatedCost: 25000,
+    duration: '6-12 months',
+    description: 'Take extended time off to explore the world',
+    color: 'bg-gradient-to-br from-emerald-400 to-teal-500',
+    tasks: [
+      { id: 1, title: 'Plan finances and timeline', completed: false, aiGenerated: false },
+      { id: 2, title: 'Create travel itinerary', completed: false, aiGenerated: false },
+      { id: 3, title: 'Arrange work leave and logistics', completed: false, aiGenerated: false }
+    ]
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CAREER & EDUCATION (4)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'career-change',
+    title: 'Career Transition',
+    icon: '🚀',
+    category: 'career',
+    estimatedCost: 5000,
+    duration: '6-12 months',
+    description: 'Pivot to your dream career path',
+    color: 'bg-gradient-to-br from-violet-400 to-fuchsia-600',
+    tasks: [
+      { id: 1, title: 'Identify target career and skills gap', completed: false, aiGenerated: false },
+      { id: 2, title: 'Get training or certification', completed: false, aiGenerated: false },
+      { id: 3, title: 'Network and land new role', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'side-business',
+    title: 'Launch Side Business',
+    icon: '💼',
+    category: 'career',
+    estimatedCost: 10000,
+    duration: '6-12 months',
+    description: 'Turn your passion into a profitable venture',
+    color: 'bg-gradient-to-br from-amber-400 to-orange-600',
+    tasks: [
+      { id: 1, title: 'Validate business idea', completed: false, aiGenerated: false },
+      { id: 2, title: 'Create business plan and brand', completed: false, aiGenerated: false },
+      { id: 3, title: 'Launch and get first customers', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'degree',
+    title: 'Complete Degree',
+    icon: '🎓',
+    category: 'career',
+    estimatedCost: 20000,
+    duration: '24-48 months',
+    description: 'Earn that degree you have always wanted',
+    color: 'bg-gradient-to-br from-blue-400 to-cyan-600',
+    tasks: [
+      { id: 1, title: 'Research programs and apply', completed: false, aiGenerated: false },
+      { id: 2, title: 'Secure funding and enroll', completed: false, aiGenerated: false },
+      { id: 3, title: 'Complete coursework and graduate', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'certification',
+    title: 'Get Certified',
+    icon: '📜',
+    category: 'career',
+    estimatedCost: 2000,
+    duration: '3-6 months',
+    description: 'Boost your credentials with professional certification',
+    color: 'bg-gradient-to-br from-teal-400 to-green-600',
+    tasks: [
+      { id: 1, title: 'Choose certification and register', completed: false, aiGenerated: false },
+      { id: 2, title: 'Study and prepare for exam', completed: false, aiGenerated: false },
+      { id: 3, title: 'Pass exam and celebrate', completed: false, aiGenerated: false }
+    ]
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HEALTH & WELLNESS (3)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'fitness',
+    title: 'Transform Fitness',
+    icon: '💪',
+    category: 'health',
+    estimatedCost: 2000,
+    duration: '6-12 months',
+    description: 'Achieve your best physical shape together',
+    color: 'bg-gradient-to-br from-red-400 to-rose-600',
+    tasks: [
+      { id: 1, title: 'Set fitness goals and baseline', completed: false, aiGenerated: false },
+      { id: 2, title: 'Create workout and nutrition plan', completed: false, aiGenerated: false },
+      { id: 3, title: 'Track progress and adjust', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'marathon',
+    title: 'Run a Marathon',
+    icon: '🏃',
+    category: 'health',
+    estimatedCost: 1500,
+    duration: '6-9 months',
+    description: 'Train for and complete 26.2 miles together',
+    color: 'bg-gradient-to-br from-orange-400 to-amber-600',
+    tasks: [
+      { id: 1, title: 'Choose marathon and register', completed: false, aiGenerated: false },
+      { id: 2, title: 'Follow training program', completed: false, aiGenerated: false },
+      { id: 3, title: 'Cross the finish line', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'mental-health',
+    title: 'Prioritize Mental Health',
+    icon: '🧘',
+    category: 'health',
+    estimatedCost: 3000,
+    duration: '6-12 months',
+    description: 'Invest in your mental wellbeing together',
+    color: 'bg-gradient-to-br from-purple-400 to-indigo-600',
+    tasks: [
+      { id: 1, title: 'Establish self-care routines', completed: false, aiGenerated: false },
+      { id: 2, title: 'Start therapy or counseling', completed: false, aiGenerated: false },
+      { id: 3, title: 'Build healthy habits together', completed: false, aiGenerated: false }
+    ]
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERSONAL GROWTH & HOBBIES (2)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'learn-language',
+    title: 'Learn New Language',
+    icon: '🗣️',
+    category: 'growth',
+    estimatedCost: 500,
+    duration: '6-12 months',
+    description: 'Become conversational in a new language together',
+    color: 'bg-gradient-to-br from-sky-400 to-blue-600',
+    tasks: [
+      { id: 1, title: 'Choose language and resources', completed: false, aiGenerated: false },
+      { id: 2, title: 'Practice daily together', completed: false, aiGenerated: false },
+      { id: 3, title: 'Test skills in real conversation', completed: false, aiGenerated: false }
+    ]
+  },
+  {
+    id: 'creative-project',
+    title: 'Complete Creative Project',
+    icon: '🎨',
+    category: 'growth',
+    estimatedCost: 1000,
+    duration: '3-6 months',
+    description: 'Bring a creative vision to life together',
+    color: 'bg-gradient-to-br from-pink-400 to-fuchsia-600',
+    tasks: [
+      { id: 1, title: 'Define project scope and vision', completed: false, aiGenerated: false },
+      { id: 2, title: 'Gather materials and create', completed: false, aiGenerated: false },
+      { id: 3, title: 'Complete and share your work', completed: false, aiGenerated: false }
     ]
   }
 ];
@@ -202,24 +483,46 @@ export const GOAL_TEMPLATES = [
 // Category groupings for the gallery
 export const GOAL_CATEGORIES = {
   relationship: {
-    name: 'Relationship Milestones',
-    icon: '💒',
-    color: 'purple'
+    name: 'Love & Relationships',
+    icon: '💕',
+    description: 'Milestones for your journey together',
+    color: 'from-rose-500 to-pink-600'
   },
   home: {
     name: 'Home & Living',
     icon: '🏠',
-    color: 'blue'
+    description: 'Create your perfect space',
+    color: 'from-blue-500 to-indigo-600'
   },
   financial: {
-    name: 'Financial Goals',
+    name: 'Financial Freedom',
     icon: '💰',
-    color: 'green'
+    description: 'Build wealth and security',
+    color: 'from-emerald-500 to-green-600'
   },
   travel: {
     name: 'Travel & Adventure',
     icon: '✈️',
-    color: 'orange'
+    description: 'Explore the world together',
+    color: 'from-cyan-500 to-teal-600'
+  },
+  career: {
+    name: 'Career & Education',
+    icon: '🎯',
+    description: 'Grow professionally',
+    color: 'from-violet-500 to-purple-600'
+  },
+  health: {
+    name: 'Health & Wellness',
+    icon: '💪',
+    description: 'Invest in your wellbeing',
+    color: 'from-red-500 to-orange-600'
+  },
+  growth: {
+    name: 'Personal Growth',
+    icon: '🌱',
+    description: 'Learn and create together',
+    color: 'from-amber-500 to-yellow-600'
   }
 };
 
@@ -231,4 +534,12 @@ export const getTemplatesByCategory = (category) => {
 // Get template by ID
 export const getTemplateById = (id) => {
   return GOAL_TEMPLATES.find(template => template.id === id);
+};
+
+// Get all categories that have templates
+export const getActiveCategories = () => {
+  const categoriesWithTemplates = [...new Set(GOAL_TEMPLATES.map(t => t.category))];
+  return Object.entries(GOAL_CATEGORIES)
+    .filter(([key]) => categoriesWithTemplates.includes(key))
+    .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {});
 };
