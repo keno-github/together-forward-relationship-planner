@@ -401,7 +401,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                   color: '#2D2926'
                 }}
               >
-                TogetherForward
+                TwogetherForward
               </h1>
             </div>
           </div>

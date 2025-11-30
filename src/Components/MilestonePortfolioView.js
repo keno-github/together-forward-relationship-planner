@@ -405,7 +405,7 @@ const MilestonePortfolioView = ({
             <span className="font-semibold text-lg tracking-tight">
               {userContext.partner1 && userContext.partner2
                 ? `${userContext.partner1} & ${userContext.partner2}`
-                : 'TogetherForward'}
+                : 'TwogetherForward'}
             </span>
           </div>
           <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm">

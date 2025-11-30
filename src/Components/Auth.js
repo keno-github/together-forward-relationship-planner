@@ -154,7 +154,7 @@ const Auth = ({ onSuccess }) => {
           <div className="w-9 h-9 rounded-full bg-stone-900 flex items-center justify-center">
             <Heart className="w-4 h-4 text-white" fill="currentColor" />
           </div>
-          <span className="font-serif text-lg font-bold text-stone-900">TogetherForward</span>
+          <span className="font-serif text-lg font-bold text-stone-900">TwogetherForward</span>
         </div>
 
         <h1 className="text-2xl font-serif font-bold text-stone-900 mb-2">Reset password</h1>
@@ -223,7 +223,7 @@ const Auth = ({ onSuccess }) => {
         <div className="w-9 h-9 rounded-full bg-stone-900 flex items-center justify-center">
           <Heart className="w-4 h-4 text-white" fill="currentColor" />
         </div>
-        <span className="font-serif text-lg font-bold text-stone-900">TogetherForward</span>
+        <span className="font-serif text-lg font-bold text-stone-900">TwogetherForward</span>
       </div>
 
       {/* Header */}

@@ -133,7 +133,7 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
           <div className="w-10 h-10 rounded-full bg-stone-900 flex items-center justify-center">
             <Heart className="w-5 h-5 text-[#FDFCF8]" fill="currentColor" />
           </div>
-          <span className="font-serif text-xl font-bold tracking-tight">TogetherForward</span>
+          <span className="font-serif text-xl font-bold tracking-tight">TwogetherForward</span>
         </div>
 
         <div className="flex items-center gap-4">
@@ -298,7 +298,7 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
                 </h2>
                 <p className="text-lg text-stone-500 leading-relaxed mb-16 max-w-2xl mx-auto">
                   Spreadsheets are cold. Therapy is expensive. Text chains get lost.
-                  TogetherForward bridges the gap between emotional connection and practical execution.
+                  TwogetherForward bridges the gap between emotional connection and practical execution.
                 </p>
               </div>
 
@@ -484,7 +484,7 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
                   <div className="w-6 h-6 rounded-full bg-stone-900 flex items-center justify-center">
                     <Heart className="w-3 h-3 text-[#FDFCF8]" fill="currentColor" />
                   </div>
-                  <span className="font-serif font-bold text-stone-900">TogetherForward</span>
+                  <span className="font-serif font-bold text-stone-900">TwogetherForward</span>
                 </div>
 
                 <div className="flex gap-8 text-sm text-stone-500">
@@ -493,7 +493,7 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
                   <a href="#" className="hover:text-stone-900">Contact</a>
                 </div>
 
-                <p className="text-sm text-stone-400">© 2025 TogetherForward</p>
+                <p className="text-sm text-stone-400">© 2025 TwogetherForward</p>
               </div>
             </footer>
           </motion.div>
