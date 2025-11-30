@@ -1,0 +1,704 @@
+/* ============================================
+   TOGETHER FORWARD - MOBILE RESPONSIVE SYSTEM
+   ============================================
+
+   This file provides mobile-first responsive utilities.
+   Import AFTER elegance.css in index.css
+
+   Breakpoints:
+   - xs: 375px  (small phones)
+   - sm: 640px  (large phones)
+   - md: 768px  (tablets) <- Mobile/Desktop boundary
+   - lg: 1024px (laptops)
+   - xl: 1280px (desktops)
+
+   ============================================ */
+
+/* ============================================
+   CSS CUSTOM PROPERTIES
+   ============================================ */
+
+:root {
+  /* Safe Areas (for notched phones) */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+
+  /* Navigation Heights */
+  --bottom-nav-height: 64px;
+  --mobile-header-height: 56px;
+
+  /* Spacing */
+  --mobile-padding: 16px;
+  --tablet-padding: 24px;
+  --desktop-padding: 32px;
+
+  /* Touch Targets */
+  --touch-target-min: 44px;
+  --touch-target-comfortable: 48px;
+
+  /* Z-Index Scale */
+  --z-sticky: 20;
+  --z-header: 30;
+  --z-bottom-nav: 40;
+  --z-modal-backdrop: 50;
+  --z-modal: 51;
+  --z-bottom-sheet: 52;
+  --z-toast: 60;
+}
+
+/* ============================================
+   BODY & ROOT ADJUSTMENTS
+   ============================================ */
+
+/* Add bottom padding for bottom nav on mobile */
+@media (max-width: 767px) {
+  body.has-bottom-nav {
+    padding-bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+  }
+}
+
+/* Prevent horizontal overflow globally */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* ============================================
+   RESPONSIVE CONTAINERS
+   ============================================ */
+
+.mobile-container {
+  width: 100%;
+  padding-left: var(--mobile-padding);
+  padding-right: var(--mobile-padding);
+}
+
+@media (min-width: 768px) {
+  .mobile-container {
+    padding-left: var(--tablet-padding);
+    padding-right: var(--tablet-padding);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-container {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--desktop-padding);
+    padding-right: var(--desktop-padding);
+  }
+}
+
+/* Full-width container that respects safe areas */
+.safe-container {
+  padding-left: max(var(--mobile-padding), var(--safe-area-left));
+  padding-right: max(var(--mobile-padding), var(--safe-area-right));
+}
+
+/* ============================================
+   TOUCH-FRIENDLY UTILITIES
+   ============================================ */
+
+.touch-target {
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.touch-target-lg {
+  min-width: var(--touch-target-comfortable);
+  min-height: var(--touch-target-comfortable);
+}
+
+/* Expand tap area without changing visual size */
+.tap-area-expand {
+  position: relative;
+}
+
+.tap-area-expand::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  bottom: -8px;
+  left: -8px;
+}
+
+/* ============================================
+   VISIBILITY UTILITIES
+   ============================================ */
+
+/* Mobile only (< 768px) */
+.mobile-only {
+  display: block;
+}
+
+.mobile-only-flex {
+  display: flex;
+}
+
+.mobile-only-inline {
+  display: inline;
+}
+
+@media (min-width: 768px) {
+  .mobile-only,
+  .mobile-only-flex,
+  .mobile-only-inline {
+    display: none !important;
+  }
+}
+
+/* Desktop only (>= 768px) */
+.desktop-only {
+  display: none;
+}
+
+.desktop-only-flex {
+  display: none;
+}
+
+.desktop-only-inline {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktop-only {
+    display: block;
+  }
+
+  .desktop-only-flex {
+    display: flex;
+  }
+
+  .desktop-only-inline {
+    display: inline;
+  }
+}
+
+/* Tablet and up (>= 768px) */
+.tablet-up {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tablet-up {
+    display: block;
+  }
+}
+
+/* Large screens only (>= 1024px) */
+.lg-only {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .lg-only {
+    display: block;
+  }
+}
+
+/* ============================================
+   MOBILE NAVIGATION COMPONENTS
+   ============================================ */
+
+/* Bottom Navigation Bar */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottom-nav-height);
+  background: #ffffff;
+  border-top: 1px solid #e8e4de;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-bottom: var(--safe-area-bottom);
+  z-index: var(--z-bottom-nav);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+}
+
+@media (min-width: 768px) {
+  .mobile-bottom-nav {
+    display: none;
+  }
+}
+
+/* Bottom nav item */
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 16px;
+  color: #6b635b;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+}
+
+.bottom-nav-item.active {
+  color: #c49a6c;
+}
+
+.bottom-nav-item span {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Mobile Header */
+.mobile-header {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--mobile-header-height);
+  background: #ffffff;
+  border-bottom: 1px solid #e8e4de;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--mobile-padding);
+  padding-top: var(--safe-area-top);
+  z-index: var(--z-header);
+}
+
+@media (min-width: 768px) {
+  .mobile-header {
+    display: none;
+  }
+}
+
+/* ============================================
+   FULL-SCREEN MOBILE PANELS
+   ============================================ */
+
+.mobile-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-modal);
+  background: var(--tf-cream, #faf8f5);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* With bottom nav space */
+.mobile-fullscreen.with-nav {
+  bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+}
+
+/* ============================================
+   BOTTOM SHEET
+   ============================================ */
+
+.mobile-bottom-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: var(--z-modal-backdrop);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-bottom-sheet-backdrop.visible {
+  opacity: 1;
+}
+
+.mobile-bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 90vh;
+  max-height: 90dvh; /* Dynamic viewport height for mobile */
+  background: #ffffff;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+  z-index: var(--z-bottom-sheet);
+  overflow: hidden;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.mobile-bottom-sheet.open {
+  transform: translateY(0);
+}
+
+.mobile-bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #d1d5db;
+  border-radius: 2px;
+  margin: 12px auto;
+}
+
+.mobile-bottom-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 16px;
+  border-bottom: 1px solid #e8e4de;
+}
+
+.mobile-bottom-sheet-content {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px;
+  padding-bottom: calc(20px + var(--safe-area-bottom));
+  max-height: calc(90vh - 80px);
+  max-height: calc(90dvh - 80px);
+}
+
+/* ============================================
+   CARD LAYOUTS
+   ============================================ */
+
+/* Stack cards on mobile, grid on larger screens */
+.card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .card-stack {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .card-stack {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Two-column stack for tablets */
+.card-stack-2 {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .card-stack-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============================================
+   RESPONSIVE TEXT
+   ============================================ */
+
+.text-responsive-hero {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+@media (min-width: 768px) {
+  .text-responsive-hero {
+    font-size: 3rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-responsive-hero {
+    font-size: 4rem;
+  }
+}
+
+.text-responsive-xl {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  .text-responsive-xl {
+    font-size: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-responsive-xl {
+    font-size: 2.5rem;
+  }
+}
+
+.text-responsive-lg {
+  font-size: 1.125rem;
+}
+
+@media (min-width: 768px) {
+  .text-responsive-lg {
+    font-size: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-responsive-lg {
+    font-size: 1.5rem;
+  }
+}
+
+/* ============================================
+   MOBILE TAB BAR
+   ============================================ */
+
+.mobile-tab-bar {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
+  padding: 12px var(--mobile-padding);
+  background: #ffffff;
+  border-bottom: 1px solid #e8e4de;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mobile-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-tab-item {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 100px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  background: #f5f2ed;
+  color: #6b635b;
+}
+
+.mobile-tab-item.active {
+  background: #2d2926;
+  color: #ffffff;
+}
+
+/* Scroll fade indicator */
+.mobile-tab-bar-container {
+  position: relative;
+}
+
+.mobile-tab-bar-container::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to left, #ffffff, transparent);
+  pointer-events: none;
+}
+
+/* ============================================
+   SWIPEABLE LIST ITEMS
+   ============================================ */
+
+.swipeable-row {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.swipeable-row-content {
+  position: relative;
+  z-index: 2;
+  background: #ffffff;
+  transition: transform 0.2s ease;
+}
+
+.swipeable-row-actions {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+
+.swipeable-row-actions.left {
+  left: 0;
+  background: #7d8c75;
+  color: white;
+  padding: 0 20px;
+}
+
+.swipeable-row-actions.right {
+  right: 0;
+  background: #b07d62;
+  color: white;
+  padding: 0 20px;
+}
+
+/* ============================================
+   PULL TO REFRESH
+   ============================================ */
+
+.pull-to-refresh-indicator {
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.pull-to-refresh-indicator.pulling {
+  transform: translateX(-50%) translateY(30px);
+}
+
+.pull-to-refresh-indicator.refreshing {
+  transform: translateX(-50%) translateY(60px);
+}
+
+/* ============================================
+   KEYBOARD HANDLING
+   ============================================ */
+
+/* When keyboard is open, adjust fixed elements */
+.keyboard-open .mobile-bottom-nav {
+  display: none;
+}
+
+.keyboard-open .mobile-fullscreen.with-nav {
+  bottom: 0;
+}
+
+/* ============================================
+   SCROLLBAR HIDING UTILITY
+   ============================================ */
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================
+   RESPONSIVE SPACING
+   ============================================ */
+
+.py-responsive {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+@media (min-width: 768px) {
+  .py-responsive {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .py-responsive {
+    padding-top: 32px;
+    padding-bottom: 32px;
+  }
+}
+
+.px-responsive {
+  padding-left: var(--mobile-padding);
+  padding-right: var(--mobile-padding);
+}
+
+@media (min-width: 768px) {
+  .px-responsive {
+    padding-left: var(--tablet-padding);
+    padding-right: var(--tablet-padding);
+  }
+}
+
+@media (min-width: 1024px) {
+  .px-responsive {
+    padding-left: var(--desktop-padding);
+    padding-right: var(--desktop-padding);
+  }
+}
+
+.gap-responsive {
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .gap-responsive {
+    gap: 24px;
+  }
+}
+
+/* ============================================
+   MOBILE FORM INPUTS
+   ============================================ */
+
+@media (max-width: 767px) {
+  /* Prevent zoom on input focus in iOS */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Larger touch targets for form elements */
+  input,
+  textarea,
+  select,
+  button {
+    min-height: var(--touch-target-min);
+  }
+}
+
+/* ============================================
+   ANIMATION UTILITIES
+   ============================================ */
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Smooth scroll for mobile */
+@media (max-width: 767px) {
+  .scroll-smooth {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+}

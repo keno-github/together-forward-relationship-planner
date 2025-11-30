@@ -4,3 +4,6 @@
 
 /* Elegant Design System */
 @import './styles/elegance.css';
+
+/* Mobile Responsive System */
+@import './styles/mobile.css';

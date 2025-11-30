@@ -22,6 +22,8 @@ import LunaOptimization from './Components/LunaOptimization';
 import LunaAssessment from './Components/LunaAssessment';
 import PortfolioOverview from './Components/PortfolioOverview';
 import DevTools from './Components/DevTools';
+import { MobileBottomNav } from './Components/Mobile';
+import { useResponsive } from './hooks/useResponsive';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseService';
@@ -30,6 +32,7 @@ import { initGA, trackPageView } from './utils/analytics';
 // Inner component that uses auth context
 const AppContent = () => {
   const { user, loading: authLoading } = useAuth();
+  const { isMobile } = useResponsive();
 
   // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, showcase, colorTest, goalBuilder, lunaOptimization, assessment, portfolioOverview
   const [stage, setStage] = useState('landing'); // Start with landing page
@@ -85,6 +88,54 @@ const AppContent = () => {
     const pageName = pageNames[stage] || stage;
     trackPageView(`/${stage}`, pageName);
   }, [stage]);
+
+  // Determine if mobile bottom nav should be shown
+  const showMobileNav = isMobile && user && [
+    'dashboard',
+    'profile',
+    'settings',
+    'main',
+    'milestoneDetail',
+    'deepDive',
+    'assessment',
+    'portfolioOverview'
+  ].includes(stage);
+
+  // Add/remove body class for bottom nav padding
+  useEffect(() => {
+    if (showMobileNav) {
+      document.body.classList.add('has-bottom-nav');
+    } else {
+      document.body.classList.remove('has-bottom-nav');
+    }
+    return () => document.body.classList.remove('has-bottom-nav');
+  }, [showMobileNav]);
+
+  // Mobile navigation handlers
+  const handleMobileNavigation = (destination) => {
+    switch (destination) {
+      case 'home':
+        setStage('dashboard');
+        break;
+      case 'tasks':
+        // If we have a current milestone, go to its tasks
+        if (milestoneDetailState.milestone) {
+          setMilestoneDetailState(prev => ({ ...prev, section: 'tasks' }));
+          setStage('milestoneDetail');
+        } else {
+          setStage('dashboard');
+        }
+        break;
+      case 'luna':
+        // Open Luna chat - handled by LunaContext
+        break;
+      case 'profile':
+        setStage('profile');
+        break;
+      default:
+        break;
+    }
+  };
 
   // Initialize app - always show landing page (no automatic dashboard redirect)
   useEffect(() => {
@@ -933,6 +984,14 @@ const AppContent = () => {
               partner2: userData?.partner2 || selectedRoadmap?.partner2_name || coupleData.partner2,
               location: userData?.location || selectedRoadmap?.location || 'Unknown'
             }}
+          />
+        )}
+
+        {/* Mobile Bottom Navigation */}
+        {showMobileNav && (
+          <MobileBottomNav
+            currentStage={stage}
+            onNavigate={handleMobileNavigation}
           />
         )}
 

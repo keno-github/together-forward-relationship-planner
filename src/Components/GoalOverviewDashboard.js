@@ -144,29 +144,29 @@ const GoalOverviewDashboard = ({
 
   return (
     <div className="tf-app min-h-screen" style={{ background: '#faf8f5' }}>
-      <div className="max-w-4xl mx-auto px-6 py-10">
+      <div className="max-w-4xl mx-auto px-4 py-6 md:px-6 md:py-10">
         {/* Header */}
         <motion.header
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-12"
+          className="mb-8 md:mb-12"
         >
-          <div className="flex items-start gap-5">
+          <div className="flex items-start gap-3 md:gap-5">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+              className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(196, 154, 108, 0.12)' }}
             >
-              <Target className="w-7 h-7" style={{ color: '#c49a6c' }} />
+              <Target className="w-6 h-6 md:w-7 md:h-7" style={{ color: '#c49a6c' }} />
             </div>
             <div className="flex-1 min-w-0">
               <h1
-                className="text-3xl md:text-4xl font-medium leading-tight mb-2"
+                className="text-2xl md:text-3xl lg:text-4xl font-medium leading-tight mb-1 md:mb-2"
                 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: '#2d2926' }}
               >
                 {milestone.title}
               </h1>
-              <p className="text-base" style={{ color: '#6b635b' }}>
+              <p className="text-sm md:text-base" style={{ color: '#6b635b' }}>
                 {userContext?.partner1} & {userContext?.partner2}'s journey together
               </p>
             </div>
@@ -177,7 +177,7 @@ const GoalOverviewDashboard = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="mt-6 text-lg leading-relaxed pl-[76px]"
+              className="mt-4 md:mt-6 text-base md:text-lg leading-relaxed md:pl-[68px]"
               style={{ color: '#2d2926', fontFamily: "'DM Sans', sans-serif" }}
             >
               {milestone.description}
@@ -190,7 +190,7 @@ const GoalOverviewDashboard = ({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-10"
+          className="mb-6 md:mb-10"
         >
           <ProgressDisplay
             percentage={metrics.progress_percentage}
@@ -206,7 +206,7 @@ const GoalOverviewDashboard = ({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6 }}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10"
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-10"
         >
           <MetricCard
             icon={DollarSign}
@@ -264,7 +264,7 @@ const GoalOverviewDashboard = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.6 }}
-            className="mb-10"
+            className="mb-6 md:mb-10"
           >
             <AlertsSection alerts={alerts} />
           </motion.section>
@@ -276,7 +276,7 @@ const GoalOverviewDashboard = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.6 }}
-            className="mb-10"
+            className="mb-6 md:mb-10"
           >
             <NextActions
               actions={nextActions}
@@ -290,7 +290,7 @@ const GoalOverviewDashboard = ({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.6 }}
-          className="mb-10"
+          className="mb-6 md:mb-10"
         >
           <LunaInsights
             milestone={milestone}
@@ -326,13 +326,36 @@ const ProgressDisplay = ({ percentage, tasksCompleted, tasksTotal, onTrack, heal
 
   return (
     <div
-      className="rounded-2xl p-8"
+      className="rounded-xl md:rounded-2xl p-5 md:p-8"
       style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
     >
-      <div className="flex flex-col md:flex-row items-center gap-8">
+      <div className="flex flex-col md:flex-row items-center gap-5 md:gap-8">
         {/* Progress Ring */}
         <div className="relative flex-shrink-0">
-          <svg width="140" height="140" className="transform -rotate-90">
+          <svg width="120" height="120" className="transform -rotate-90 md:w-[140px] md:h-[140px]">
+            <circle
+              cx="60"
+              cy="60"
+              r="48"
+              fill="none"
+              stroke="#f5f2ed"
+              strokeWidth="8"
+              className="md:hidden"
+            />
+            <circle
+              cx="60"
+              cy="60"
+              r="48"
+              fill="none"
+              stroke="#c49a6c"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 48}
+              strokeDashoffset={(2 * Math.PI * 48) - (percentage / 100) * (2 * Math.PI * 48)}
+              style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+              className="md:hidden"
+            />
+            {/* Desktop version */}
             <circle
               cx="70"
               cy="70"
@@ -340,6 +363,7 @@ const ProgressDisplay = ({ percentage, tasksCompleted, tasksTotal, onTrack, heal
               fill="none"
               stroke="#f5f2ed"
               strokeWidth="10"
+              className="hidden md:block"
             />
             <circle
               cx="70"
@@ -352,42 +376,43 @@ const ProgressDisplay = ({ percentage, tasksCompleted, tasksTotal, onTrack, heal
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+              className="hidden md:block"
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span
-              className="text-4xl font-semibold"
+              className="text-3xl md:text-4xl font-semibold"
               style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
             >
               {percentage}%
             </span>
-            <span className="text-xs uppercase tracking-wider mt-1" style={{ color: '#6b635b' }}>
+            <span className="text-[10px] md:text-xs uppercase tracking-wider mt-1" style={{ color: '#6b635b' }}>
               Complete
             </span>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="flex-1 grid grid-cols-2 gap-6">
-          <div>
-            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
-              Tasks Completed
+        <div className="flex-1 w-full grid grid-cols-2 gap-4 md:gap-6">
+          <div className="text-center md:text-left">
+            <p className="text-[10px] md:text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
+              Tasks Done
             </p>
-            <p className="text-2xl font-semibold" style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}>
-              {tasksCompleted} <span className="text-base font-normal" style={{ color: '#6b635b' }}>of {tasksTotal}</span>
+            <p className="text-xl md:text-2xl font-semibold" style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}>
+              {tasksCompleted} <span className="text-sm md:text-base font-normal" style={{ color: '#6b635b' }}>/ {tasksTotal}</span>
             </p>
           </div>
 
-          <div>
-            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
-              Health Score
+          <div className="text-center md:text-left">
+            <p className="text-[10px] md:text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
+              Health
             </p>
-            <p className="text-2xl font-semibold" style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}>
+            <p className="text-xl md:text-2xl font-semibold" style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}>
               {healthScore}
             </p>
           </div>
 
-          <div className="col-span-2">
+          <div className="col-span-2 flex justify-center md:justify-start">
             <div className="flex items-center gap-2">
               {onTrack ? (
                 <>
@@ -429,7 +454,7 @@ const MetricCard = ({
   return (
     <div
       onClick={!isEditing && onClick ? onClick : undefined}
-      className={`rounded-xl p-5 transition-all group relative ${onClick ? 'cursor-pointer' : ''}`}
+      className={`rounded-lg md:rounded-xl p-4 md:p-5 transition-all group relative ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''}`}
       style={{
         background: '#ffffff',
         border: '1px solid #e8e4de',
@@ -438,40 +463,40 @@ const MetricCard = ({
     >
       {!isEditing ? (
         <>
-          <div className="flex items-start justify-between mb-3">
+          <div className="flex items-start justify-between mb-2 md:mb-3">
             <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center"
               style={{ background: `${accentColor}15` }}
             >
-              <Icon className="w-5 h-5" style={{ color: accentColor }} />
+              <Icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: accentColor }} />
             </div>
             {onEdit && (
               <button
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-2 md:p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity touch-target"
                 style={{ background: '#f5f2ed' }}
               >
-                <Edit3 className="w-3.5 h-3.5" style={{ color: '#6b635b' }} />
+                <Edit3 className="w-4 h-4 md:w-3.5 md:h-3.5" style={{ color: '#6b635b' }} />
               </button>
             )}
           </div>
 
-          <p className="text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
+          <p className="text-[10px] md:text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
             {label}
           </p>
           <p
-            className="text-xl font-semibold mb-1 truncate"
+            className="text-lg md:text-xl font-semibold mb-1 truncate"
             style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
           >
             {value}
           </p>
-          <p className="text-xs" style={{ color: '#6b635b' }}>
+          <p className="text-[10px] md:text-xs truncate" style={{ color: '#6b635b' }}>
             {subtitle}
           </p>
 
           {onClick && (
             <ChevronRight
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 opacity-50 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
               style={{ color: accentColor }}
             />
           )}
@@ -479,26 +504,26 @@ const MetricCard = ({
       ) : (
         <>
           <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
+            className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-2 md:mb-3"
             style={{ background: `${accentColor}15` }}
           >
-            <Icon className="w-5 h-5" style={{ color: accentColor }} />
+            <Icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: accentColor }} />
           </div>
 
-          <p className="text-xs uppercase tracking-wider mb-2" style={{ color: '#6b635b' }}>
+          <p className="text-[10px] md:text-xs uppercase tracking-wider mb-2" style={{ color: '#6b635b' }}>
             Set {label}
           </p>
 
           {editType === 'currency' ? (
             <div className="flex items-center gap-1 mb-3">
-              <span className="text-lg font-medium" style={{ color: '#6b635b' }}>$</span>
+              <span className="text-base md:text-lg font-medium" style={{ color: '#6b635b' }}>$</span>
               <input
                 type="number"
                 value={editValue}
                 onChange={(e) => onEditChange(e.target.value)}
                 min="0"
                 step="100"
-                className="flex-1 text-lg font-semibold bg-transparent border-b-2 focus:outline-none"
+                className="flex-1 text-base md:text-lg font-semibold bg-transparent border-b-2 focus:outline-none"
                 style={{ borderColor: accentColor, color: '#2d2926' }}
                 autoFocus
               />
@@ -518,18 +543,18 @@ const MetricCard = ({
           <div className="flex gap-2">
             <button
               onClick={onSave}
-              className="flex-1 py-2 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-1"
+              className="flex-1 py-2.5 md:py-2 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-1 active:scale-[0.98]"
               style={{ background: '#7d8c75' }}
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-4 h-4 md:w-3.5 md:h-3.5" />
               Save
             </button>
             <button
               onClick={onCancel}
-              className="flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+              className="flex-1 py-2.5 md:py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 active:scale-[0.98]"
               style={{ background: '#f5f2ed', color: '#6b635b' }}
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4 md:w-3.5 md:h-3.5" />
               Cancel
             </button>
           </div>
@@ -599,19 +624,19 @@ const NextActions = ({ actions, onViewAll }) => {
 
   return (
     <div
-      className="rounded-2xl p-6"
+      className="rounded-xl md:rounded-2xl p-4 md:p-6"
       style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
     >
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4 md:mb-5">
         <h3
-          className="text-lg font-medium"
+          className="text-base md:text-lg font-medium"
           style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
         >
           Next Actions
         </h3>
         <button
           onClick={onViewAll}
-          className="text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all"
+          className="text-sm font-medium flex items-center gap-1 active:gap-2 md:hover:gap-2 transition-all p-2 -mr-2"
           style={{ color: '#c49a6c' }}
         >
           View all
@@ -619,25 +644,25 @@ const NextActions = ({ actions, onViewAll }) => {
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         {actions.map((task, idx) => (
           <div
             key={task.id || idx}
-            className="flex items-center gap-4 p-4 rounded-xl transition-colors"
+            className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl transition-colors active:scale-[0.99]"
             style={{ background: '#faf8f5' }}
           >
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
+              className="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold text-white flex-shrink-0"
               style={{ background: '#2d2926' }}
             >
               {idx + 1}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium truncate" style={{ color: '#2d2926' }}>{task.title}</p>
-              <div className="flex items-center gap-3 mt-1">
+              <p className="text-sm md:text-base font-medium truncate" style={{ color: '#2d2926' }}>{task.title}</p>
+              <div className="flex items-center gap-2 md:gap-3 mt-1">
                 {task.priority && (
                   <span
-                    className="text-xs font-medium px-2 py-0.5 rounded"
+                    className="text-[10px] md:text-xs font-medium px-1.5 md:px-2 py-0.5 rounded"
                     style={{
                       background: `${priorityColors[task.priority]}15`,
                       color: priorityColors[task.priority]
@@ -647,13 +672,13 @@ const NextActions = ({ actions, onViewAll }) => {
                   </span>
                 )}
                 {task.assigned_to && (
-                  <span className="text-xs" style={{ color: '#6b635b' }}>
+                  <span className="text-[10px] md:text-xs truncate" style={{ color: '#6b635b' }}>
                     {task.assigned_to}
                   </span>
                 )}
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: '#c49a6c' }} />
+            <ChevronRight className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" style={{ color: '#c49a6c' }} />
           </div>
         ))}
       </div>
@@ -727,51 +752,51 @@ const LunaInsights = ({ milestone, metrics, healthStatus, tasks, userContext }) 
 
   return (
     <div
-      className="rounded-2xl p-6 relative overflow-hidden"
+      className="rounded-xl md:rounded-2xl p-4 md:p-6 relative overflow-hidden"
       style={{ background: 'linear-gradient(135deg, #2d2926 0%, #3d3633 100%)' }}
     >
       <div
-        className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
+        className="absolute top-0 right-0 w-48 h-48 md:w-64 md:h-64 pointer-events-none"
         style={{ background: 'radial-gradient(circle, rgba(196, 154, 108, 0.1) 0%, transparent 70%)' }}
       />
 
-      <div className="flex items-center gap-3 mb-6 relative">
+      <div className="flex items-center gap-3 mb-4 md:mb-6 relative">
         <div
-          className="w-11 h-11 rounded-full flex items-center justify-center"
+          className="w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center"
           style={{ background: 'linear-gradient(135deg, #c49a6c 0%, #a88352 100%)' }}
         >
-          <Sparkles className="w-5 h-5 text-white" />
+          <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-white" />
         </div>
         <div>
           <h3
-            className="text-lg font-medium text-white"
+            className="text-base md:text-lg font-medium text-white"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             Luna's Guidance
           </h3>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          <p className="text-xs md:text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
             Personalized insights for your journey
           </p>
         </div>
       </div>
 
-      <div className="space-y-4 relative">
+      <div className="space-y-3 md:space-y-4 relative">
         {insights.map((insight, idx) => {
           const style = typeStyles[insight.type] || typeStyles.suggestion;
           return (
             <div
               key={idx}
-              className="rounded-xl p-4"
+              className="rounded-lg md:rounded-xl p-3 md:p-4"
               style={{
                 background: 'rgba(255,255,255,0.05)',
                 borderLeft: `3px solid ${style.accent}`
               }}
             >
-              <h4 className="font-medium text-white mb-1">{insight.title}</h4>
-              <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              <h4 className="text-sm md:text-base font-medium text-white mb-1">{insight.title}</h4>
+              <p className="text-xs md:text-sm mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
                 {insight.message}
               </p>
-              <p className="text-xs font-medium" style={{ color: style.accent }}>
+              <p className="text-[10px] md:text-xs font-medium" style={{ color: style.accent }}>
                 → {insight.action}
               </p>
             </div>
@@ -797,30 +822,30 @@ const QuickNav = ({ milestone, onNavigate }) => {
   }
 
   return (
-    <div>
+    <div className="pb-4 md:pb-0">
       <h3
-        className="text-lg font-medium mb-4"
+        className="text-base md:text-lg font-medium mb-3 md:mb-4"
         style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
       >
         Explore
       </h3>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => onNavigate?.(item.id)}
-            className="p-5 rounded-xl text-left transition-all group hover:-translate-y-1"
+            className="p-4 md:p-5 rounded-lg md:rounded-xl text-left transition-all group active:scale-[0.98] md:hover:-translate-y-1"
             style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
           >
             <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-transform group-hover:scale-110"
+              className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-2 md:mb-3 transition-transform group-active:scale-110 md:group-hover:scale-110"
               style={{ background: 'rgba(196, 154, 108, 0.12)' }}
             >
-              <item.icon className="w-5 h-5" style={{ color: '#c49a6c' }} />
+              <item.icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: '#c49a6c' }} />
             </div>
-            <p className="font-medium mb-1" style={{ color: '#2d2926' }}>{item.label}</p>
-            <p className="text-xs" style={{ color: '#6b635b' }}>{item.desc}</p>
+            <p className="text-sm md:text-base font-medium mb-0.5 md:mb-1" style={{ color: '#2d2926' }}>{item.label}</p>
+            <p className="text-[10px] md:text-xs hidden md:block" style={{ color: '#6b635b' }}>{item.desc}</p>
           </button>
         ))}
       </div>

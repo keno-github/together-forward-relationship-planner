@@ -1,5 +1,5 @@
 # https://www.robotstxt.org/robotstxt.html
-# Together Forward - Couple Planning App
+# Twogether Forward - Couple Planning App
 
 User-agent: *
 Allow: /
