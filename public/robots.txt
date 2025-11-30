@@ -1,3 +1,11 @@
 # https://www.robotstxt.org/robotstxt.html
+# Together Forward - Couple Planning App
+
 User-agent: *
-Disallow:
+Allow: /
+
+# Sitemap
+Sitemap: https://twogetherforward.com/sitemap.xml
+
+# Crawl-delay (optional, be nice to the server)
+Crawl-delay: 1
