@@ -13,7 +13,22 @@ import {
   Clock,
   Users,
   Star,
-  Zap
+  Zap,
+  Wallet,
+  Home,
+  Plane,
+  Briefcase,
+  Baby,
+  Gem,
+  Truck,
+  Calendar,
+  HeartHandshake,
+  Compass,
+  BookOpen,
+  Dumbbell,
+  Music,
+  Utensils,
+  Shield
 } from 'lucide-react';
 
 // Premium Unsplash images for authentic feel
@@ -23,40 +38,117 @@ const HERO_IMAGES = [
   'https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?w=800&q=80', // Couple laughing
 ];
 
-const CATEGORY_IMAGES = {
-  finances: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=400&q=80',
-  financial: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=400&q=80',
-  communication: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=400&q=80',
-  lifestyle: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
-  values: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=400&q=80',
-  family: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?w=400&q=80',
-  travel: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400&q=80',
-  home: 'https://images.unsplash.com/photo-1556020685-ae41abfc9365?w=400&q=80',
-  career: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=400&q=80',
-  moving: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80',
-  wedding: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&q=80',
-  future: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&q=80',
-  parenting: 'https://images.unsplash.com/photo-1476703993599-0035a21b17a9?w=400&q=80',
-  general: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&q=80',
+// Category configuration with Lucide icons and warm design system colors
+const CATEGORY_INFO = {
+  // Financial related - Sage green
+  finances: { label: 'Financial Alignment', icon: Wallet, color: '#7d8c75' },
+  financial: { label: 'Financial Alignment', icon: Wallet, color: '#7d8c75' },
+  money: { label: 'Money & Finances', icon: Wallet, color: '#7d8c75' },
+  money_finances: { label: 'Money & Finances', icon: Wallet, color: '#7d8c75' },
+  financial_goals: { label: 'Financial Goals', icon: Wallet, color: '#7d8c75' },
+
+  // Communication - Warm blue
+  communication: { label: 'Communication Style', icon: MessageCircle, color: '#6b8fad' },
+  communication_style: { label: 'Communication Style', icon: MessageCircle, color: '#6b8fad' },
+
+  // Lifestyle - Copper
+  lifestyle: { label: 'Lifestyle Vision', icon: Compass, color: '#c49a6c' },
+  daily_lifestyle: { label: 'Daily Lifestyle', icon: Compass, color: '#c49a6c' },
+  work_life_balance: { label: 'Work-Life Balance', icon: Briefcase, color: '#8b7355' },
+  workLifeBalance: { label: 'Work-Life Balance', icon: Briefcase, color: '#8b7355' },
+
+  // Values - Warm amber
+  values: { label: 'Core Values', icon: Star, color: '#d4a574' },
+  core_values: { label: 'Core Values', icon: Star, color: '#d4a574' },
+  values_beliefs: { label: 'Values & Beliefs', icon: Star, color: '#d4a574' },
+
+  // Family & Parenting - Dusty rose
+  family: { label: 'Family Dynamics', icon: Users, color: '#c9a68a' },
+  family_planning: { label: 'Family Planning', icon: Baby, color: '#c9a68a' },
+  parenting: { label: 'Parenting Philosophy', icon: Baby, color: '#c9a68a' },
+  parenting_philosophy: { label: 'Parenting Philosophy', icon: Baby, color: '#c9a68a' },
+  children: { label: 'Children & Family', icon: Baby, color: '#c9a68a' },
+
+  // Future & Timeline - Slate blue
+  future: { label: 'Future Planning', icon: Calendar, color: '#7a8b9a' },
+  future_planning: { label: 'Future Planning', icon: Calendar, color: '#7a8b9a' },
+  timeline: { label: 'Life Timeline', icon: Calendar, color: '#7a8b9a' },
+  life_timeline: { label: 'Life Timeline', icon: Calendar, color: '#7a8b9a' },
+
+  // Travel - Teal
+  travel: { label: 'Adventure & Travel', icon: Plane, color: '#6a9a8a' },
+  travel_adventure: { label: 'Travel & Adventure', icon: Plane, color: '#6a9a8a' },
+  adventure: { label: 'Adventure & Travel', icon: Plane, color: '#6a9a8a' },
+
+  // Home & Living - Terracotta
+  home: { label: 'Home & Living', icon: Home, color: '#b8856c' },
+  home_living: { label: 'Home & Living', icon: Home, color: '#b8856c' },
+  living_situation: { label: 'Living Situation', icon: Home, color: '#b8856c' },
+  moving: { label: 'Relocation Plans', icon: Truck, color: '#8a8078' },
+  relocation: { label: 'Relocation Plans', icon: Truck, color: '#8a8078' },
+
+  // Career - Deep blue
+  career: { label: 'Career & Ambition', icon: Briefcase, color: '#5a7a8a' },
+  career_work: { label: 'Career & Work', icon: Briefcase, color: '#5a7a8a' },
+  career_ambition: { label: 'Career & Ambition', icon: Briefcase, color: '#5a7a8a' },
+
+  // Wedding & Relationship - Warm rose
+  wedding: { label: 'Wedding Vision', icon: Gem, color: '#c49a6c' },
+  wedding_vision: { label: 'Wedding Vision', icon: Gem, color: '#c49a6c' },
+  relationship: { label: 'Relationship Foundation', icon: HeartHandshake, color: '#b07d62' },
+  relationship_foundation: { label: 'Relationship Foundation', icon: HeartHandshake, color: '#b07d62' },
+
+  // Hobbies & Interests - Muted mauve
+  hobbies: { label: 'Hobbies & Interests', icon: Music, color: '#9a8a7a' },
+  hobbies_interests: { label: 'Hobbies & Interests', icon: Music, color: '#9a8a7a' },
+  hobbies_and_interests: { label: 'Hobbies & Interests', icon: Music, color: '#9a8a7a' },
+  interests: { label: 'Shared Interests', icon: Music, color: '#9a8a7a' },
+
+  // Health & Wellness - Fresh sage
+  health: { label: 'Health & Wellness', icon: Dumbbell, color: '#7d8c75' },
+  health_wellness: { label: 'Health & Wellness', icon: Dumbbell, color: '#7d8c75' },
+  wellness: { label: 'Health & Wellness', icon: Dumbbell, color: '#7d8c75' },
+
+  // Food & Dining - Warm terracotta
+  food: { label: 'Food & Dining', icon: Utensils, color: '#c4856c' },
+  food_dining: { label: 'Food & Dining', icon: Utensils, color: '#c4856c' },
+
+  // Education - Steel blue
+  education: { label: 'Education & Growth', icon: BookOpen, color: '#6b8fad' },
+  learning: { label: 'Learning & Growth', icon: BookOpen, color: '#6b8fad' },
+
+  // Trust & Security - Charcoal
+  trust: { label: 'Trust & Security', icon: Shield, color: '#5a5550' },
+  security: { label: 'Security & Stability', icon: Shield, color: '#5a5550' },
+
+  // General fallback - Copper
+  general: { label: 'General Compatibility', icon: Heart, color: '#c49a6c' }
 };
 
-// Category labels (mature, not cartoonish)
-const CATEGORY_INFO = {
-  finances: { label: 'Financial Alignment' },
-  financial: { label: 'Financial Alignment' },
-  communication: { label: 'Communication Style' },
-  lifestyle: { label: 'Lifestyle Vision' },
-  values: { label: 'Core Values' },
-  future: { label: 'Future Planning' },
-  parenting: { label: 'Parenting Philosophy' },
-  family: { label: 'Family Dynamics' },
-  timeline: { label: 'Life Timeline' },
-  travel: { label: 'Adventure & Travel' },
-  home: { label: 'Home & Living' },
-  career: { label: 'Career & Ambition' },
-  moving: { label: 'Relocation Plans' },
-  wedding: { label: 'Wedding Vision' },
-  general: { label: 'General Compatibility' }
+// Helper to format category key into readable label
+const formatCategoryLabel = (key) => {
+  // Check if we have a mapping
+  if (CATEGORY_INFO[key]) {
+    return CATEGORY_INFO[key].label;
+  }
+  // Otherwise, format the key nicely
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+    .trim();
+};
+
+// Get category info with fallback
+const getCategoryInfo = (key) => {
+  const normalized = key.toLowerCase().replace(/ /g, '_');
+  return CATEGORY_INFO[normalized] || CATEGORY_INFO[key] || {
+    label: formatCategoryLabel(key),
+    icon: Heart,
+    color: '#8a8078'
+  };
 };
 
 // Animated counter component
@@ -423,22 +515,20 @@ const LunaAnalysisResults = ({
           }
         }
 
-        .category-image {
+        .category-icon-wrapper {
           width: 100%;
           aspect-ratio: 1;
-          border-radius: 12px;
-          overflow: hidden;
+          border-radius: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .category-image img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transition: transform 0.5s ease;
-        }
-
-        .category-card:hover .category-image img {
+        .category-card:hover .category-icon-wrapper {
           transform: scale(1.05);
+          box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.3);
         }
 
         .category-info {
@@ -994,8 +1084,8 @@ const LunaAnalysisResults = ({
                 {sortedCategories.map(([category, score], index) => {
                   const categoryScore = typeof score === 'object' ? score.score : score;
                   const isExpanded = expandedCategory === category;
-                  const catInfo = CATEGORY_INFO[category] || { label: category };
-                  const catImage = CATEGORY_IMAGES[category] || CATEGORY_IMAGES.general;
+                  const catInfo = getCategoryInfo(category);
+                  const CategoryIcon = catInfo.icon;
 
                   const getScoreColor = (s) => {
                     if (s >= 80) return '#7d8c75';
@@ -1019,8 +1109,11 @@ const LunaAnalysisResults = ({
                       transition={{ delay: index * 0.1 }}
                     >
                       <div className="category-card-inner">
-                        <div className="category-image">
-                          <img src={catImage} alt={catInfo.label} loading="lazy" />
+                        <div
+                          className="category-icon-wrapper"
+                          style={{ backgroundColor: catInfo.color }}
+                        >
+                          <CategoryIcon size={36} strokeWidth={1.5} />
                         </div>
                         <div className="category-info">
                           <div className="category-name">{catInfo.label}</div>

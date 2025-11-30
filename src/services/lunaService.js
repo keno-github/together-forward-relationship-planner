@@ -911,6 +911,7 @@ async function handleGenerateDeepDive(input, context) {
       generatedAt: new Date().toISOString()
     };
 
+    const phaseCount = enhancedDeepDive.roadmapPhases?.length || 0;
     console.log('✨ Enhanced deep dive with Claude intelligence:', {
       hasPersonalizedInsights: !!enhancedDeepDive.personalizedInsights,
       hasIntelligentTips: !!enhancedDeepDive.intelligentTips,
@@ -918,9 +919,14 @@ async function handleGenerateDeepDive(input, context) {
       hasSmartSavings: !!enhancedDeepDive.smartSavings,
       hasCoupleAdvice: !!enhancedDeepDive.coupleAdvice,
       hasRoadmapPhases: !!enhancedDeepDive.roadmapPhases,
-      phaseCount: enhancedDeepDive.roadmapPhases?.length || 0,
+      phaseCount: phaseCount,
       aiGenerated: enhancedDeepDive.aiGenerated
     });
+
+    // Warn only if no phases were generated (likely a parsing/truncation issue)
+    if (phaseCount === 0) {
+      console.warn('⚠️ No roadmap phases received. Response may have been truncated.');
+    }
 
     // CRITICAL: Attach deep dive directly to the milestone in context
     // This eliminates the need for complex linking logic
@@ -1038,7 +1044,8 @@ Generate personalized content in JSON format:
       ],
       "dependencies": ["Previous phase name if any"]
     }
-    // Generate 3-5 phases that logically break down THEIR journey
+    // Generate as many phases as makes sense for THEIR specific goal (typically 3-8)
+    // Simple goals need fewer phases, complex goals need more
     // Example for apartment: Financial Prep → Property Search → Legal/Docs → Move-In
     // Example for wedding: Vision/Budget → Major Vendors → Details → Final Prep
     // CUSTOMIZE to what THEY actually said in conversation!

@@ -187,16 +187,16 @@ Keep responses concise but helpful (2-4 paragraphs max). Use the context above t
     );
   };
 
-  // Navigation items
+  // Navigation items with warm design system colors
   const navItems = [
-    { id: 'overview', icon: Target, label: 'Overview', color: '#C084FC' },
-    { id: 'timeline', icon: Calendar, label: 'Timeline & Roadmap', color: '#EC4899' },
-    { id: 'budget', icon: DollarSign, label: 'Budget & Savings', color: '#10B981' },
-    { id: 'cost', icon: FileText, label: 'Cost Breakdown', color: '#F59E0B' },
-    { id: 'steps', icon: CheckCircle, label: 'Action Steps', color: '#3B82F6' },
-    { id: 'tips', icon: Lightbulb, label: 'Expert Tips', color: '#F59E0B' },
-    { id: 'challenges', icon: AlertTriangle, label: 'Challenges', color: '#EF4444' },
-    { id: 'chat', icon: MessageCircle, label: 'Chat with Luna', color: '#8B5CF6' }
+    { id: 'overview', icon: Target, label: 'Overview', color: '#c49a6c' },
+    { id: 'timeline', icon: Calendar, label: 'Timeline & Roadmap', color: '#7a8b9a' },
+    { id: 'budget', icon: DollarSign, label: 'Budget & Savings', color: '#7d8c75' },
+    { id: 'cost', icon: FileText, label: 'Cost Breakdown', color: '#d4a574' },
+    { id: 'steps', icon: CheckCircle, label: 'Action Steps', color: '#6b8fad' },
+    { id: 'tips', icon: Lightbulb, label: 'Expert Tips', color: '#d4a574' },
+    { id: 'challenges', icon: AlertTriangle, label: 'Challenges', color: '#b07d62' },
+    { id: 'chat', icon: MessageCircle, label: 'Chat with Luna', color: '#c49a6c' }
   ];
 
   // Calculate progress
@@ -258,7 +258,7 @@ Keep responses concise but helpful (2-4 paragraphs max). Use the context above t
                 <div className="text-sm font-medium" style={{color: '#2B2B2B', opacity: 0.7}}>
                   Overall Progress
                 </div>
-                <div className="text-3xl font-bold" style={{color: '#C084FC'}}>
+                <div className="text-3xl font-bold" style={{color: '#c49a6c'}}>
                   {progress}%
                 </div>
               </div>
@@ -270,7 +270,7 @@ Keep responses concise but helpful (2-4 paragraphs max). Use the context above t
                     cx="32"
                     cy="32"
                     r="28"
-                    stroke="rgba(192, 132, 252, 0.2)"
+                    stroke="rgba(196, 154, 108, 0.2)"
                     strokeWidth="6"
                     fill="none"
                   />
@@ -286,13 +286,13 @@ Keep responses concise but helpful (2-4 paragraphs max). Use the context above t
                   />
                   <defs>
                     <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#C084FC" />
-                      <stop offset="100%" stopColor="#F8C6D0" />
+                      <stop offset="0%" stopColor="#c49a6c" />
+                      <stop offset="100%" stopColor="#7d8c75" />
                     </linearGradient>
                   </defs>
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold" style={{color: '#C084FC'}}>
+                  <span className="text-sm font-bold" style={{color: '#c49a6c'}}>
                     {progress}%
                   </span>
                 </div>
@@ -397,7 +397,7 @@ Keep responses concise but helpful (2-4 paragraphs max). Use the context above t
                           ? 'text-white'
                           : 'glass-card-light'
                       }`}
-                      style={isActive ? {background: 'linear-gradient(135deg, #C084FC, #F8C6D0)'} : {color: '#2B2B2B'}}
+                      style={isActive ? {background: 'linear-gradient(135deg, #2d2926, #3d3633)'} : {color: '#2B2B2B'}}
                     >
                       <Icon className="w-4 h-4" />
                       <span className="text-sm font-medium">{item.label}</span>

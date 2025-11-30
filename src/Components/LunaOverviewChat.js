@@ -200,6 +200,8 @@ const LunaOverviewChat = ({
     setIsApplyingChanges(true);
 
     const results = [];
+    const TIMEOUT_MS = 15000; // 15 second timeout per operation
+
     for (const change of pendingChanges) {
       if (change.status === 'error') continue;
 
@@ -208,10 +210,23 @@ const LunaOverviewChat = ({
           // Handle roadmap regeneration specially
           results.push({ change, success: true, requiresRegeneration: true });
         } else if (change.applyFn) {
-          // Execute the apply function
+          // Execute the apply function with timeout
           const supabaseService = { updateMilestone, createTask, updateTask, deleteTask };
-          const result = await change.applyFn(supabaseService);
-          results.push({ change, success: !result.error, result });
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Operation timed out')), TIMEOUT_MS)
+          );
+
+          try {
+            const result = await Promise.race([
+              change.applyFn(supabaseService),
+              timeoutPromise
+            ]);
+            results.push({ change, success: !result?.error, result });
+          } catch (timeoutErr) {
+            console.error(`Change ${change.id} timed out or failed:`, timeoutErr);
+            results.push({ change, success: false, error: timeoutErr });
+          }
         }
       } catch (err) {
         console.error(`Failed to apply change ${change.id}:`, err);
@@ -224,11 +239,19 @@ const LunaOverviewChat = ({
     if (successfulChanges.length > 0) {
       // Refresh milestone data from database
       if (onRefreshMilestone) {
-        onRefreshMilestone();
+        try {
+          onRefreshMilestone();
+        } catch (err) {
+          console.error('Failed to refresh milestone:', err);
+        }
       }
       // Refresh tasks
       if (onTasksUpdate) {
-        onTasksUpdate();
+        try {
+          onTasksUpdate();
+        } catch (err) {
+          console.error('Failed to refresh tasks:', err);
+        }
       }
     }
 
@@ -243,22 +266,35 @@ const LunaOverviewChat = ({
     setMessages(newMessages);
     saveConversation(newMessages);
 
-    // Clear pending changes
+    // Clear pending changes and reset state
     setPendingChanges([]);
     setIsApplyingChanges(false);
   };
 
   const handleConfirmOne = async (change) => {
     setIsApplyingChanges(true);
+    const TIMEOUT_MS = 15000; // 15 second timeout
 
     try {
       if (change.applyFn) {
         const supabaseService = { updateMilestone, createTask, updateTask, deleteTask };
-        await change.applyFn(supabaseService);
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Operation timed out')), TIMEOUT_MS)
+        );
+
+        await Promise.race([
+          change.applyFn(supabaseService),
+          timeoutPromise
+        ]);
 
         // Refresh parent state
-        if (onMilestoneUpdate) onMilestoneUpdate();
-        if (onTasksUpdate) onTasksUpdate();
+        if (onMilestoneUpdate) {
+          try { onMilestoneUpdate(); } catch (e) { console.error(e); }
+        }
+        if (onTasksUpdate) {
+          try { onTasksUpdate(); } catch (e) { console.error(e); }
+        }
       }
 
       // Remove this change from pending
@@ -274,6 +310,15 @@ const LunaOverviewChat = ({
       saveConversation(newMessages);
     } catch (err) {
       console.error('Failed to apply change:', err);
+      // Remove the failed change and notify user
+      setPendingChanges(prev => prev.filter(c => c.id !== change.id));
+      const errorMessage = {
+        role: 'assistant',
+        content: `Sorry, I couldn't apply that change. ${err.message === 'Operation timed out' ? 'The operation took too long.' : 'Please try again.'}`
+      };
+      const newMessages = [...messages, errorMessage];
+      setMessages(newMessages);
+      saveConversation(newMessages);
     }
 
     setIsApplyingChanges(false);
@@ -281,6 +326,9 @@ const LunaOverviewChat = ({
 
   const handleRejectAll = () => {
     setPendingChanges([]);
+    // Also reset applying state in case it was stuck
+    setIsApplyingChanges(false);
+    setIsLoading(false);
 
     // Add rejection message
     const rejectMessage = {

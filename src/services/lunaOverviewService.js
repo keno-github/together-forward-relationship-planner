@@ -701,6 +701,7 @@ export const toolHandlers = {
  */
 async function regenerateRoadmapPhases(title, budget, timelineMonths, focusAreas = []) {
   console.log('🔄 Regenerating roadmap for:', title);
+  console.log('📊 Parameters:', { budget, timelineMonths, focusAreas });
 
   const systemPrompt = `You are Luna, an AI planning advisor. Return ONLY valid JSON, no markdown.`;
 
@@ -716,20 +717,21 @@ ${focusText}
 Return JSON (NO markdown, NO explanation):
 {
   "roadmapPhases": [
-    {"title": "Phase 1: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.15)}, "smartTips": ["Tip 1", "Tip 2"]},
-    {"title": "Phase 2: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.25)}, "smartTips": ["Tip 1", "Tip 2"]},
-    {"title": "Phase 3: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.45)}, "smartTips": ["Tip 1", "Tip 2"]},
-    {"title": "Phase 4: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.15)}, "smartTips": ["Tip 1", "Tip 2"]}
+    {"title": "Phase 1: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": [amount], "smartTips": ["Tip 1", "Tip 2"]},
+    // Add more phases as needed for this specific goal (typically 3-8 phases depending on complexity)
   ],
   "expertTips": ["Tip 1", "Tip 2", "Tip 3"]
 }
 
 RULES:
+- Generate as many phases as makes sense for "${title}" (typically 3-8 phases)
+- Simple goals need fewer phases, complex goals need more
 - Replace [Name] with goal-specific phase names (NOT generic like "Planning & Research")
 - Phase titles must be specific to "${title}"
-- Each smartTips array has exactly 2 short tips
+- Distribute the budget (€${budget || 0}) logically across phases
+- Each smartTips array has exactly 2 short tips (max 10 words each)
 - Keep descriptions under 15 words
-- Return ONLY the JSON object`;
+- Return ONLY the JSON object, no explanation before or after`;
 
   try {
     const response = await fetch(`${BACKEND_URL}/api/claude-generate`, {
@@ -738,7 +740,7 @@ RULES:
       body: JSON.stringify({
         prompt: userPrompt,
         systemPrompt: systemPrompt,
-        maxTokens: 1500,
+        maxTokens: 2500, // Increased to ensure full 5-phase response
         temperature: 0.7
       })
     });
@@ -748,6 +750,8 @@ RULES:
     }
 
     const data = await response.json();
+    console.log('📦 Raw API response length:', data.content?.length);
+
     let contentToParse = data.content;
 
     // Remove markdown code blocks if present
@@ -759,17 +763,26 @@ RULES:
     const jsonMatch = contentToParse.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const generatedContent = JSON.parse(jsonMatch[0]);
-      console.log('✅ Regenerated roadmap with', generatedContent.roadmapPhases?.length, 'phases');
+      const phaseCount = generatedContent.roadmapPhases?.length || 0;
+      console.log('✅ Regenerated roadmap with', phaseCount, 'phases');
+
+      // Log warning only if no phases were generated (likely truncation issue)
+      if (phaseCount === 0) {
+        console.warn('⚠️ No phases received. API response may have been truncated.');
+        console.warn('Response preview:', data.content?.substring(0, 500));
+      }
+
       return {
         roadmapPhases: generatedContent.roadmapPhases || [],
         expertTips: generatedContent.expertTips || [],
-        error: null
+        error: phaseCount === 0 ? 'No phases generated' : null
       };
     }
 
     throw new Error('Failed to parse regenerated roadmap');
   } catch (error) {
     console.error('❌ Roadmap regeneration error:', error);
+    console.error('Error stack:', error.stack);
     return {
       roadmapPhases: [],
       expertTips: [],

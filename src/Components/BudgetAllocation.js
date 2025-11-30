@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  DollarSign, Plus, PiggyBank, CheckCircle, Edit2, Trash2, Wallet, ArrowRight
+  DollarSign, Plus, PiggyBank, Check, Edit3, Trash2, Wallet, ArrowRight,
+  Home, Car, Gem, Plane, UtensilsCrossed, Music, Camera, Gift, Heart,
+  ShoppingBag, Briefcase, GraduationCap, Baby, X
 } from 'lucide-react';
 import {
   createExpense,
@@ -9,6 +11,64 @@ import {
   deleteExpense
 } from '../services/supabaseService';
 import { getCategoriesForMilestone, suggestCategoryBudgets } from '../data/budgetCategories';
+
+// Lucide icon mapping for pockets
+const POCKET_ICONS = {
+  'Home': Home,
+  'Venue': Home,
+  'Transportation': Car,
+  'Car': Car,
+  'Ring': Gem,
+  'Jewelry': Gem,
+  'Travel': Plane,
+  'Honeymoon': Plane,
+  'Food': UtensilsCrossed,
+  'Catering': UtensilsCrossed,
+  'Entertainment': Music,
+  'Music': Music,
+  'Photography': Camera,
+  'Photo': Camera,
+  'Gifts': Gift,
+  'Decorations': Heart,
+  'Flowers': Heart,
+  'Shopping': ShoppingBag,
+  'Attire': ShoppingBag,
+  'Dress': ShoppingBag,
+  'Work': Briefcase,
+  'Education': GraduationCap,
+  'Baby': Baby,
+  'Nursery': Baby,
+  'default': Wallet
+};
+
+// Get icon component by name
+const getIconForPocket = (name) => {
+  // Try to match pocket name with icon
+  for (const [key, IconComponent] of Object.entries(POCKET_ICONS)) {
+    if (name.toLowerCase().includes(key.toLowerCase())) {
+      return IconComponent;
+    }
+  }
+  return POCKET_ICONS.default;
+};
+
+// Icon selector options
+const ICON_OPTIONS = [
+  { name: 'Home', icon: Home },
+  { name: 'Car', icon: Car },
+  { name: 'Jewelry', icon: Gem },
+  { name: 'Travel', icon: Plane },
+  { name: 'Food', icon: UtensilsCrossed },
+  { name: 'Music', icon: Music },
+  { name: 'Photo', icon: Camera },
+  { name: 'Gift', icon: Gift },
+  { name: 'Heart', icon: Heart },
+  { name: 'Shopping', icon: ShoppingBag },
+  { name: 'Work', icon: Briefcase },
+  { name: 'Education', icon: GraduationCap },
+  { name: 'Baby', icon: Baby },
+  { name: 'Wallet', icon: Wallet }
+];
 
 const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateToSection }) => {
   const [pockets, setPockets] = useState([]);
@@ -20,47 +80,42 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Pocket management states
   const [showPocketModal, setShowPocketModal] = useState(false);
   const [editingPocket, setEditingPocket] = useState(null);
   const [pocketName, setPocketName] = useState('');
-  const [pocketIcon, setPocketIcon] = useState('📦');
+  const [pocketIconName, setPocketIconName] = useState('Wallet');
   const [pocketDescription, setPocketDescription] = useState('');
   const [pocketTarget, setPocketTarget] = useState('');
 
-  const targetBudget = milestone.budget_amount || 0;
+  const targetBudget = milestone?.budget_amount || 0;
 
-  // Initialize pockets and load existing contributions
   useEffect(() => {
-    initializeBudget();
-  }, [milestone]);
+    if (milestone?.id) {
+      initializeBudget();
+    } else {
+      setLoading(false);
+    }
+  }, [milestone?.id]);
 
   const initializeBudget = async () => {
     setLoading(true);
 
-    // Get predefined categories for this milestone type (we'll call them pockets)
     const suggestedCategories = getCategoriesForMilestone(milestone.title);
 
-    // If milestone has budget_amount, suggest breakdown
     let categoryBudgets = {};
     if (targetBudget > 0) {
       categoryBudgets = suggestCategoryBudgets(targetBudget, suggestedCategories);
     }
 
-    // Load existing contributions from database (expenses with category)
     if (milestone.id) {
       const { data: expenses } = await getExpensesByMilestone(milestone.id);
 
       if (expenses && expenses.length > 0) {
-        // Group by pocket (category)
         const pocketContributions = {};
         expenses.forEach(expense => {
           const pocket = expense.category || 'Unallocated';
           if (!pocketContributions[pocket]) {
-            pocketContributions[pocket] = {
-              saved: 0,
-              items: []
-            };
+            pocketContributions[pocket] = { saved: 0, items: [] };
           }
           pocketContributions[pocket].saved += parseFloat(expense.amount || 0);
           pocketContributions[pocket].items.push(expense);
@@ -70,9 +125,9 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       }
     }
 
-    // Set pockets with target amounts
     const pocketsWithTargets = suggestedCategories.map(cat => ({
       ...cat,
+      iconName: cat.iconName || 'Wallet',
       targetAmount: categoryBudgets[cat.name] || 0
     }));
 
@@ -80,28 +135,18 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     setLoading(false);
   };
 
-  // Calculate totals
   const getTotals = () => {
-    // Total saved across ALL contributions
     const totalContributions = Object.values(contributions).reduce(
-      (sum, pocket) => sum + pocket.saved,
-      0
+      (sum, pocket) => sum + pocket.saved, 0
     );
-
     const percentageSaved = targetBudget > 0 ? (totalContributions / targetBudget) * 100 : 0;
     const remaining = targetBudget - totalContributions;
 
-    return {
-      targetBudget,
-      totalContributions,
-      percentageSaved,
-      remaining
-    };
+    return { targetBudget, totalContributions, percentageSaved, remaining };
   };
 
   const totals = getTotals();
 
-  // Handle adding money to a pocket
   const handleAddMoney = (pocket) => {
     setSelectedPocket(pocket);
     setAmountInput('');
@@ -109,24 +154,12 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     setShowAddMoneyModal(true);
   };
 
-  // Save contribution to database
   const handleSaveContribution = async () => {
-    if (!amountInput || parseFloat(amountInput) <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
+    if (!amountInput || parseFloat(amountInput) <= 0) return;
 
     setIsSaving(true);
 
     try {
-      console.log('💰 Saving contribution:', {
-        pocket: selectedPocket.name,
-        amount: parseFloat(amountInput),
-        milestone_id: milestone.id,
-        roadmap_id: roadmapId
-      });
-
-      // Create expense record for this contribution
       const contributionData = {
         milestone_id: milestone.id,
         roadmap_id: roadmapId,
@@ -139,57 +172,35 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       };
 
       const { data, error } = await createExpense(contributionData);
+      if (error) throw new Error(error.message);
 
-      if (error) {
-        console.error('❌ Error from createExpense:', error);
-        throw new Error(error.message || 'Failed to save contribution');
-      }
-
-      if (!data) {
-        console.error('❌ No data returned from createExpense');
-        throw new Error('No data returned from database');
-      }
-
-      console.log('✅ Contribution saved successfully:', data);
-
-      // Update local state
       const updatedContributions = { ...contributions };
       if (!updatedContributions[selectedPocket.name]) {
-        updatedContributions[selectedPocket.name] = {
-          saved: 0,
-          items: []
-        };
+        updatedContributions[selectedPocket.name] = { saved: 0, items: [] };
       }
       updatedContributions[selectedPocket.name].saved += parseFloat(amountInput);
       updatedContributions[selectedPocket.name].items.push(data);
 
       setContributions(updatedContributions);
 
-      console.log('📊 Updated contributions:', updatedContributions);
-
-      // Notify parent of progress update
       if (onProgressUpdate) {
         const newTotals = {
           totalTarget: targetBudget,
           totalSaved: Object.values(updatedContributions).reduce((sum, pocket) => sum + pocket.saved, 0)
         };
-        console.log('📈 Progress update:', newTotals);
         onProgressUpdate(newTotals);
       }
 
-      // Reset form and close modal
       setAmountInput('');
       setNoteInput('');
       setShowAddMoneyModal(false);
     } catch (error) {
-      console.error('❌ Error saving contribution:', error);
-      alert(`Failed to save contribution: ${error.message}\n\nPlease check the console for details.`);
+      console.error('Error saving contribution:', error);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Delete a contribution
   const handleDeleteContribution = async (pocketName, expense) => {
     if (!window.confirm('Remove this contribution?')) return;
 
@@ -197,7 +208,6 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       const { error } = await deleteExpense(expense.id);
       if (error) throw error;
 
-      // Update local state
       const updatedContributions = { ...contributions };
       updatedContributions[pocketName].saved -= parseFloat(expense.amount);
       updatedContributions[pocketName].items = updatedContributions[pocketName].items.filter(
@@ -207,14 +217,12 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       setContributions(updatedContributions);
     } catch (error) {
       console.error('Error deleting contribution:', error);
-      alert('Failed to delete contribution.');
     }
   };
 
-  // Pocket Management Functions
   const handleAddPocket = () => {
     setPocketName('');
-    setPocketIcon('📦');
+    setPocketIconName('Wallet');
     setPocketDescription('');
     setPocketTarget('');
     setEditingPocket(null);
@@ -223,7 +231,7 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
 
   const handleEditPocket = (pocket) => {
     setPocketName(pocket.name);
-    setPocketIcon(pocket.icon);
+    setPocketIconName(pocket.iconName || 'Wallet');
     setPocketDescription(pocket.description);
     setPocketTarget(pocket.targetAmount?.toString() || '');
     setEditingPocket(pocket);
@@ -231,22 +239,17 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
   };
 
   const handleSavePocket = () => {
-    if (!pocketName.trim()) {
-      alert('Please enter a pocket name');
-      return;
-    }
+    if (!pocketName.trim()) return;
 
     const targetAmount = parseFloat(pocketTarget) || 0;
 
     if (editingPocket) {
-      // Update existing pocket
       const updatedPockets = pockets.map(p =>
         p.name === editingPocket.name
-          ? { ...p, name: pocketName, icon: pocketIcon, description: pocketDescription, targetAmount }
+          ? { ...p, name: pocketName, iconName: pocketIconName, description: pocketDescription, targetAmount }
           : p
       );
 
-      // Update contributions with new pocket name if changed
       if (editingPocket.name !== pocketName && contributions[editingPocket.name]) {
         const updatedContributions = { ...contributions };
         updatedContributions[pocketName] = updatedContributions[editingPocket.name];
@@ -256,10 +259,9 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
 
       setPockets(updatedPockets);
     } else {
-      // Add new pocket
       const newPocket = {
         name: pocketName,
-        icon: pocketIcon,
+        iconName: pocketIconName,
         description: pocketDescription,
         targetAmount
       };
@@ -280,31 +282,44 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl p-6 border border-gray-200">
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-20 bg-gray-200 rounded"></div>
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <div className="w-10 h-10 border-2 border-[#c49a6c] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  // Show empty state if no budget is set
+  if (!milestone) {
+    return (
+      <div className="text-center py-16">
+        <p style={{ color: '#6b635b' }}>No milestone selected</p>
+      </div>
+    );
+  }
+
   if (targetBudget === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 border border-gray-200 text-center">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Wallet className="w-10 h-10 text-gray-400" />
+      <div className="text-center py-16">
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
+          style={{ background: 'rgba(196, 154, 108, 0.12)' }}
+        >
+          <Wallet className="w-8 h-8" style={{ color: '#c49a6c' }} />
         </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">No Budget Set</h3>
-        <p className="text-gray-600 mb-6 max-w-md mx-auto">
-          You haven't set a target budget for this milestone yet. Set a budget in the Overview tab to start tracking your savings.
+        <h3
+          className="text-xl font-medium mb-2"
+          style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+        >
+          No Budget Set
+        </h3>
+        <p className="mb-6 max-w-sm mx-auto" style={{ color: '#6b635b' }}>
+          Set a target budget in the Overview tab to start tracking your savings.
         </p>
         <button
           onClick={() => onNavigateToSection?.('overview')}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+          className="px-6 py-3 rounded-xl font-medium text-white flex items-center gap-2 mx-auto transition-all hover:-translate-y-0.5"
+          style={{ background: '#2d2926' }}
         >
-          Set Budget in Overview
+          Set Budget
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -314,48 +329,77 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
   return (
     <div className="space-y-6">
       {/* Savings Progress Overview */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-            <Wallet className="w-6 h-6 text-green-600" />
+      <div
+        className="rounded-2xl p-6"
+        style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
+      >
+        <div className="flex items-center gap-4 mb-5">
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(125, 140, 117, 0.12)' }}
+          >
+            <PiggyBank className="w-6 h-6" style={{ color: '#7d8c75' }} />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-gray-900">Savings Progress</h3>
-            <p className="text-sm text-gray-600">Track your contributions toward your {formatCurrency(targetBudget)} goal</p>
+            <h3
+              className="text-lg font-medium"
+              style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+            >
+              Savings Progress
+            </h3>
+            <p className="text-sm" style={{ color: '#6b635b' }}>
+              Tracking your progress toward {formatCurrency(targetBudget)}
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-green-50 rounded-xl p-4">
-            <p className="text-xs text-gray-600 mb-1">Total Contributions</p>
-            <p className="text-2xl font-bold text-green-600">{formatCurrency(totals.totalContributions)}</p>
+        <div className="grid grid-cols-2 gap-4 mb-5">
+          <div className="rounded-xl p-4" style={{ background: '#faf8f5' }}>
+            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
+              Total Saved
+            </p>
+            <p
+              className="text-2xl font-semibold"
+              style={{ fontFamily: "'Playfair Display', serif", color: '#7d8c75' }}
+            >
+              {formatCurrency(totals.totalContributions)}
+            </p>
           </div>
-          <div className="bg-blue-50 rounded-xl p-4">
-            <p className="text-xs text-gray-600 mb-1">Still Need</p>
-            <p className="text-2xl font-bold text-blue-600">{formatCurrency(totals.remaining)}</p>
+          <div className="rounded-xl p-4" style={{ background: '#faf8f5' }}>
+            <p className="text-xs uppercase tracking-wider mb-1" style={{ color: '#6b635b' }}>
+              Still Need
+            </p>
+            <p
+              className="text-2xl font-semibold"
+              style={{ fontFamily: "'Playfair Display', serif", color: '#c49a6c' }}
+            >
+              {formatCurrency(Math.max(0, totals.remaining))}
+            </p>
           </div>
         </div>
 
-        {/* Overall Progress Bar */}
-        <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+        <div className="h-2.5 rounded-full" style={{ background: '#e8e4de' }}>
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.min(totals.percentageSaved, 100)}%` }}
-            className="h-full rounded-full flex items-center justify-end pr-2 bg-gradient-to-r from-green-500 to-green-600"
-            transition={{ duration: 0.5 }}
-          >
-            {totals.percentageSaved >= 10 && (
-              <span className="text-white text-xs font-bold">
-                {totals.percentageSaved.toFixed(0)}%
-              </span>
-            )}
-          </motion.div>
+            className="h-full rounded-full"
+            style={{ background: '#7d8c75' }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          />
         </div>
+        <p className="text-sm mt-2 text-right" style={{ color: '#7d8c75' }}>
+          {totals.percentageSaved.toFixed(0)}% saved
+        </p>
 
         {totals.percentageSaved >= 100 && (
-          <div className="mt-4 flex items-center gap-2 text-green-600 bg-green-50 rounded-lg p-3">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-semibold">Budget goal reached! 🎉</span>
+          <div
+            className="mt-4 flex items-center gap-2 rounded-xl p-3"
+            style={{ background: 'rgba(125, 140, 117, 0.1)' }}
+          >
+            <Check className="w-5 h-5" style={{ color: '#7d8c75' }} />
+            <span className="font-medium" style={{ color: '#7d8c75' }}>
+              Budget goal reached!
+            </span>
           </div>
         )}
       </div>
@@ -364,12 +408,20 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">Budget Pockets</h3>
-            <p className="text-sm text-gray-600">Break down your {formatCurrency(targetBudget)} target into manageable goals</p>
+            <h3
+              className="text-lg font-medium"
+              style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+            >
+              Budget Pockets
+            </h3>
+            <p className="text-sm" style={{ color: '#6b635b' }}>
+              Organize your savings into categories
+            </p>
           </div>
           <button
             onClick={handleAddPocket}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+            className="px-4 py-2.5 rounded-xl font-medium text-white flex items-center gap-2 transition-all hover:-translate-y-0.5"
+            style={{ background: '#2d2926' }}
           >
             <Plus className="w-4 h-4" />
             Add Pocket
@@ -384,94 +436,107 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
             const need = Math.max(0, targetAmount - saved);
             const percentage = targetAmount > 0 ? (saved / targetAmount) * 100 : 0;
             const isFullyFunded = saved >= targetAmount && targetAmount > 0;
+            const PocketIcon = getIconForPocket(pocket.name);
 
             return (
               <div
                 key={pocket.name}
-                className={`bg-white rounded-xl p-4 border-2 transition-all ${
-                  isFullyFunded ? 'border-green-200 bg-green-50' : 'border-gray-200'
-                }`}
+                className="rounded-xl p-5 transition-all"
+                style={{
+                  background: isFullyFunded ? 'rgba(125, 140, 117, 0.05)' : '#ffffff',
+                  border: isFullyFunded ? '2px solid rgba(125, 140, 117, 0.3)' : '1px solid #e8e4de'
+                }}
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="text-3xl">{pocket.icon}</div>
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center"
+                      style={{ background: isFullyFunded ? 'rgba(125, 140, 117, 0.15)' : 'rgba(196, 154, 108, 0.12)' }}
+                    >
+                      <PocketIcon
+                        className="w-6 h-6"
+                        style={{ color: isFullyFunded ? '#7d8c75' : '#c49a6c' }}
+                      />
+                    </div>
                     <div>
-                      <h4 className="font-semibold text-gray-900">{pocket.name}</h4>
-                      <p className="text-xs text-gray-600">{pocket.description}</p>
+                      <h4 className="font-medium" style={{ color: '#2d2926' }}>{pocket.name}</h4>
+                      <p className="text-xs" style={{ color: '#6b635b' }}>{pocket.description}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => handleEditPocket(pocket)}
-                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    title="Edit pocket"
+                    className="p-2 rounded-lg transition-colors hover:bg-gray-100"
                   >
-                    <Edit2 className="w-4 h-4 text-gray-600" />
+                    <Edit3 className="w-4 h-4" style={{ color: '#6b635b' }} />
                   </button>
                 </div>
 
-                {/* Pocket Stats */}
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div className="bg-gray-50 rounded-lg p-2">
-                    <p className="text-xs text-gray-600">Target</p>
-                    <p className="text-sm font-bold text-gray-900">{formatCurrency(targetAmount)}</p>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="rounded-lg p-2" style={{ background: '#faf8f5' }}>
+                    <p className="text-xs" style={{ color: '#6b635b' }}>Target</p>
+                    <p className="text-sm font-semibold" style={{ color: '#2d2926' }}>
+                      {formatCurrency(targetAmount)}
+                    </p>
                   </div>
-                  <div className="bg-green-50 rounded-lg p-2">
-                    <p className="text-xs text-gray-600">Saved</p>
-                    <p className="text-sm font-bold text-green-600">{formatCurrency(saved)}</p>
+                  <div className="rounded-lg p-2" style={{ background: 'rgba(125, 140, 117, 0.08)' }}>
+                    <p className="text-xs" style={{ color: '#6b635b' }}>Saved</p>
+                    <p className="text-sm font-semibold" style={{ color: '#7d8c75' }}>
+                      {formatCurrency(saved)}
+                    </p>
                   </div>
-                  <div className="bg-blue-50 rounded-lg p-2">
-                    <p className="text-xs text-gray-600">Need</p>
-                    <p className="text-sm font-bold text-blue-600">{formatCurrency(need)}</p>
+                  <div className="rounded-lg p-2" style={{ background: 'rgba(196, 154, 108, 0.08)' }}>
+                    <p className="text-xs" style={{ color: '#6b635b' }}>Need</p>
+                    <p className="text-sm font-semibold" style={{ color: '#c49a6c' }}>
+                      {formatCurrency(need)}
+                    </p>
                   </div>
                 </div>
 
-                {/* Progress Bar */}
-                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
+                <div className="h-1.5 rounded-full mb-3" style={{ background: '#e8e4de' }}>
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.min(percentage, 100)}%` }}
-                    className={`h-full rounded-full ${
-                      isFullyFunded ? 'bg-green-500' : 'bg-gradient-to-r from-blue-500 to-blue-600'
-                    }`}
+                    className="h-full rounded-full"
+                    style={{ background: isFullyFunded ? '#7d8c75' : '#c49a6c' }}
                     transition={{ duration: 0.3 }}
                   />
                 </div>
 
                 {isFullyFunded && (
-                  <div className="mb-3 flex items-center gap-2 text-green-600 text-sm font-semibold">
-                    <CheckCircle className="w-4 h-4" />
-                    FULLY FUNDED! 🎉
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium" style={{ color: '#7d8c75' }}>
+                    <Check className="w-4 h-4" />
+                    Fully Funded
                   </div>
                 )}
 
-                {/* Contributions List */}
                 {pocketContribution && pocketContribution.items.length > 0 && (
                   <div className="space-y-1 mb-3 max-h-24 overflow-y-auto">
                     {pocketContribution.items.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1.5"
+                        className="flex items-center justify-between text-xs rounded-lg px-2 py-1.5"
+                        style={{ background: '#faf8f5' }}
                       >
-                        <span className="flex items-center gap-1 text-gray-700">
-                          <PiggyBank className="w-3 h-3" />
+                        <span className="flex items-center gap-1" style={{ color: '#2d2926' }}>
+                          <PiggyBank className="w-3 h-3" style={{ color: '#7d8c75' }} />
                           {formatCurrency(item.amount)}
-                          {item.notes && <span className="text-gray-500">· {item.notes}</span>}
+                          {item.notes && <span style={{ color: '#6b635b' }}>· {item.notes}</span>}
                         </span>
                         <button
                           onClick={() => handleDeleteContribution(pocket.name, item)}
-                          className="opacity-50 hover:opacity-100 text-red-600"
+                          className="opacity-50 hover:opacity-100 transition-opacity"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3 h-3" style={{ color: '#c76b6b' }} />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Add Money Button */}
                 <button
                   onClick={() => handleAddMoney(pocket)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors font-medium"
+                  className="w-full py-2.5 rounded-xl font-medium text-white flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
+                  style={{ background: '#2d2926' }}
                 >
                   <Plus className="w-4 h-4" />
                   Add Money
@@ -493,71 +558,79 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
             onClick={() => setShowAddMoneyModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 max-w-md w-full border border-gray-200"
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="rounded-2xl p-6 max-w-md w-full"
+              style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-center mb-6">
-                <div className="text-5xl mb-3">{selectedPocket.icon}</div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  Add Money to {selectedPocket.name}
+              <div className="flex items-center justify-between mb-6">
+                <h3
+                  className="text-lg font-medium"
+                  style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+                >
+                  Add to {selectedPocket.name}
                 </h3>
-                <p className="text-sm mt-1 text-gray-600">
-                  {selectedPocket.description}
-                </p>
+                <button
+                  onClick={() => setShowAddMoneyModal(false)}
+                  className="p-1 rounded-lg hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" style={{ color: '#6b635b' }} />
+                </button>
               </div>
 
               <div className="space-y-4">
-                {/* Amount Input */}
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
-                    Amount ($) *
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#2d2926' }}>
+                    Amount
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <DollarSign
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5"
+                      style={{ color: '#6b635b' }}
+                    />
                     <input
                       type="number"
                       value={amountInput}
                       onChange={(e) => setAmountInput(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 text-2xl font-bold text-center focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl text-xl font-semibold focus:outline-none focus:ring-2"
+                      style={{ border: '1px solid #e8e4de', color: '#2d2926' }}
                       placeholder="0"
-                      step="0.01"
-                      min="0"
                       autoFocus
                     />
                   </div>
                 </div>
 
-                {/* Note Input */}
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#2d2926' }}>
                     Note (optional)
                   </label>
                   <input
                     type="text"
                     value={noteInput}
                     onChange={(e) => setNoteInput(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2"
+                    style={{ border: '1px solid #e8e4de', color: '#2d2926' }}
                     placeholder="e.g., Saved from bonus"
                   />
                 </div>
               </div>
 
-              {/* Modal Actions */}
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowAddMoneyModal(false)}
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold transition-colors"
+                  className="flex-1 py-3 rounded-xl font-medium transition-colors"
+                  style={{ background: '#f5f2ed', color: '#6b635b' }}
                   disabled={isSaving}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveContribution}
-                  className="flex-1 px-4 py-3 rounded-xl bg-gray-900 text-white hover:bg-gray-800 font-semibold transition-colors"
-                  disabled={isSaving}
+                  className="flex-1 py-3 rounded-xl font-medium text-white transition-colors disabled:opacity-50"
+                  style={{ background: '#7d8c75' }}
+                  disabled={isSaving || !amountInput}
                 >
                   {isSaving ? 'Saving...' : 'Add Money'}
                 </button>
@@ -578,95 +651,116 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
             onClick={() => setShowPocketModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl p-6 max-w-md w-full border border-gray-200"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="rounded-2xl p-6 max-w-md w-full"
+              style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-bold mb-6 text-gray-900">
-                {editingPocket ? 'Edit Pocket' : 'Add New Pocket'}
-              </h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3
+                  className="text-lg font-medium"
+                  style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+                >
+                  {editingPocket ? 'Edit Pocket' : 'Add New Pocket'}
+                </h3>
+                <button
+                  onClick={() => setShowPocketModal(false)}
+                  className="p-1 rounded-lg hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" style={{ color: '#6b635b' }} />
+                </button>
+              </div>
 
               <div className="space-y-4">
-                {/* Pocket Name */}
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
-                    Pocket Name *
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#2d2926' }}>
+                    Pocket Name
                   </label>
                   <input
                     type="text"
                     value={pocketName}
                     onChange={(e) => setPocketName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2"
+                    style={{ border: '1px solid #e8e4de', color: '#2d2926' }}
                     placeholder="e.g., Venue"
                     autoFocus
                   />
                 </div>
 
-                {/* Target Amount */}
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
-                    Target Amount ($) *
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#2d2926' }}>
+                    Target Amount
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <DollarSign
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5"
+                      style={{ color: '#6b635b' }}
+                    />
                     <input
                       type="number"
                       value={pocketTarget}
                       onChange={(e) => setPocketTarget(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl focus:outline-none focus:ring-2"
+                      style={{ border: '1px solid #e8e4de', color: '#2d2926' }}
                       placeholder="0"
-                      step="100"
-                      min="0"
                     />
                   </div>
                 </div>
 
-                {/* Pocket Icon */}
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
-                    Icon (Emoji)
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#2d2926' }}>
+                    Icon
                   </label>
-                  <input
-                    type="text"
-                    value={pocketIcon}
-                    onChange={(e) => setPocketIcon(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 text-3xl text-center focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    placeholder="📦"
-                    maxLength={2}
-                  />
-                  <p className="text-xs mt-1 text-center text-gray-500">
-                    Choose any emoji to represent this pocket
-                  </p>
+                  <div className="grid grid-cols-7 gap-2">
+                    {ICON_OPTIONS.map(({ name, icon: IconComp }) => (
+                      <button
+                        key={name}
+                        onClick={() => setPocketIconName(name)}
+                        className="w-10 h-10 rounded-lg flex items-center justify-center transition-all"
+                        style={{
+                          background: pocketIconName === name ? 'rgba(196, 154, 108, 0.2)' : '#faf8f5',
+                          border: pocketIconName === name ? '2px solid #c49a6c' : '1px solid #e8e4de'
+                        }}
+                      >
+                        <IconComp
+                          className="w-5 h-5"
+                          style={{ color: pocketIconName === name ? '#c49a6c' : '#6b635b' }}
+                        />
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Pocket Description */}
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#2d2926' }}>
                     Description (optional)
                   </label>
                   <input
                     type="text"
                     value={pocketDescription}
                     onChange={(e) => setPocketDescription(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    placeholder="e.g., Wedding venue and decorations"
+                    className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2"
+                    style={{ border: '1px solid #e8e4de', color: '#2d2926' }}
+                    placeholder="e.g., Wedding venue costs"
                   />
                 </div>
               </div>
 
-              {/* Modal Actions */}
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowPocketModal(false)}
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold transition-colors"
+                  className="flex-1 py-3 rounded-xl font-medium transition-colors"
+                  style={{ background: '#f5f2ed', color: '#6b635b' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSavePocket}
-                  className="flex-1 px-4 py-3 rounded-xl bg-gray-900 text-white hover:bg-gray-800 font-semibold transition-colors"
+                  className="flex-1 py-3 rounded-xl font-medium text-white transition-colors disabled:opacity-50"
+                  style={{ background: '#7d8c75' }}
+                  disabled={!pocketName.trim()}
                 >
                   {editingPocket ? 'Save Changes' : 'Add Pocket'}
                 </button>

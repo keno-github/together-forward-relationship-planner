@@ -177,7 +177,7 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
       case 'concern': return <AlertTriangle className="w-5 h-5 text-amber-500" />;
       case 'opportunity': return <Lightbulb className="w-5 h-5 text-blue-500" />;
       case 'risk': return <AlertCircle className="w-5 h-5 text-red-500" />;
-      default: return <Sparkles className="w-5 h-5 text-purple-500" />;
+      default: return <Sparkles className="w-5 h-5" style={{ color: '#c49a6c' }} />;
     }
   };
 
@@ -244,10 +244,10 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
         >
-          <Brain className="w-16 h-16 text-purple-500" />
+          <Brain className="w-16 h-16" style={{ color: '#c49a6c' }} />
         </motion.div>
-        <p className="mt-6 text-lg text-gray-600">Luna is analyzing your journey...</p>
-        <p className="mt-2 text-sm text-gray-500">Gathering insights from your roadmaps, tasks, and progress</p>
+        <p className="mt-6 text-lg" style={{ color: '#2d2926' }}>Luna is analyzing your journey...</p>
+        <p className="mt-2 text-sm" style={{ color: '#6b635b' }}>Gathering insights from your roadmaps, tasks, and progress</p>
       </div>
     );
   }
@@ -256,12 +256,13 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-        <p className="text-lg text-gray-700 mb-2">Unable to Generate Assessment</p>
-        <p className="text-sm text-gray-500 mb-6">{error}</p>
+        <AlertCircle className="w-16 h-16 mb-4" style={{ color: '#b07d62' }} />
+        <p className="text-lg mb-2" style={{ color: '#2d2926' }}>Unable to Generate Assessment</p>
+        <p className="text-sm mb-6" style={{ color: '#6b635b' }}>{error}</p>
         <button
           onClick={handleRefreshAssessment}
-          className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+          className="px-6 py-2 text-white rounded-lg transition-colors flex items-center gap-2"
+          style={{ background: 'linear-gradient(135deg, #2d2926, #3d3633)' }}
         >
           <RefreshCw className="w-4 h-4" />
           Try Again
@@ -274,12 +275,13 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
   if (!assessment) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <Brain className="w-16 h-16 text-purple-500 mb-4" />
-        <p className="text-lg text-gray-700 mb-2">Ready for Your Assessment?</p>
-        <p className="text-sm text-gray-500 mb-6">Get intelligent insights about your journey from Luna</p>
+        <Brain className="w-16 h-16 mb-4" style={{ color: '#c49a6c' }} />
+        <p className="text-lg mb-2" style={{ color: '#2d2926' }}>Ready for Your Assessment?</p>
+        <p className="text-sm mb-6" style={{ color: '#6b635b' }}>Get intelligent insights about your journey from Luna</p>
         <button
           onClick={handleRefreshAssessment}
-          className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+          className="px-6 py-2 text-white rounded-lg transition-colors flex items-center gap-2"
+          style={{ background: 'linear-gradient(135deg, #2d2926, #3d3633)' }}
         >
           <Sparkles className="w-4 h-4" />
           Generate Assessment
@@ -299,13 +301,14 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
         className="text-center mb-8"
       >
         <div className="flex items-center justify-center gap-3 mb-4">
-          <Brain className="w-10 h-10 text-purple-600" />
-          <h1 className="text-4xl font-bold text-gray-900">Luna's Assessment</h1>
+          <Brain className="w-10 h-10" style={{ color: '#c49a6c' }} />
+          <h1 className="text-4xl font-bold" style={{ color: '#2d2926', fontFamily: "'Playfair Display', Georgia, serif" }}>Luna's Assessment</h1>
         </div>
-        <p className="text-gray-600">Intelligent insights into your journey together</p>
+        <p style={{ color: '#6b635b' }}>Intelligent insights into your journey together</p>
         <button
           onClick={handleRefreshAssessment}
-          className="mt-4 text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1 mx-auto"
+          className="mt-4 text-sm flex items-center gap-1 mx-auto transition-colors"
+          style={{ color: '#c49a6c' }}
         >
           <RefreshCw className="w-4 h-4" />
           Refresh Assessment
@@ -343,9 +346,9 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
 
         {/* Metrics Row */}
         {assessment.metrics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-gray-50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6" style={{ backgroundColor: '#faf8f5' }}>
             <div className="text-center">
-              <Target className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+              <Target className="w-6 h-6 mx-auto mb-2" style={{ color: '#c49a6c' }} />
               <p className="text-2xl font-bold text-gray-900">{assessment.metrics.totalMilestones}</p>
               <p className="text-sm text-gray-600">Milestones</p>
             </div>
@@ -380,12 +383,13 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
         >
           <button
             onClick={() => toggleSection('insights')}
-            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            className="w-full px-6 py-4 flex items-center justify-between transition-colors"
+            style={{ ':hover': { backgroundColor: '#faf8f5' } }}
           >
             <div className="flex items-center gap-3">
-              <Sparkles className="w-6 h-6 text-purple-600" />
-              <h3 className="text-xl font-bold text-gray-900">Key Insights</h3>
-              <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
+              <Sparkles className="w-6 h-6" style={{ color: '#c49a6c' }} />
+              <h3 className="text-xl font-bold" style={{ color: '#2d2926' }}>Key Insights</h3>
+              <span className="px-3 py-1 rounded-full text-sm font-medium" style={{ backgroundColor: 'rgba(196, 154, 108, 0.15)', color: '#c49a6c' }}>
                 {assessment.keyInsights.length}
               </span>
             </div>
@@ -718,17 +722,18 @@ const LunaAssessment = ({ userId, roadmapId, userContext }) => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl shadow-md p-6 text-white"
+          className="rounded-xl shadow-md p-6 text-white"
+          style={{ background: 'linear-gradient(135deg, #2d2926 0%, #3d3633 100%)' }}
         >
           <div className="flex items-center gap-3 mb-4">
-            <Award className="w-8 h-8" />
-            <h3 className="text-2xl font-bold">Worth Celebrating! 🎉</h3>
+            <Award className="w-8 h-8" style={{ color: '#c49a6c' }} />
+            <h3 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>Worth Celebrating!</h3>
           </div>
           <ul className="space-y-2">
             {assessment.celebrationMoments.map((moment, idx) => (
               <li key={idx} className="flex items-start gap-2">
-                <Sparkles className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <span className="text-white/95">{moment}</span>
+                <Sparkles className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#c49a6c' }} />
+                <span style={{ color: 'rgba(255, 255, 255, 0.95)' }}>{moment}</span>
               </li>
             ))}
           </ul>

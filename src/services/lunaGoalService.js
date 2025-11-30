@@ -39,17 +39,18 @@ Return JSON (NO markdown, NO explanation):
 {
   "description": "One sentence about this goal",
   "roadmapPhases": [
-    {"title": "Phase 1: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.15)}, "smartTips": ["Tip 1", "Tip 2"]},
-    {"title": "Phase 2: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.25)}, "smartTips": ["Tip 1", "Tip 2"]},
-    {"title": "Phase 3: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.45)}, "smartTips": ["Tip 1", "Tip 2"]},
-    {"title": "Phase 4: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": ${Math.round(budget * 0.15)}, "smartTips": ["Tip 1", "Tip 2"]}
+    {"title": "Phase 1: [Name]", "description": "Brief desc", "isCriticalPath": true, "isUnlocked": true, "duration": "X weeks", "estimatedCost": [amount], "smartTips": ["Tip 1", "Tip 2"]},
+    // Add more phases as needed for this specific goal
   ],
   "expertTips": ["Tip 1", "Tip 2", "Tip 3"]
 }
 
 RULES:
+- Generate as many phases as makes sense for "${title}" (typically 3-8 phases)
+- Simple goals need fewer phases, complex goals need more
 - Replace [Name] with goal-specific phase names (NOT generic like "Planning & Research")
 - Phase titles must be specific to "${title}"
+- Distribute the budget (€${budget || 0}) logically across phases
 - Each smartTips array has exactly 2 short tips (max 10 words each)
 - Keep descriptions under 15 words
 - Return ONLY the JSON object`;
@@ -66,7 +67,7 @@ RULES:
       body: JSON.stringify({
         prompt: userPrompt,
         systemPrompt: systemPrompt,
-        maxTokens: 1500,  // Reduced: Compact prompt needs fewer tokens
+        maxTokens: 2500,  // Increased to ensure full 5-phase response
         temperature: 0.7
       })
     });
@@ -273,7 +274,7 @@ const createFallbackMilestones = (goalData) => {
     resources: ['Online guides', 'Expert consultations', 'Community support']
   }));
 
-  // Generate roadmapPhases (3-4 high-level phases)
+  // Generate roadmapPhases (5 high-level phases for consistency)
   const totalBudget = goalData.estimatedCost || 0;
   const roadmapPhases = [
     {
@@ -281,12 +282,11 @@ const createFallbackMilestones = (goalData) => {
       description: 'Define your objectives, research options, and create a detailed plan',
       isCriticalPath: true,
       isUnlocked: true,
-      duration: '2-4 weeks',
-      estimatedCost: Math.round(totalBudget * 0.1),
+      duration: '1-2 weeks',
+      estimatedCost: Math.round(totalBudget * 0.10),
       smartTips: [
         'Start with clear, measurable objectives',
-        'Research thoroughly before making decisions',
-        'Create a realistic timeline with buffer time'
+        'Research thoroughly before making decisions'
       ]
     },
     {
@@ -294,37 +294,46 @@ const createFallbackMilestones = (goalData) => {
       description: 'Gather resources, set up systems, and prepare for execution',
       isCriticalPath: true,
       isUnlocked: true,
-      duration: '2-4 weeks',
-      estimatedCost: Math.round(totalBudget * 0.2),
+      duration: '2-3 weeks',
+      estimatedCost: Math.round(totalBudget * 0.20),
       smartTips: [
         'Organize all necessary resources in advance',
-        'Set up tracking systems early',
-        'Build in contingency plans'
+        'Set up tracking systems early'
       ]
     },
     {
-      title: 'Phase 3: Execution',
-      description: 'Take action on your plan and make steady progress',
+      title: 'Phase 3: Initial Execution',
+      description: 'Begin implementing your plan with initial actions',
       isCriticalPath: true,
       isUnlocked: true,
-      duration: '4-8 weeks',
-      estimatedCost: Math.round(totalBudget * 0.6),
+      duration: '3-4 weeks',
+      estimatedCost: Math.round(totalBudget * 0.25),
       smartTips: [
         'Focus on one task at a time',
-        'Track progress regularly',
+        'Track progress regularly'
+      ]
+    },
+    {
+      title: 'Phase 4: Core Execution',
+      description: 'Complete the main milestones and achieve key objectives',
+      isCriticalPath: true,
+      isUnlocked: true,
+      duration: '4-6 weeks',
+      estimatedCost: Math.round(totalBudget * 0.30),
+      smartTips: [
+        'Stay focused on priority items',
         'Adjust your approach as needed'
       ]
     },
     {
-      title: 'Phase 4: Review & Completion',
+      title: 'Phase 5: Completion & Review',
       description: 'Finalize details, review results, and celebrate your achievement',
       isCriticalPath: true,
       isUnlocked: true,
       duration: '1-2 weeks',
-      estimatedCost: Math.round(totalBudget * 0.1),
+      estimatedCost: Math.round(totalBudget * 0.15),
       smartTips: [
-        'Review what worked well and what didn\'t',
-        'Document lessons learned',
+        'Review what worked well',
         'Celebrate your accomplishment together'
       ]
     }

@@ -1,44 +1,28 @@
-// RoadmapTreeView.js
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronRight,
-  CheckCircle,
+  ChevronDown,
+  Check,
   Clock,
   Lock,
-  AlertCircle,
-  User,
+  Users,
   Lightbulb,
-  TrendingUp,
   DollarSign,
   Calendar,
-  Zap,
   Target,
   ArrowRight,
-  Flag,
   Plus,
   X,
-  Save,
   Sparkles
 } from 'lucide-react';
 import { createPhaseTask } from '../services/supabaseService';
 
 /**
- * RoadmapTreeView - Interactive accordion roadmap showing journey phases
- *
- * Features:
- * - Expandable/collapsible phases
- * - Progress indicators (completed, in-progress, locked)
- * - Dependency visualization
- * - Partner assignment display
- * - Smart contextual tips per phase
- * - Critical path highlighting
- * - Add tasks directly to phases
- * - Partner-specific task assignment
+ * RoadmapTreeView - Elegant journey phases accordion
  */
 const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTasksUpdated }) => {
-  const [expandedPhases, setExpandedPhases] = useState([0]); // First phase expanded by default
-  const [addingTaskToPhase, setAddingTaskToPhase] = useState(null); // Track which phase is adding a task
+  const [expandedPhases, setExpandedPhases] = useState([0]);
+  const [addingTaskToPhase, setAddingTaskToPhase] = useState(null);
   const [newTaskForm, setNewTaskForm] = useState({
     title: '',
     description: '',
@@ -46,34 +30,15 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
     priority: 'medium'
   });
 
-  // Use Luna-generated roadmap phases from deep_dive_data
   const phases = useMemo(() => {
-    console.log('🔍 RoadmapTreeView checking for phases in milestone:', milestone.title);
-    console.log('🔍 milestone.deepDiveData exists?', !!milestone.deepDiveData);
-    console.log('🔍 milestone.deep_dive_data exists?', !!milestone.deep_dive_data);
-    console.log('🔍 All milestone keys:', Object.keys(milestone));
-
-    // PRIORITY 1: Check both deepDiveData (camelCase) and deep_dive_data (snake_case)
     const deepDive = milestone.deepDiveData || milestone.deep_dive_data;
-    console.log('🔍 deepDive exists?', !!deepDive);
-    if (deepDive) {
-      console.log('🔍 deepDive keys:', Object.keys(deepDive));
-    }
-
     const roadmapPhases = deepDive?.roadmapPhases;
 
     if (roadmapPhases && roadmapPhases.length > 0) {
-      console.log('✨ Using Luna-generated roadmap phases:', roadmapPhases.length);
-      // Map Luna phases to component format and attach tasks
       return roadmapPhases.map((phase, idx) => ({
         ...phase,
-        // Attach tasks linked to this specific phase index
         tasks: tasks.filter(task => {
-          // First priority: tasks explicitly linked to this phase
-          if (task.roadmap_phase_index === idx) {
-            return true;
-          }
-          // Fallback: tasks without phase assignment - try keyword matching
+          if (task.roadmap_phase_index === idx) return true;
           if (task.roadmap_phase_index === null || task.roadmap_phase_index === undefined) {
             const phaseKeywords = phase.title.toLowerCase().split(' ');
             const taskTitle = (task.title || task.description || '').toLowerCase();
@@ -83,15 +48,6 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
         })
       }));
     }
-
-    // If no Luna phases, this is an error state
-    console.error('❌ No roadmap phases found in milestone deep dive data');
-    console.error('   Milestone:', milestone.title);
-    console.error('   Has deepDiveData:', !!milestone.deepDiveData);
-    console.error('   Has deep_dive_data:', !!milestone.deep_dive_data);
-    console.error('   Deep dive keys:', deepDive ? Object.keys(deepDive) : 'none');
-
-    // Return null to signal generation failure
     return null;
   }, [milestone, tasks]);
 
@@ -105,29 +61,16 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
 
   const handleAddTaskClick = (phaseIndex) => {
     setAddingTaskToPhase(phaseIndex);
-    setNewTaskForm({
-      title: '',
-      description: '',
-      assigned_to: '',
-      priority: 'medium'
-    });
+    setNewTaskForm({ title: '', description: '', assigned_to: '', priority: 'medium' });
   };
 
   const handleCancelAddTask = () => {
     setAddingTaskToPhase(null);
-    setNewTaskForm({
-      title: '',
-      description: '',
-      assigned_to: '',
-      priority: 'medium'
-    });
+    setNewTaskForm({ title: '', description: '', assigned_to: '', priority: 'medium' });
   };
 
   const handleSaveTask = async (phaseIndex) => {
-    if (!newTaskForm.title.trim()) {
-      alert('Please enter a task title');
-      return;
-    }
+    if (!newTaskForm.title.trim()) return;
 
     try {
       const taskData = {
@@ -141,36 +84,21 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
         order_index: 0
       };
 
-      const { data, error } = await createPhaseTask(taskData, phaseIndex);
+      const { error } = await createPhaseTask(taskData, phaseIndex);
+      if (error) return;
 
-      if (error) {
-        console.error('Error creating task:', error);
-        alert('Failed to create task. Please try again.');
-        return;
-      }
-
-      console.log('✅ Task created successfully:', data);
-
-      // Reset form
       handleCancelAddTask();
-
-      // Notify parent to reload tasks
-      if (onTasksUpdated) {
-        onTasksUpdated();
-      }
+      if (onTasksUpdated) onTasksUpdated();
     } catch (error) {
       console.error('Error saving task:', error);
-      alert('An error occurred while creating the task.');
     }
   };
 
   const getPhaseStatus = (phase, phaseIndex) => {
-    // Check if previous phase is completed (for dependency visualization)
     const hasDependency = phaseIndex > 0;
     const previousPhaseCompleted = !hasDependency || (phases[phaseIndex - 1]?.tasks?.every(t => t.completed));
 
     if (!phase.tasks || phase.tasks.length === 0) {
-      // No tasks yet, show as pending (not locked)
       return previousPhaseCompleted ? 'pending' : 'waiting';
     }
 
@@ -180,764 +108,520 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
     if (allCompleted) return 'completed';
     if (someInProgress) return 'in-progress';
     if (previousPhaseCompleted) return 'pending';
-    return 'waiting'; // Waiting for previous phase
+    return 'waiting';
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'in-progress':
-        return <Clock className="w-5 h-5 text-purple-500 animate-pulse" />;
-      case 'waiting':
-        return <Lock className="w-5 h-5 text-gray-400" />;
-      case 'pending':
-        return <AlertCircle className="w-5 h-5 text-blue-400" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 border-green-300';
-      case 'in-progress':
-        return 'bg-purple-100 border-purple-300';
-      case 'waiting':
-        return 'bg-gray-100 border-gray-300';
-      case 'pending':
-        return 'bg-blue-100 border-blue-300';
-      default:
-        return 'bg-yellow-100 border-yellow-300';
-    }
-  };
-
-  // Show error state if no roadmap was generated
+  // Error state - no roadmap
   if (phases === null) {
     return (
-      <div className="space-y-4 p-6">
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl p-8 text-center">
-          <Sparkles className="w-16 h-16 mx-auto mb-4 text-amber-500" />
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">
-            Let Luna Create Your Roadmap
-          </h3>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            Luna can generate a personalized step-by-step roadmap for "{milestone.title}"
-            with detailed phases, actionable tasks, and expert tips.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => {
-                // Open Luna panel and send a message to generate roadmap
-                if (window.openLunaWithMessage) {
-                  window.openLunaWithMessage(`Please generate a detailed roadmap for my goal "${milestone.title}". Create phases with specific steps I can follow.`);
-                } else {
-                  // Fallback: just alert that Luna chat is available via floating button
-                  alert('Click the Luna button (✨) in the bottom right corner to chat with Luna and generate your roadmap!');
-                }
-              }}
-              className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:to-orange-600 transition-colors font-medium shadow-lg shadow-amber-500/25 flex items-center gap-2 justify-center"
-            >
-              <Sparkles className="w-5 h-5" />
-              Generate Roadmap with Luna
-            </button>
+      <div className="min-h-[400px] flex items-center justify-center p-8">
+        <div className="text-center max-w-md">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
+            style={{ background: 'rgba(196, 154, 108, 0.12)' }}
+          >
+            <Sparkles className="w-8 h-8" style={{ color: '#c49a6c' }} />
           </div>
-          <p className="text-sm text-gray-500 mt-4">
-            Or click the ✨ button in the bottom right corner anytime to chat with Luna
+          <h3
+            className="text-2xl font-medium mb-3"
+            style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+          >
+            Create Your Roadmap
+          </h3>
+          <p className="mb-6" style={{ color: '#6b635b' }}>
+            Luna can generate a personalized step-by-step roadmap for "{milestone.title}"
+            with detailed phases and actionable steps.
           </p>
+          <button
+            onClick={() => {
+              if (window.openLunaWithMessage) {
+                window.openLunaWithMessage(`Please generate a detailed roadmap for my goal "${milestone.title}". Create phases with specific steps I can follow.`);
+              }
+            }}
+            className="px-6 py-3 rounded-xl font-medium text-white transition-all hover:-translate-y-0.5"
+            style={{ background: '#c49a6c' }}
+          >
+            Generate Roadmap with Luna
+          </button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold" style={{ color: '#2B2B2B' }}>
-            Journey Roadmap
-          </h2>
-          <p className="text-sm mt-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-            Your step-by-step path to {milestone.title?.toLowerCase()}
-          </p>
-        </div>
+  const overallProgress = calculateOverallProgress(phases);
 
-        {/* Progress Summary */}
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="text-2xl font-bold" style={{ color: '#C084FC' }}>
-              {calculateOverallProgress(phases)}%
+  return (
+    <div className="tf-app" style={{ background: '#faf8f5' }}>
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        {/* Header */}
+        <header className="mb-10">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h2
+                className="text-2xl font-medium mb-1"
+                style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+              >
+                Your Journey
+              </h2>
+              <p style={{ color: '#6b635b' }}>
+                Step-by-step path to {milestone.title?.toLowerCase()}
+              </p>
             </div>
-            <div className="text-xs" style={{ color: '#2B2B2B', opacity: 0.6 }}>
-              Overall Progress
+
+            {/* Progress Summary */}
+            <div className="text-right">
+              <span
+                className="text-3xl font-semibold"
+                style={{ fontFamily: "'Playfair Display', serif", color: '#c49a6c' }}
+              >
+                {overallProgress}%
+              </span>
+              <p className="text-xs uppercase tracking-wider" style={{ color: '#6b635b' }}>
+                Complete
+              </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Phases Accordion */}
-      <div className="space-y-3">
-        {phases.map((phase, phaseIndex) => {
-          const status = getPhaseStatus(phase, phaseIndex);
-          const isExpanded = expandedPhases.includes(phaseIndex);
-          const isWaiting = status === 'waiting';
-          const progress = calculatePhaseProgress(phase);
-
-          return (
+          {/* Overall Progress Bar */}
+          <div className="h-1.5 rounded-full mt-4" style={{ background: '#e8e4de' }}>
             <motion.div
-              key={phaseIndex}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: phaseIndex * 0.1 }}
-              className={`glass-card rounded-2xl overflow-hidden ${
-                phase.isCriticalPath ? 'ring-2 ring-purple-400' : ''
-              }`}
-            >
-              {/* Phase Header */}
-              <button
-                onClick={() => togglePhase(phaseIndex)}
-                className={`w-full p-5 flex items-center justify-between smooth-transition hover:glass-card-strong cursor-pointer ${
-                  isWaiting ? 'opacity-70' : ''
-                }`}
+              initial={{ width: 0 }}
+              animate={{ width: `${overallProgress}%` }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              className="h-full rounded-full"
+              style={{ background: '#c49a6c' }}
+            />
+          </div>
+        </header>
+
+        {/* Phases */}
+        <div className="space-y-4">
+          {phases.map((phase, phaseIndex) => {
+            const status = getPhaseStatus(phase, phaseIndex);
+            const isExpanded = expandedPhases.includes(phaseIndex);
+            const isWaiting = status === 'waiting';
+            const progress = calculatePhaseProgress(phase);
+
+            return (
+              <motion.div
+                key={phaseIndex}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: phaseIndex * 0.05, duration: 0.4 }}
+                className={`rounded-2xl overflow-hidden ${isWaiting ? 'opacity-60' : ''}`}
+                style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
               >
-                <div className="flex items-center gap-4 flex-1">
-                  {/* Phase Number Badge */}
+                {/* Phase Header */}
+                <button
+                  onClick={() => togglePhase(phaseIndex)}
+                  className="w-full p-5 flex items-start gap-4 text-left transition-colors hover:bg-[#faf8f5]"
+                >
+                  {/* Phase Number */}
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${getStatusColor(
-                      status
-                    )} border-2`}
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-sm"
+                    style={{
+                      background: status === 'completed' ? '#7d8c75' : '#f5f2ed',
+                      color: status === 'completed' ? '#ffffff' : '#2d2926'
+                    }}
                   >
                     {status === 'completed' ? (
-                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <Check className="w-5 h-5" />
                     ) : (
                       phaseIndex + 1
                     )}
                   </div>
 
-                  {/* Phase Info */}
-                  <div className="text-left flex-1">
+                  {/* Phase Content */}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-bold" style={{ color: '#2B2B2B' }}>
+                      <h3
+                        className="font-medium truncate"
+                        style={{ color: '#2d2926' }}
+                      >
                         {phase.title}
                       </h3>
                       {phase.isCriticalPath && (
-                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium flex items-center gap-1">
-                          <Zap className="w-3 h-3" />
-                          Critical
+                        <span
+                          className="px-2 py-0.5 text-xs font-medium rounded"
+                          style={{ background: 'rgba(196, 154, 108, 0.15)', color: '#a88352' }}
+                        >
+                          Key Phase
                         </span>
                       )}
                     </div>
-                    <p className="text-sm" style={{ color: '#2B2B2B', opacity: 0.7 }}>
+
+                    <p className="text-sm mb-3" style={{ color: '#6b635b' }}>
                       {phase.description}
                     </p>
 
-                    {/* Phase Metadata */}
-                    <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: '#2B2B2B', opacity: 0.6 }}>
+                    {/* Phase Meta */}
+                    <div className="flex items-center gap-4 text-xs" style={{ color: '#6b635b' }}>
                       {phase.duration && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          <span>{phase.duration}</span>
-                        </div>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {phase.duration}
+                        </span>
                       )}
-                      {phase.estimatedCost && (
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="w-3 h-3" />
-                          <span>€{phase.estimatedCost.toLocaleString()}</span>
-                        </div>
+                      {phase.estimatedCost > 0 && (
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="w-3.5 h-3.5" />
+                          ${phase.estimatedCost.toLocaleString()}
+                        </span>
                       )}
                       {phase.tasks && phase.tasks.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <Target className="w-3 h-3" />
-                          <span>{phase.tasks.length} tasks</span>
-                        </div>
+                        <span className="flex items-center gap-1">
+                          <Target className="w-3.5 h-3.5" />
+                          {phase.tasks.length} tasks
+                        </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Progress Bar */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-24">
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress}%` }}
-                          transition={{ duration: 0.5 }}
-                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                  {/* Right Side: Progress + Chevron */}
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    {/* Mini Progress */}
+                    <div className="w-16 hidden sm:block">
+                      <div className="h-1.5 rounded-full" style={{ background: '#e8e4de' }}>
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${progress}%`, background: '#7d8c75' }}
                         />
                       </div>
-                      <div className="text-xs text-center mt-1" style={{ color: '#2B2B2B', opacity: 0.6 }}>
+                      <p className="text-xs text-center mt-1" style={{ color: '#6b635b' }}>
                         {progress}%
-                      </div>
+                      </p>
                     </div>
 
-                    {/* Status Icon */}
-                    {getStatusIcon(status)}
+                    {/* Status Indicator */}
+                    <StatusIndicator status={status} />
 
-                    {/* Expand/Collapse Icon */}
+                    {/* Chevron */}
                     <motion.div
-                      animate={{ rotate: isExpanded ? 90 : 0 }}
+                      animate={{ rotate: isExpanded ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <ChevronRight className="w-5 h-5" style={{ color: '#2B2B2B', opacity: 0.6 }} />
+                      <ChevronDown className="w-5 h-5" style={{ color: '#6b635b' }} />
                     </motion.div>
                   </div>
-                </div>
-              </button>
+                </button>
 
-              {/* Phase Content (Expanded) */}
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="px-5 pb-5 space-y-4">
-                      {/* Waiting Hint (for phases that need previous completion) */}
-                      {isWaiting && (
-                        <div className="glass-card-light rounded-xl p-4 border-l-4 border-blue-400">
-                          <div className="flex items-start gap-3">
-                            <ArrowRight className="w-5 h-5 mt-0.5 text-blue-500" />
-                            <div>
-                              <h5 className="font-semibold text-sm mb-1" style={{ color: '#2B2B2B' }}>
-                                Complete "{phases[phaseIndex - 1]?.title}" First
-                              </h5>
-                              <p className="text-xs" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-                                This phase will become available once you finish the previous phase. Preview the tips below to prepare!
-                              </p>
+                {/* Expanded Content */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-5 pb-5 space-y-4" style={{ borderTop: '1px solid #e8e4de' }}>
+                        <div className="pt-4">
+                          {/* Waiting Notice */}
+                          {isWaiting && (
+                            <div
+                              className="rounded-xl p-4 mb-4"
+                              style={{ background: 'rgba(107, 143, 173, 0.08)', borderLeft: '3px solid #6b8fad' }}
+                            >
+                              <div className="flex items-start gap-3">
+                                <Lock className="w-5 h-5 mt-0.5" style={{ color: '#6b8fad' }} />
+                                <div>
+                                  <p className="font-medium mb-1" style={{ color: '#5a7a94' }}>
+                                    Complete "{phases[phaseIndex - 1]?.title}" first
+                                  </p>
+                                  <p className="text-sm" style={{ color: '#6b8fad' }}>
+                                    This phase unlocks after finishing the previous one.
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      )}
+                          )}
 
-                      {/* Smart Tips for this Phase */}
-                      {phase.smartTips && phase.smartTips.length > 0 && (
-                        <div className="glass-card-light rounded-xl p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Lightbulb className="w-4 h-4" style={{ color: '#C084FC' }} />
-                            <h4 className="font-semibold text-sm" style={{ color: '#2B2B2B' }}>
-                              {isWaiting ? 'Preview: Smart Moves for This Phase' : 'Smart Moves for This Phase'}
-                            </h4>
-                          </div>
-                          <ul className="space-y-2">
-                            {phase.smartTips.map((tip, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-sm" style={{ color: '#2B2B2B', opacity: 0.8 }}>
-                                <TrendingUp className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#C084FC' }} />
-                                <span>{tip}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                          {/* Smart Tips */}
+                          {phase.smartTips && phase.smartTips.length > 0 && (
+                            <div className="rounded-xl p-4 mb-4" style={{ background: '#faf8f5' }}>
+                              <div className="flex items-center gap-2 mb-3">
+                                <Lightbulb className="w-4 h-4" style={{ color: '#c49a6c' }} />
+                                <h4 className="text-sm font-medium" style={{ color: '#2d2926' }}>
+                                  Tips for this phase
+                                </h4>
+                              </div>
+                              <ul className="space-y-2">
+                                {phase.smartTips.map((tip, idx) => (
+                                  <li
+                                    key={idx}
+                                    className="flex items-start gap-2 text-sm"
+                                    style={{ color: '#6b635b' }}
+                                  >
+                                    <ArrowRight className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#c49a6c' }} />
+                                    <span>{tip}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
 
-                      {/* Tasks in this Phase */}
-                      {!isWaiting && (
-                        <div className="space-y-3">
-                          {phase.tasks && phase.tasks.length > 0 && (
+                          {/* Tasks */}
+                          {!isWaiting && (
                             <div className="space-y-2">
-                              {phase.tasks.map((task, taskIndex) => (
-                                <TaskCard
-                                  key={task.id || taskIndex}
-                                  task={task}
-                                  userContext={userContext}
-                                  onTaskClick={onTaskClick}
-                                />
-                              ))}
-                            </div>
-                          )}
+                              {phase.tasks && phase.tasks.length > 0 && (
+                                <div className="space-y-2">
+                                  {phase.tasks.map((task, taskIndex) => (
+                                    <TaskItem
+                                      key={task.id || taskIndex}
+                                      task={task}
+                                      onTaskClick={onTaskClick}
+                                    />
+                                  ))}
+                                </div>
+                              )}
 
-                          {/* Add Task Button */}
-                          {addingTaskToPhase !== phaseIndex && (
-                            <button
-                              onClick={() => handleAddTaskClick(phaseIndex)}
-                              className="w-full p-3 glass-card-light rounded-xl text-sm font-medium smooth-transition hover:glass-card flex items-center justify-center gap-2"
-                              style={{ color: '#C084FC' }}
-                            >
-                              <Plus className="w-4 h-4" />
-                              Add Task to This Phase
-                            </button>
-                          )}
-
-                          {/* Add Task Form */}
-                          {addingTaskToPhase === phaseIndex && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="glass-card rounded-xl p-4 border-2"
-                              style={{ borderColor: '#C084FC' }}
-                            >
-                              <div className="flex items-center justify-between mb-3">
-                                <h5 className="font-semibold text-sm" style={{ color: '#2B2B2B' }}>
-                                  Add Task to {phase.title}
-                                </h5>
+                              {/* Add Task */}
+                              {addingTaskToPhase !== phaseIndex ? (
                                 <button
-                                  onClick={handleCancelAddTask}
-                                  className="p-1 hover:bg-gray-100 rounded-lg"
+                                  onClick={() => handleAddTaskClick(phaseIndex)}
+                                  className="w-full p-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                                  style={{ background: '#faf8f5', color: '#c49a6c' }}
                                 >
-                                  <X className="w-4 h-4 text-gray-500" />
+                                  <Plus className="w-4 h-4" />
+                                  Add Task
                                 </button>
-                              </div>
-
-                              <div className="space-y-3">
-                                {/* Task Title */}
-                                <div>
-                                  <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-                                    Task Title *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newTaskForm.title}
-                                    onChange={(e) => setNewTaskForm({ ...newTaskForm, title: e.target.value })}
-                                    placeholder="e.g., Visit 3 potential venues"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                  />
-                                </div>
-
-                                {/* Task Description */}
-                                <div>
-                                  <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-                                    Description (Optional)
-                                  </label>
-                                  <textarea
-                                    value={newTaskForm.description}
-                                    onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })}
-                                    placeholder="Add any details..."
-                                    rows={2}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                                  />
-                                </div>
-
-                                {/* Assign To & Priority */}
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-                                      Assign To
-                                    </label>
-                                    <select
-                                      value={newTaskForm.assigned_to}
-                                      onChange={(e) => setNewTaskForm({ ...newTaskForm, assigned_to: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                    >
-                                      <option value="">Both Partners</option>
-                                      <option value={userContext?.partner1}>{userContext?.partner1 || 'Partner 1'}</option>
-                                      <option value={userContext?.partner2}>{userContext?.partner2 || 'Partner 2'}</option>
-                                    </select>
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-                                      Priority
-                                    </label>
-                                    <select
-                                      value={newTaskForm.priority}
-                                      onChange={(e) => setNewTaskForm({ ...newTaskForm, priority: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                    >
-                                      <option value="low">Low</option>
-                                      <option value="medium">Medium</option>
-                                      <option value="high">High</option>
-                                    </select>
-                                  </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center gap-2 pt-2">
-                                  <button
-                                    onClick={() => handleSaveTask(phaseIndex)}
-                                    disabled={!newTaskForm.title.trim()}
-                                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:shadow-lg smooth-transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                  >
-                                    <Save className="w-4 h-4" />
-                                    Save Task
-                                  </button>
-                                  <button
-                                    onClick={handleCancelAddTask}
-                                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 smooth-transition"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Preview of what's coming (for waiting phases) */}
-                      {isWaiting && (
-                        <div className="glass-card-light rounded-xl p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Target className="w-4 h-4" style={{ color: '#2B2B2B', opacity: 0.6 }} />
-                            <h5 className="font-semibold text-sm" style={{ color: '#2B2B2B' }}>
-                              What to Expect
-                            </h5>
-                          </div>
-                          <p className="text-sm" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-                            {phase.description}
-                          </p>
-                          {phase.estimatedCost > 0 && (
-                            <div className="mt-2 text-xs flex items-center gap-2" style={{ color: '#2B2B2B', opacity: 0.6 }}>
-                              <DollarSign className="w-3 h-3" />
-                              <span>Estimated budget: €{phase.estimatedCost.toLocaleString()}</span>
+                              ) : (
+                                <AddTaskForm
+                                  form={newTaskForm}
+                                  setForm={setNewTaskForm}
+                                  userContext={userContext}
+                                  onSave={() => handleSaveTask(phaseIndex)}
+                                  onCancel={handleCancelAddTask}
+                                />
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
 
-                      {/* Dependencies */}
-                      {phase.dependencies && phase.dependencies.length > 0 && (
-                        <div className="flex items-center gap-2 text-xs" style={{ color: '#2B2B2B', opacity: 0.6 }}>
-                          <ArrowRight className="w-3 h-3" />
-                          <span>Requires: {phase.dependencies.join(', ')}</span>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          );
-        })}
+        {/* Completion State */}
+        {overallProgress === 100 && (
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mt-8 rounded-2xl p-8 text-center"
+            style={{ background: 'rgba(125, 140, 117, 0.1)', border: '1px solid rgba(125, 140, 117, 0.2)' }}
+          >
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{ background: '#7d8c75' }}
+            >
+              <Check className="w-7 h-7 text-white" />
+            </div>
+            <h3
+              className="text-xl font-medium mb-2"
+              style={{ fontFamily: "'Playfair Display', serif", color: '#2d2926' }}
+            >
+              Journey Complete
+            </h3>
+            <p style={{ color: '#6b635b' }}>
+              You've completed all phases of your roadmap. Congratulations!
+            </p>
+          </motion.div>
+        )}
       </div>
-
-      {/* Journey Completion */}
-      {calculateOverallProgress(phases) === 100 && (
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="glass-card rounded-2xl p-6 text-center bg-gradient-to-r from-green-50 to-emerald-50"
-        >
-          <Flag className="w-12 h-12 mx-auto mb-3 text-green-600" />
-          <h3 className="text-xl font-bold mb-2" style={{ color: '#2B2B2B' }}>
-            Journey Complete! 🎉
-          </h3>
-          <p className="text-sm" style={{ color: '#2B2B2B', opacity: 0.7 }}>
-            You've completed all phases of your roadmap
-          </p>
-        </motion.div>
-      )}
     </div>
   );
 };
 
 /**
- * TaskCard - Individual task within a phase
+ * Status Indicator
  */
-const TaskCard = ({ task, userContext, onTaskClick }) => {
-  const getTaskStatus = () => {
-    if (task.completed) return 'completed';
-    if (task.started || task.inProgress) return 'in-progress';
-    return 'pending';
+const StatusIndicator = ({ status }) => {
+  const config = {
+    completed: { bg: '#7d8c75', icon: Check },
+    'in-progress': { bg: '#c49a6c', icon: Clock },
+    pending: { bg: '#6b8fad', icon: Target },
+    waiting: { bg: '#d4c4a8', icon: Lock }
   };
 
-  const status = getTaskStatus();
+  const { bg, icon: Icon } = config[status] || config.pending;
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      className="glass-card-light rounded-xl p-4 smooth-transition hover:glass-card cursor-pointer"
-      onClick={() => onTaskClick && onTaskClick(task)}
+    <div
+      className="w-8 h-8 rounded-full flex items-center justify-center"
+      style={{ background: `${bg}20` }}
     >
-      <div className="flex items-start gap-3">
-        {/* Task Status Icon */}
-        <div className="mt-0.5">
-          {status === 'completed' && <CheckCircle className="w-5 h-5 text-green-500" />}
-          {status === 'in-progress' && <Clock className="w-5 h-5 text-purple-500" />}
-          {status === 'pending' && (
-            <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-          )}
-        </div>
-
-        {/* Task Content */}
-        <div className="flex-1">
-          <div className="flex items-start justify-between mb-2">
-            <h5
-              className={`font-medium ${status === 'completed' ? 'line-through opacity-60' : ''}`}
-              style={{ color: '#2B2B2B' }}
-            >
-              {task.title || task.description}
-            </h5>
-
-            {/* Assigned Partner */}
-            {task.assignedTo && userContext && (
-              <div className="flex items-center gap-1 px-2 py-1 glass-card-light rounded-lg text-xs">
-                <User className="w-3 h-3" />
-                <span style={{ color: '#2B2B2B', opacity: 0.7 }}>
-                  {task.assignedTo}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Task Metadata */}
-          <div className="flex items-center gap-3 text-xs" style={{ color: '#2B2B2B', opacity: 0.6 }}>
-            {task.estimatedTime && (
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                <span>{task.estimatedTime}</span>
-              </div>
-            )}
-            {task.cost && (
-              <div className="flex items-center gap-1">
-                <DollarSign className="w-3 h-3" />
-                <span>€{task.cost.toLocaleString()}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </motion.div>
+      <Icon className="w-4 h-4" style={{ color: bg }} />
+    </div>
   );
 };
 
 /**
- * Organize tasks into logical phases based on goal type and dependencies
+ * Task Item
  */
-function organizeTasksIntoPhases(milestone, tasks) {
-  const goalType = milestone.goal_type?.toLowerCase() || '';
+const TaskItem = ({ task, onTaskClick }) => {
+  const isCompleted = task.completed;
 
-  // For buying apartment/house
-  if (goalType.includes('apartment') || goalType.includes('house') || goalType.includes('home')) {
-    return [
-      {
-        title: 'Financial Preparation',
-        description: 'Secure funding and assess financial readiness',
-        isCriticalPath: true,
-        isUnlocked: true,
-        duration: '2-4 weeks',
-        estimatedCost: milestone.budget_amount ? milestone.budget_amount * 0.1 : 0,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('budget') ||
-          t.title?.toLowerCase().includes('financial') ||
-          t.title?.toLowerCase().includes('mortgage') ||
-          t.title?.toLowerCase().includes('savings')
-        ),
-        smartTips: [
-          'Get pre-approved for mortgage before house hunting to strengthen your offer',
-          'Budget for 10-15% beyond purchase price for closing costs and fees',
-          'Check your credit score early - improvements take 3-6 months'
-        ]
-      },
-      {
-        title: 'Property Search & Research',
-        description: 'Find and evaluate potential properties',
-        isCriticalPath: true,
-        isUnlocked: true,
-        duration: '4-8 weeks',
-        estimatedCost: 500,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('search') ||
-          t.title?.toLowerCase().includes('viewing') ||
-          t.title?.toLowerCase().includes('location') ||
-          t.title?.toLowerCase().includes('agent')
-        ),
-        smartTips: [
-          'Visit neighborhoods at different times of day to assess noise, parking, and activity',
-          'Use online tools to check crime stats, school ratings, and future development plans',
-          'Attend open houses even if not interested - builds knowledge of market pricing'
-        ],
-        dependencies: ['Financial Preparation']
-      },
-      {
-        title: 'Legal & Documentation',
-        description: 'Handle contracts, inspections, and legal requirements',
-        isCriticalPath: true,
-        isUnlocked: false,
-        duration: '3-6 weeks',
-        estimatedCost: milestone.budget_amount ? milestone.budget_amount * 0.05 : 2000,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('inspection') ||
-          t.title?.toLowerCase().includes('legal') ||
-          t.title?.toLowerCase().includes('contract') ||
-          t.title?.toLowerCase().includes('notary')
-        ),
-        smartTips: [
-          'Never skip the home inspection - it can save you thousands in hidden repairs',
-          'Review all contracts with a real estate lawyer before signing',
-          'Negotiate based on inspection findings - sellers often cover repair costs'
-        ],
-        dependencies: ['Property Search & Research']
-      },
-      {
-        title: 'Closing & Move-In',
-        description: 'Finalize purchase and prepare for moving',
-        isCriticalPath: false,
-        isUnlocked: false,
-        duration: '2-4 weeks',
-        estimatedCost: milestone.budget_amount ? milestone.budget_amount * 0.03 : 1500,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('closing') ||
-          t.title?.toLowerCase().includes('move') ||
-          t.title?.toLowerCase().includes('utilities') ||
-          t.title?.toLowerCase().includes('insurance')
-        ),
-        smartTips: [
-          'Schedule movers 4-6 weeks in advance for better rates and availability',
-          'Transfer utilities 2 weeks before move-in to avoid service gaps',
-          'Do a final walk-through 24 hours before closing to verify property condition'
-        ],
-        dependencies: ['Legal & Documentation']
-      }
-    ];
-  }
+  return (
+    <button
+      onClick={() => onTaskClick && onTaskClick(task)}
+      className="w-full p-4 rounded-xl text-left transition-all hover:-translate-y-0.5 group"
+      style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
+    >
+      <div className="flex items-start gap-3">
+        {/* Checkbox */}
+        <div
+          className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+          style={{
+            background: isCompleted ? '#7d8c75' : 'transparent',
+            border: isCompleted ? 'none' : '2px solid #d4c4a8'
+          }}
+        >
+          {isCompleted && <Check className="w-3 h-3 text-white" />}
+        </div>
 
-  // For wedding planning
-  if (goalType.includes('wedding')) {
-    return [
-      {
-        title: 'Vision & Budget',
-        description: 'Define your dream wedding and financial plan',
-        isCriticalPath: true,
-        isUnlocked: true,
-        duration: '2-3 weeks',
-        estimatedCost: 0,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('budget') ||
-          t.title?.toLowerCase().includes('vision') ||
-          t.title?.toLowerCase().includes('guest list')
-        ),
-        smartTips: [
-          'Allocate budget by priority: venue (40%), catering (30%), photography (15%), other (15%)',
-          'Create A-list and B-list for guests to manage numbers',
-          'Book venue and photographer first - they fill up 12-18 months in advance'
-        ]
-      },
-      {
-        title: 'Major Vendors',
-        description: 'Book venue, catering, and photography',
-        isCriticalPath: true,
-        isUnlocked: true,
-        duration: '4-6 weeks',
-        estimatedCost: milestone.budget_amount ? milestone.budget_amount * 0.7 : 0,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('venue') ||
-          t.title?.toLowerCase().includes('catering') ||
-          t.title?.toLowerCase().includes('photographer')
-        ),
-        smartTips: [
-          'Visit venues in person - photos can be deceiving',
-          'Taste test catering options and negotiate per-plate pricing',
-          'Review photographer portfolios for full weddings, not just highlight reels'
-        ],
-        dependencies: ['Vision & Budget']
-      },
-      {
-        title: 'Details & Styling',
-        description: 'Finalize décor, attire, and wedding details',
-        isCriticalPath: false,
-        isUnlocked: false,
-        duration: '6-8 weeks',
-        estimatedCost: milestone.budget_amount ? milestone.budget_amount * 0.2 : 0,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('dress') ||
-          t.title?.toLowerCase().includes('decor') ||
-          t.title?.toLowerCase().includes('flowers') ||
-          t.title?.toLowerCase().includes('music')
-        ),
-        smartTips: [
-          'Order wedding dress 6-9 months early for alterations',
-          'DIY centerpieces can save 40-60% vs florist arrangements',
-          'Create Spotify playlist as backup for live band/DJ'
-        ],
-        dependencies: ['Major Vendors']
-      },
-      {
-        title: 'Final Preparations',
-        description: 'Confirm details and prepare for the big day',
-        isCriticalPath: true,
-        isUnlocked: false,
-        duration: '2-4 weeks',
-        estimatedCost: milestone.budget_amount ? milestone.budget_amount * 0.1 : 0,
-        tasks: tasks.filter(t =>
-          t.title?.toLowerCase().includes('rehearsal') ||
-          t.title?.toLowerCase().includes('confirm') ||
-          t.title?.toLowerCase().includes('timeline')
-        ),
-        smartTips: [
-          'Confirm all vendor arrival times 1 week before',
-          'Create day-of timeline with 30-min buffer for delays',
-          'Assign a point person to handle vendor questions on wedding day'
-        ],
-        dependencies: ['Details & Styling']
-      }
-    ];
-  }
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <p
+            className={`font-medium ${isCompleted ? 'line-through opacity-50' : ''}`}
+            style={{ color: '#2d2926' }}
+          >
+            {task.title || task.description}
+          </p>
 
-  // Generic phases for other goal types
-  return [
-    {
-      title: 'Planning & Preparation',
-      description: 'Research and create your action plan',
-      isCriticalPath: true,
-      isUnlocked: true,
-      duration: '1-2 weeks',
-      tasks: tasks.filter((_, i) => i < Math.ceil(tasks.length / 3)),
-      smartTips: [
-        'Break down large goals into weekly milestones',
-        'Identify potential obstacles and create backup plans',
-        'Set specific, measurable success criteria'
-      ]
-    },
-    {
-      title: 'Execution',
-      description: 'Take action and build momentum',
-      isCriticalPath: true,
-      isUnlocked: true,
-      duration: milestone.duration || '4-8 weeks',
-      tasks: tasks.filter((_, i) => i >= Math.ceil(tasks.length / 3) && i < Math.ceil(tasks.length * 2 / 3)),
-      smartTips: [
-        'Focus on high-impact tasks first',
-        'Track progress weekly and adjust as needed',
-        'Celebrate small wins to maintain motivation'
-      ],
-      dependencies: ['Planning & Preparation']
-    },
-    {
-      title: 'Completion & Review',
-      description: 'Finalize and reflect on your journey',
-      isCriticalPath: false,
-      isUnlocked: false,
-      duration: '1-2 weeks',
-      tasks: tasks.filter((_, i) => i >= Math.ceil(tasks.length * 2 / 3)),
-      smartTips: [
-        'Document lessons learned for future goals',
-        'Review what worked well and what to improve',
-        'Share your success with your partner'
-      ],
-      dependencies: ['Execution']
-    }
-  ];
-}
+          {/* Meta */}
+          <div className="flex items-center gap-3 mt-1">
+            {task.assigned_to && (
+              <span className="flex items-center gap-1 text-xs" style={{ color: '#6b635b' }}>
+                <Users className="w-3 h-3" />
+                {task.assigned_to}
+              </span>
+            )}
+            {task.priority && task.priority !== 'medium' && (
+              <span
+                className="text-xs font-medium px-2 py-0.5 rounded"
+                style={{
+                  background: task.priority === 'high' ? 'rgba(199, 107, 107, 0.1)' : 'rgba(125, 140, 117, 0.1)',
+                  color: task.priority === 'high' ? '#c76b6b' : '#7d8c75'
+                }}
+              >
+                {task.priority}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <ArrowRight
+          className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+          style={{ color: '#c49a6c' }}
+        />
+      </div>
+    </button>
+  );
+};
 
 /**
- * Calculate progress percentage for a phase
+ * Add Task Form
  */
+const AddTaskForm = ({ form, setForm, userContext, onSave, onCancel }) => {
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: '#ffffff', border: '2px solid #c49a6c' }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h5 className="font-medium" style={{ color: '#2d2926' }}>
+          New Task
+        </h5>
+        <button onClick={onCancel} className="p-1 rounded-lg hover:bg-gray-100">
+          <X className="w-4 h-4" style={{ color: '#6b635b' }} />
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <input
+          type="text"
+          value={form.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          placeholder="Task title"
+          className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2"
+          style={{ border: '1px solid #e8e4de', focusRing: '#c49a6c' }}
+          autoFocus
+        />
+
+        <textarea
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          placeholder="Description (optional)"
+          rows={2}
+          className="w-full px-3 py-2 rounded-lg text-sm resize-none focus:outline-none focus:ring-2"
+          style={{ border: '1px solid #e8e4de' }}
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <select
+            value={form.assigned_to}
+            onChange={(e) => setForm({ ...form, assigned_to: e.target.value })}
+            className="px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2"
+            style={{ border: '1px solid #e8e4de' }}
+          >
+            <option value="">Both Partners</option>
+            <option value={userContext?.partner1}>{userContext?.partner1 || 'Partner 1'}</option>
+            <option value={userContext?.partner2}>{userContext?.partner2 || 'Partner 2'}</option>
+          </select>
+
+          <select
+            value={form.priority}
+            onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            className="px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2"
+            style={{ border: '1px solid #e8e4de' }}
+          >
+            <option value="low">Low Priority</option>
+            <option value="medium">Medium Priority</option>
+            <option value="high">High Priority</option>
+          </select>
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={onSave}
+            disabled={!form.title.trim()}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+            style={{ background: '#7d8c75' }}
+          >
+            Save Task
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+            style={{ background: '#f5f2ed', color: '#6b635b' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function calculatePhaseProgress(phase) {
   if (!phase.tasks || phase.tasks.length === 0) return 0;
-
   const completedTasks = phase.tasks.filter(t => t.completed).length;
   return Math.round((completedTasks / phase.tasks.length) * 100);
 }
 
-/**
- * Calculate overall progress across all phases
- */
 function calculateOverallProgress(phases) {
   if (!phases || phases.length === 0) return 0;
-
   const totalTasks = phases.reduce((sum, phase) => sum + (phase.tasks?.length || 0), 0);
   if (totalTasks === 0) return 0;
-
   const completedTasks = phases.reduce(
     (sum, phase) => sum + (phase.tasks?.filter(t => t.completed).length || 0),
     0
   );
-
   return Math.round((completedTasks / totalTasks) * 100);
 }
 

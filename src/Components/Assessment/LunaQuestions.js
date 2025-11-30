@@ -340,24 +340,6 @@ const styles = `
   }
 `;
 
-// Category display info
-const CATEGORY_INFO = {
-  finances: { label: 'Financial' },
-  financial: { label: 'Financial' },
-  communication: { label: 'Communication' },
-  lifestyle: { label: 'Lifestyle' },
-  values: { label: 'Values' },
-  future: { label: 'Future' },
-  parenting: { label: 'Parenting' },
-  family: { label: 'Family' },
-  timeline: { label: 'Timeline' },
-  travel: { label: 'Travel' },
-  home: { label: 'Home' },
-  career: { label: 'Career' },
-  moving: { label: 'Moving' },
-  wedding: { label: 'Wedding' },
-  general: { label: 'General' }
-};
 
 const LunaQuestions = ({
   sessionId,
@@ -438,8 +420,6 @@ const LunaQuestions = ({
 
   if (!currentQuestion) return null;
 
-  const categoryInfo = CATEGORY_INFO[currentQuestion.category] || { label: currentQuestion.category };
-
   // Show handoff screen
   if (showHandoff) {
     return (
@@ -511,16 +491,15 @@ const LunaQuestions = ({
           exit={{ opacity: 0, x: -30 }}
           transition={{ duration: 0.3 }}
         >
-          {/* Meta */}
-          <div className="lq-meta">
-            <span className="lq-category">{categoryInfo.label}</span>
-            {currentQuestion.importance && currentQuestion.importance !== 'NORMAL' && (
+          {/* Meta - only show importance if critical/important */}
+          {currentQuestion.importance && currentQuestion.importance !== 'NORMAL' && (
+            <div className="lq-meta">
               <span className={`lq-importance ${currentQuestion.importance.toLowerCase()}`}>
-                {currentQuestion.importance === 'CRITICAL' ? 'Critical' :
-                 currentQuestion.importance === 'IMPORTANT' ? 'Important' : ''}
+                {currentQuestion.importance === 'CRITICAL' ? 'Important Question' :
+                 currentQuestion.importance === 'IMPORTANT' ? 'Key Question' : ''}
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Question */}
           <div className="lq-question-container">

@@ -1,7 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Check, ArrowRight } from 'lucide-react';
+import {
+  ChevronRight, ChevronLeft, Check, ArrowRight,
+  HeartHandshake, Heart, Gem, Home, Key, Baby, Compass, Target, Layers,
+  Sprout, Flower, TreeDeciduous, TreePine, Clock, Building2, Plane,
+  KeyRound, DoorOpen, Users, UserPlus, CalendarHeart, HelpCircle, X,
+  Wallet, Briefcase, Sparkles, MessageCircle, Star, MapPin, TrendingUp,
+  PiggyBank, Truck, Search, Zap, BarChart3, Microscope
+} from 'lucide-react';
 import { getVisibleQuestions, isPrescreeningComplete } from '../../data/prescreeningQuestions';
+
+// Icon component lookup
+const IconComponents = {
+  HeartHandshake, Heart, Gem, Home, Key, Baby, Compass, Target, Layers,
+  Sprout, Flower, TreeDeciduous, TreePine, Clock, Building2, Plane,
+  KeyRound, DoorOpen, Users, UserPlus, CalendarHeart, HelpCircle, X,
+  Wallet, Briefcase, Sparkles, MessageCircle, Star, MapPin, TrendingUp,
+  PiggyBank, Truck, Search, Zap, BarChart3, Microscope, Check
+};
+
+// Helper to render icon by name
+const LucideIcon = ({ name, size = 24, className = '' }) => {
+  const IconComponent = IconComponents[name];
+  if (!IconComponent) return null;
+  return <IconComponent size={size} className={className} />;
+};
 
 // Premium styles matching the design system
 const styles = `
@@ -91,6 +114,18 @@ const styles = `
     text-align: center;
   }
 
+  .question-icon-container {
+    width: 80px;
+    height: 80px;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    color: white;
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+  }
+
   .question-icon {
     font-size: 3rem;
     margin-bottom: 1.5rem;
@@ -170,6 +205,24 @@ const styles = `
   .option-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .option-icon-wrapper {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f8f6f3 0%, #f0ece6 100%);
+    color: var(--color-accent-dark);
+    flex-shrink: 0;
+    transition: all 0.25s ease;
+  }
+
+  .option-btn.selected .option-icon-wrapper {
+    background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+    color: white;
   }
 
   .option-content {
@@ -482,7 +535,15 @@ const PreScreeningForm = ({
             exit={{ opacity: 0, x: -30 }}
             transition={{ duration: 0.3 }}
           >
-            <span className="question-icon">{currentQuestion.icon}</span>
+            {/* Question Icon with gradient background */}
+            <motion.div
+              className={`question-icon-container bg-gradient-to-br ${currentQuestion.iconColor || 'from-indigo-500 to-purple-600'}`}
+              initial={{ scale: 0, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
+            >
+              <LucideIcon name={currentQuestion.lucideIcon} size={36} />
+            </motion.div>
             <h3 className="question-text">{currentQuestion.question}</h3>
             {currentQuestion.description && (
               <p className="question-description">{currentQuestion.description}</p>
@@ -512,6 +573,12 @@ const PreScreeningForm = ({
                     whileTap={{ scale: 0.99 }}
                     disabled={isAnimating && !isMultiselect}
                   >
+                    {/* Option Icon */}
+                    {option.lucideIcon && (
+                      <div className="option-icon-wrapper">
+                        <LucideIcon name={option.lucideIcon} size={20} />
+                      </div>
+                    )}
                     <div className="option-content">
                       <span className="option-label">{option.label}</span>
                       {option.description && (

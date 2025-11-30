@@ -199,6 +199,18 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
               (timelineProgress * 0.20)
             );
 
+            // Calculate total budget from milestones if dream doesn't have one
+            const calculatedBudget = dream.budget_amount ||
+              (milestones?.reduce((sum, m) => sum + (m.budget_amount || m.estimatedCost || 0), 0) || 0);
+
+            // Calculate target date from milestones if dream doesn't have one
+            const milestoneDates = milestones
+              ?.filter(m => m.target_date)
+              .map(m => new Date(m.target_date))
+              .filter(d => !isNaN(d.getTime())) || [];
+            const calculatedTargetDate = dream.target_date ||
+              (milestoneDates.length > 0 ? new Date(Math.max(...milestoneDates)).toISOString() : null);
+
             return {
               ...dream,
               milestones: milestones || [],
@@ -208,6 +220,9 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
               completedTasks,
               progress,
               budgetProgress,
+              // Use calculated values for display
+              budget_amount: calculatedBudget,
+              target_date: calculatedTargetDate,
               metrics: {
                 milestoneProgress: Math.round(milestoneProgress),
                 taskProgress: Math.round(taskProgress),
@@ -827,7 +842,10 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                   <MetricBox
                     icon={<Wallet className="w-3.5 h-3.5" />}
                     label="Budget"
-                    value={dream.budgetProgress ? `${Math.round(dream.budgetProgress)}%` : '—'}
+                    value={dream.budget_amount > 0
+                      ? `€${dream.budget_amount.toLocaleString()}`
+                      : '—'
+                    }
                     progress={dream.budgetProgress}
                   />
                   <MetricBox

@@ -8,6 +8,7 @@ import PreScreeningForm from './PreScreeningForm';
 import LunaQuestions from './LunaQuestions';
 import WaitingForPartner from './WaitingForPartner';
 import LunaAnalysisResults from './LunaAnalysisResults';
+import LunaLoadingExperience from './LunaLoadingExperience';
 import {
   createAssessmentSession,
   joinSessionByCode,
@@ -1156,21 +1157,9 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
         );
 
       case STAGES.GENERATING_QUESTIONS:
-        return (
-          <div className="loading-container">
-            <motion.div
-              className="loading-icon pulse-animation"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <Sparkles size={32} />
-            </motion.div>
-            <h2 className="loading-title">Luna is Preparing Your Questions</h2>
-            <p className="loading-subtitle">
-              Creating personalized questions based on your relationship context...
-            </p>
-          </div>
-        );
+        // Get focus areas from prescreening data
+        const focusAreas = prescreening.partner1?.focus_areas || prescreening.partner2?.focus_areas || [];
+        return <LunaLoadingExperience type="questions" focusAreas={focusAreas} />;
 
       case STAGES.QUESTIONS_P1:
       case STAGES.QUESTIONS_P2:
@@ -1213,21 +1202,8 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
         );
 
       case STAGES.ANALYZING:
-        return (
-          <div className="loading-container">
-            <motion.div
-              className="loading-icon pulse-animation"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <MessageCircle size={32} />
-            </motion.div>
-            <h2 className="loading-title">Luna is Analyzing Your Responses</h2>
-            <p className="loading-subtitle">
-              Discovering patterns, alignments, and growth opportunities...
-            </p>
-          </div>
-        );
+        const analysisFocusAreas = prescreening.partner1?.focus_areas || prescreening.partner2?.focus_areas || [];
+        return <LunaLoadingExperience type="analysis" focusAreas={analysisFocusAreas} />;
 
       case STAGES.RESULTS:
         return (
