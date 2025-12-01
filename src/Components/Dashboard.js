@@ -13,6 +13,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   const { user, signOut } = useAuth();
   const [dreams, setDreams] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null); // NEW: Track loading errors
   const [upcomingTasks, setUpcomingTasks] = useState({ overdue: [], dueThisWeek: [], noDueDate: [] });
   const [taskFilter, setTaskFilter] = useState({ dream: 'all', partner: 'all', sortBy: 'urgency' });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, dream: null });
@@ -27,6 +28,16 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     overallVelocity: 'On Track',
     budgetHealth: 0
   });
+
+  // Timeout wrapper for data fetching
+  const fetchWithTimeout = async (fetchFn, timeoutMs = 10000) => {
+    return Promise.race([
+      fetchFn(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
+      )
+    ]);
+  };
 
   // Inject fonts
   useEffect(() => {
@@ -53,8 +64,14 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     }
 
     setLoading(true);
+    setLoadError(null); // Clear previous errors
+
     try {
-      const { data: userDreams, error } = await getUserRoadmaps();
+      // Fetch with timeout to prevent infinite loading
+      const { data: userDreams, error } = await fetchWithTimeout(
+        () => getUserRoadmaps(),
+        15000 // 15 second timeout
+      );
 
       if (error) throw error;
 
@@ -285,9 +302,16 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      setLoadError(error.message || 'Failed to load your dreams. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Retry handler
+  const handleRetryLoad = () => {
+    setLoadError(null);
+    loadUserData();
   };
 
   const handleDeleteDream = async () => {
@@ -395,6 +419,41 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
             style={{ border: '3px solid #E8E2DA', borderTopColor: '#C4785A' }}
           />
           <p style={{ color: '#6B5E54' }}>Loading your dreams...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state with retry option
+  if (loadError) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: '#FAF7F2', fontFamily: "'DM Sans', sans-serif" }}
+      >
+        <div className="text-center max-w-md px-6">
+          <div
+            className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
+            style={{ backgroundColor: '#FEE2E2' }}
+          >
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-semibold mb-2" style={{ color: '#2D2926' }}>
+            Something went wrong
+          </h2>
+          <p className="mb-6" style={{ color: '#6B5E54' }}>
+            {loadError}
+          </p>
+          <button
+            onClick={handleRetryLoad}
+            className="px-6 py-3 rounded-xl font-medium transition-all"
+            style={{
+              backgroundColor: '#C4785A',
+              color: 'white'
+            }}
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );

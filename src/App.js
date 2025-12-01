@@ -520,24 +520,18 @@ const AppContent = () => {
   };
 
   const handleCreateNewRoadmap = async () => {
-    // Check if user has existing roadmaps to determine flow
-    setUserData(null);
+    // For logged-in users, go directly to Goal Builder (skip landing page)
     setSelectedRoadmap(null);
 
-    // Check if user already has roadmaps (returning user)
     if (user) {
-      try {
-        const { data: roadmaps } = await getUserRoadmaps();
-        const isReturningUser = roadmaps && roadmaps.length > 0;
-
-        // Pass flag to Landing Page to skip hero for returning users
-        setUserData({ isReturningUser });
-      } catch (error) {
-        console.error('Error checking roadmaps:', error);
-      }
+      // Go straight to Goal Builder where they can choose Luna, templates, or custom
+      setUserData({ isReturningUser: true });
+      setStage('goalBuilder');
+    } else {
+      // Not logged in - go to landing page
+      setUserData(null);
+      setStage('landing');
     }
-
-    setStage('landing');
   };
 
   // Navigation handlers

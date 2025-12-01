@@ -30,6 +30,12 @@ export const AuthProvider = ({ children }) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+
+      // Clear URL hash after retrieving session to prevent stale token warnings
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        // Replace the URL without the hash to clean up
+        window.history.replaceState(null, '', window.location.pathname)
+      }
     })
 
     // Listen for auth changes
@@ -37,6 +43,11 @@ export const AuthProvider = ({ children }) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+
+      // Clear URL hash after auth to prevent stale token warnings
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        window.history.replaceState(null, '', window.location.pathname)
+      }
 
       // Auto-create profile for new users (on SIGNED_IN or SIGNED_UP)
       if (session?.user && (event === 'SIGNED_IN' || event === 'SIGNED_UP')) {
