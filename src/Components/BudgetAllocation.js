@@ -271,6 +271,36 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     setShowPocketModal(false);
   };
 
+  const handleDeletePocket = async (pocket) => {
+    const pocketContribution = contributions[pocket.name];
+    const hasSavings = pocketContribution && pocketContribution.saved > 0;
+
+    const confirmMessage = hasSavings
+      ? `Delete "${pocket.name}" pocket? This will also remove ${formatCurrency(pocketContribution.saved)} in tracked savings.`
+      : `Delete "${pocket.name}" pocket?`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    // Delete all contributions/expenses for this pocket from database
+    if (pocketContribution && pocketContribution.items) {
+      for (const expense of pocketContribution.items) {
+        try {
+          await deleteExpense(expense.id);
+        } catch (error) {
+          console.error('Error deleting expense:', error);
+        }
+      }
+    }
+
+    // Remove pocket from state
+    setPockets(pockets.filter(p => p.name !== pocket.name));
+
+    // Remove contributions for this pocket
+    const updatedContributions = { ...contributions };
+    delete updatedContributions[pocket.name];
+    setContributions(updatedContributions);
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -463,12 +493,22 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
                       <p className="text-xs" style={{ color: '#6b635b' }}>{pocket.description}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleEditPocket(pocket)}
-                    className="p-2 rounded-lg transition-colors hover:bg-gray-100"
-                  >
-                    <Edit3 className="w-4 h-4" style={{ color: '#6b635b' }} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleEditPocket(pocket)}
+                      className="p-2 rounded-lg transition-colors hover:bg-gray-100"
+                      title="Edit pocket"
+                    >
+                      <Edit3 className="w-4 h-4" style={{ color: '#6b635b' }} />
+                    </button>
+                    <button
+                      onClick={() => handleDeletePocket(pocket)}
+                      className="p-2 rounded-lg transition-colors hover:bg-red-50"
+                      title="Delete pocket"
+                    >
+                      <Trash2 className="w-4 h-4" style={{ color: '#c76b6b' }} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 mb-4">
