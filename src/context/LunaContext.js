@@ -331,6 +331,33 @@ export const LunaProvider = ({ children }) => {
     setPendingChanges(prev => prev.filter(c => c.id !== change.id));
   }, []);
 
+  /**
+   * Add pending changes from any component (including LunaOverviewChat)
+   * This enables shared pending changes state across all Luna interfaces
+   * FAANG-level: Deduplication, validation, and merge logic
+   */
+  const addPendingChanges = useCallback((newChanges) => {
+    if (!Array.isArray(newChanges) || newChanges.length === 0) return;
+
+    setPendingChanges(prev => {
+      // Filter out duplicates by checking type + summary
+      const uniqueNewChanges = newChanges.filter(newChange =>
+        !prev.some(existing =>
+          existing.type === newChange.type && existing.summary === newChange.summary
+        )
+      );
+      return [...prev, ...uniqueNewChanges];
+    });
+  }, []);
+
+  /**
+   * Clear all pending changes (used when conversation is cleared)
+   */
+  const clearPendingChanges = useCallback(() => {
+    setPendingChanges([]);
+    setIsApplyingChanges(false);
+  }, []);
+
   // Quick action - send a pre-built message
   const sendQuickAction = useCallback((action) => {
     const quickMessages = {
@@ -386,9 +413,11 @@ export const LunaProvider = ({ children }) => {
     clearConversation,
     sendQuickAction,
 
-    // Pending changes
+    // Pending changes (shared across all Luna components)
     pendingChanges,
     isApplyingChanges,
+    addPendingChanges,
+    clearPendingChanges,
     confirmAllChanges,
     confirmChange,
     rejectAllChanges,

@@ -5,6 +5,7 @@ import { ProfileProvider } from './context/ProfileContext';
 import { LunaProvider } from './context/LunaContext';
 import ErrorBoundary from './Components/ErrorBoundary';
 import { LunaFloatingButton, LunaChatPanel, LunaPendingBanner } from './Components/Luna';
+import LunaErrorBoundary from './Components/Luna/LunaErrorBoundary';
 import LandingPage from './Components/LandingPageNew';
 import Dashboard from './Components/Dashboard';
 import RoadmapProfile from './Components/RoadmapProfile';
@@ -1139,9 +1140,15 @@ const App = () => {
         <LunaProvider>
           <AppContent />
           {/* Luna Floating Chat System */}
-          <LunaPendingBanner />
-          <LunaFloatingButton />
-          <LunaChatPanel />
+          <LunaErrorBoundary variant="compact" maxRetries={3}>
+            <LunaPendingBanner />
+          </LunaErrorBoundary>
+          <LunaErrorBoundary variant="compact" maxRetries={3}>
+            <LunaFloatingButton />
+          </LunaErrorBoundary>
+          <LunaErrorBoundary variant="panel" maxRetries={3}>
+            <LunaChatPanel />
+          </LunaErrorBoundary>
           <DevTools />
         </LunaProvider>
       </ProfileProvider>

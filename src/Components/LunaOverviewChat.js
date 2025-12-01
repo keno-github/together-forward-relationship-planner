@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, User, Send, Loader2, Trash2, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import PendingChangesCard from './PendingChangesCard';
+import { useLuna } from '../context/LunaContext';
 import {
   getMilestoneConversation,
   saveMilestoneConversation,
@@ -30,13 +31,24 @@ const LunaOverviewChat = ({
   onTasksUpdate,
   onRefreshMilestone
 }) => {
+  // Use shared Luna context for pending changes (FAANG-level: single source of truth)
+  const {
+    pendingChanges,
+    isApplyingChanges,
+    addPendingChanges,
+    clearPendingChanges,
+    confirmChange: contextConfirmChange,
+    rejectChange: contextRejectChange,
+    rejectAllChanges: contextRejectAll
+  } = useLuna();
+
+  // Local state for this chat instance (messages are per-milestone)
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
-  const [pendingChanges, setPendingChanges] = useState([]);
-  const [isApplyingChanges, setIsApplyingChanges] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [localApplying, setLocalApplying] = useState(false); // Local applying state for this component
 
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -92,7 +104,7 @@ const LunaOverviewChat = ({
     try {
       await clearMilestoneConversation(milestone.id);
       setMessages([]);
-      setPendingChanges([]);
+      clearPendingChanges(); // Use shared context
     } catch (err) {
       console.error('Failed to clear conversation:', err);
     }
@@ -153,16 +165,9 @@ const LunaOverviewChat = ({
           setStreamingContent('');
           setIsLoading(false);
 
-          // Add any pending changes (avoiding duplicates with existing state)
+          // Add any pending changes to shared context (deduplication handled by context)
           if (collectedChanges.length > 0) {
-            setPendingChanges(prev => {
-              const newChanges = collectedChanges.filter(newChange =>
-                !prev.some(existing =>
-                  existing.type === newChange.type && existing.summary === newChange.summary
-                )
-              );
-              return [...prev, ...newChanges];
-            });
+            addPendingChanges(collectedChanges);
           }
 
           // Save conversation
@@ -197,7 +202,7 @@ const LunaOverviewChat = ({
 
   // Confirmation handlers
   const handleConfirmAll = async () => {
-    setIsApplyingChanges(true);
+    setLocalApplying(true);
 
     const results = [];
     const TIMEOUT_MS = 15000; // 15 second timeout per operation
@@ -266,13 +271,13 @@ const LunaOverviewChat = ({
     setMessages(newMessages);
     saveConversation(newMessages);
 
-    // Clear pending changes and reset state
-    setPendingChanges([]);
-    setIsApplyingChanges(false);
+    // Clear pending changes from shared context
+    clearPendingChanges();
+    setLocalApplying(false);
   };
 
   const handleConfirmOne = async (change) => {
-    setIsApplyingChanges(true);
+    setLocalApplying(true);
     const TIMEOUT_MS = 15000; // 15 second timeout
 
     try {
@@ -297,8 +302,8 @@ const LunaOverviewChat = ({
         }
       }
 
-      // Remove this change from pending
-      setPendingChanges(prev => prev.filter(c => c.id !== change.id));
+      // Remove this change from shared context
+      contextRejectChange(change);
 
       // Add confirmation message
       const confirmMessage = {
@@ -310,8 +315,8 @@ const LunaOverviewChat = ({
       saveConversation(newMessages);
     } catch (err) {
       console.error('Failed to apply change:', err);
-      // Remove the failed change and notify user
-      setPendingChanges(prev => prev.filter(c => c.id !== change.id));
+      // Remove the failed change from shared context
+      contextRejectChange(change);
       const errorMessage = {
         role: 'assistant',
         content: `Sorry, I couldn't apply that change. ${err.message === 'Operation timed out' ? 'The operation took too long.' : 'Please try again.'}`
@@ -321,13 +326,12 @@ const LunaOverviewChat = ({
       saveConversation(newMessages);
     }
 
-    setIsApplyingChanges(false);
+    setLocalApplying(false);
   };
 
   const handleRejectAll = () => {
-    setPendingChanges([]);
-    // Also reset applying state in case it was stuck
-    setIsApplyingChanges(false);
+    clearPendingChanges(); // Use shared context
+    setLocalApplying(false);
     setIsLoading(false);
 
     // Add rejection message
@@ -341,7 +345,7 @@ const LunaOverviewChat = ({
   };
 
   const handleRejectOne = (change) => {
-    setPendingChanges(prev => prev.filter(c => c.id !== change.id));
+    contextRejectChange(change); // Use shared context
   };
 
   return (
@@ -395,7 +399,7 @@ const LunaOverviewChat = ({
                 onConfirmOne={handleConfirmOne}
                 onRejectAll={handleRejectAll}
                 onRejectOne={handleRejectOne}
-                isApplying={isApplyingChanges}
+                isApplying={isApplyingChanges || localApplying}
               />
 
               {/* Messages Container */}
@@ -449,12 +453,12 @@ const LunaOverviewChat = ({
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Ask Luna anything..."
-                  disabled={isLoading || isApplyingChanges}
+                  disabled={isLoading || isApplyingChanges || localApplying}
                   className="flex-1 px-4 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
                   onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || isLoading || isApplyingChanges}
+                  disabled={!inputValue.trim() || isLoading || isApplyingChanges || localApplying}
                   className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium text-sm transition-all"
                 >
                   <Send className="w-4 h-4" />
@@ -462,7 +466,7 @@ const LunaOverviewChat = ({
                 {messages.length > 0 && (
                   <button
                     onClick={handleClearConversation}
-                    disabled={isLoading || isApplyingChanges}
+                    disabled={isLoading || isApplyingChanges || localApplying}
                     className="px-3 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     title="Clear conversation"
                   >
