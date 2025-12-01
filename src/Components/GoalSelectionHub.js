@@ -106,7 +106,7 @@ const GoalSelectionHub = ({ partner1, partner2, onSelectPath }) => {
 
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Browse Templates</h2>
             <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-              Choose from 12 expert-built roadmaps for common life milestones.
+              Choose from expert-built roadmaps for common life milestones.
             </p>
 
              <div className="flex items-center gap-4 mb-8 text-xs font-medium text-slate-500">
@@ -133,7 +133,7 @@ const GoalSelectionHub = ({ partner1, partner2, onSelectPath }) => {
                 onClick={() => onSelectPath('templates')}
                 className="w-full py-4 rounded-xl bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 transition-all flex items-center justify-center gap-2"
               >
-                Browse 12 Goal Templates <ArrowRight size={16} />
+                Browse Goal Templates <ArrowRight size={16} />
               </button>
           </div>
 

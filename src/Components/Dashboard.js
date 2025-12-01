@@ -9,7 +9,7 @@ const fontStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap');
 `;
 
-const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessment, onOpenPortfolioOverview }) => {
+const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessment, onOpenPortfolioOverview, successNotification, onDismissNotification }) => {
   const { user, signOut } = useAuth();
   const [dreams, setDreams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -415,6 +415,35 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }}
       />
+
+      {/* Success Notification Banner */}
+      <AnimatePresence>
+        {successNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"
+          >
+            <div
+              className="flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg"
+              style={{
+                backgroundColor: '#10B981',
+                color: 'white'
+              }}
+            >
+              <CheckCircle2 className="w-5 h-5" />
+              <span className="font-medium">{successNotification.message}</span>
+              <button
+                onClick={onDismissNotification}
+                className="ml-2 p-1 rounded-full hover:bg-white/20 transition-colors"
+              >
+                <span className="text-lg leading-none">&times;</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <header

@@ -38,6 +38,7 @@ const AppContent = () => {
   const [stage, setStage] = useState('landing'); // Start with landing page
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0); // Force Dashboard remount
   const [userData, setUserData] = useState(null);
+  const [successNotification, setSuccessNotification] = useState(null); // Success alert after dream creation
   const [compatibilityData, setCompatibilityData] = useState(null);
   const [selectedGoalsFromTransition, setSelectedGoalsFromTransition] = useState([]);
   const [selectedRoadmap, setSelectedRoadmap] = useState(null);
@@ -655,6 +656,16 @@ const AppContent = () => {
       }
 
       console.log('✅ All dreams created successfully!');
+
+      // Show success notification
+      setSuccessNotification({
+        type: 'success',
+        message: `${milestones.length} dream${milestones.length > 1 ? 's' : ''} added to your dashboard!`,
+        dreamCount: milestones.length
+      });
+
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setSuccessNotification(null), 5000);
     }
 
     // Update userData with partner info
@@ -666,6 +677,9 @@ const AppContent = () => {
     };
 
     setUserData(preparedUserData);
+
+    // Force dashboard refresh
+    setDashboardRefreshKey(prev => prev + 1);
 
     // Navigate to Dashboard to see all created dreams
     setStage('dashboard');
@@ -748,6 +762,16 @@ const AppContent = () => {
       }
 
       console.log('✅ All Luna-optimized dreams created successfully!');
+
+      // Show success notification
+      setSuccessNotification({
+        type: 'success',
+        message: `${milestones.length} Luna-optimized dream${milestones.length > 1 ? 's' : ''} added to your dashboard!`,
+        dreamCount: milestones.length
+      });
+
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setSuccessNotification(null), 5000);
     }
 
     const preparedUserData = {
@@ -758,6 +782,9 @@ const AppContent = () => {
 
     setUserData(preparedUserData);
     setGoalOrchestrator(null); // Clear orchestrator
+
+    // Force dashboard refresh
+    setDashboardRefreshKey(prev => prev + 1);
 
     // Navigate to Dashboard to see all created dreams
     setStage('dashboard');
@@ -904,6 +931,8 @@ const AppContent = () => {
           onBackToHome={() => setStage('landing')}
           onOpenAssessment={handleOpenAssessment}
           onOpenPortfolioOverview={handleOpenPortfolioOverview}
+          successNotification={successNotification}
+          onDismissNotification={() => setSuccessNotification(null)}
         />
       )}
 
