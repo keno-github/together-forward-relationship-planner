@@ -589,6 +589,15 @@ const AppContent = () => {
     console.log('🎯 Goal Builder Complete - roadmapData:', roadmapData);
     console.log('👤 Current userData:', userData);
 
+    // CRITICAL: Clear the goal basket from localStorage after successful roadmap creation
+    // This prevents previously selected templates from appearing when user creates new dreams
+    try {
+      localStorage.removeItem('goalBasket');
+      console.log('🧹 Cleared goal basket from localStorage');
+    } catch (e) {
+      console.warn('Could not clear localStorage:', e);
+    }
+
     // Log milestone data structure for debugging
     roadmapData.milestones?.forEach(m => {
       console.log(`  🏆 Milestone: ${m.title}`, {
@@ -637,6 +646,14 @@ const AppContent = () => {
   const handleLunaOptimizationComplete = (optimizedData) => {
     // Luna has optimized the roadmap - go to main app
     console.log('✨ Luna optimization complete:', optimizedData);
+
+    // CRITICAL: Clear the goal basket from localStorage after successful roadmap creation
+    try {
+      localStorage.removeItem('goalBasket');
+      console.log('🧹 Cleared goal basket from localStorage');
+    } catch (e) {
+      console.warn('Could not clear localStorage:', e);
+    }
 
     const preparedUserData = {
       ...userData,
