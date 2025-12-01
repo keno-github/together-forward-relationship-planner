@@ -199,7 +199,8 @@ const TogetherForward = ({
         aiGenerated: m.ai_generated || m.aiGenerated,
         completed: m.completed,
         deepDiveData: m.deep_dive_data || m.deepDiveData,
-        tasks: [] // Tasks will be loaded separately if needed
+        tasks: [], // Tasks will be loaded separately if needed
+        _savedToDb: true // CRITICAL: Mark as already saved to prevent duplication
       }));
       console.log('✅ Formatted milestones with budget_amount:');
       formatted.forEach((m, idx) => {

@@ -26,7 +26,7 @@ import { MobileBottomNav } from './Components/Mobile';
 import { useResponsive } from './hooks/useResponsive';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
-import { getUserRoadmaps, getMilestonesByRoadmap } from './services/supabaseService';
+import { getUserRoadmaps, getMilestonesByRoadmap, createRoadmap, createMilestone } from './services/supabaseService';
 import { initGA, trackPageView } from './utils/analytics';
 
 // Inner component that uses auth context
@@ -584,7 +584,7 @@ const AppContent = () => {
   };
 
   // Goal Builder handlers
-  const handleGoalBuilderComplete = (roadmapData) => {
+  const handleGoalBuilderComplete = async (roadmapData) => {
     // User completed building goals and created roadmap
     console.log('🎯 Goal Builder Complete - roadmapData:', roadmapData);
     console.log('👤 Current userData:', userData);
@@ -598,34 +598,77 @@ const AppContent = () => {
       console.warn('Could not clear localStorage:', e);
     }
 
-    // Log milestone data structure for debugging
-    roadmapData.milestones?.forEach(m => {
-      console.log(`  🏆 Milestone: ${m.title}`, {
-        hasDeepDiveData: !!m.deepDiveData,
-        roadmapPhases: m.deepDiveData?.roadmapPhases?.length || 0,
-        detailedSteps: m.deepDiveData?.detailedSteps?.length || 0,
-        lunaEnhanced: m.deepDiveData?.lunaEnhanced
-      });
-    });
+    const milestones = roadmapData.milestones || [];
+    const partner1Name = roadmapData.partner1_name || userData?.partner1 || '';
+    const partner2Name = roadmapData.partner2_name || userData?.partner2 || '';
+    const location = userData?.location || '';
 
+    // OPTION A: Create a SEPARATE roadmap/dream for EACH milestone/template
+    // This means each selected template becomes its own dream card in Dashboard
+    if (user && milestones.length > 0) {
+      console.log('📦 Creating separate roadmaps for each dream...');
+
+      for (const milestone of milestones) {
+        console.log(`  🏆 Creating dream: ${milestone.title}`);
+
+        try {
+          // Create a roadmap for this dream
+          const { data: newRoadmap, error: roadmapError } = await createRoadmap({
+            title: milestone.title,
+            partner1_name: partner1Name,
+            partner2_name: partner2Name,
+            location: location,
+            xp_points: 0
+          });
+
+          if (roadmapError) {
+            console.error('Error creating roadmap:', roadmapError);
+            continue;
+          }
+
+          console.log(`  ✅ Roadmap created: ${newRoadmap.id}`);
+
+          // Create the milestone under this roadmap
+          const { data: newMilestone, error: milestoneError } = await createMilestone({
+            roadmap_id: newRoadmap.id,
+            title: milestone.title,
+            description: milestone.description,
+            icon: milestone.icon,
+            color: milestone.color,
+            category: milestone.category || 'relationship',
+            estimated_cost: milestone.estimatedCost || 0,
+            budget_amount: milestone.budget_amount || milestone.estimatedCost || 0,
+            duration: milestone.duration,
+            ai_generated: milestone.aiGenerated || milestone.source === 'template',
+            deep_dive_data: milestone.deepDiveData,
+            order_index: 0
+          });
+
+          if (milestoneError) {
+            console.error('Error creating milestone:', milestoneError);
+          } else {
+            console.log(`  ✅ Milestone created: ${newMilestone.id}`);
+          }
+        } catch (error) {
+          console.error(`Error creating dream "${milestone.title}":`, error);
+        }
+      }
+
+      console.log('✅ All dreams created successfully!');
+    }
+
+    // Update userData with partner info
     const preparedUserData = {
       ...userData,
-      // Convert roadmap milestones to existingMilestones format
-      existingMilestones: roadmapData.milestones || [],
-      goals: roadmapData.milestones?.map(m => m.title) || [],
       createdFrom: 'goalBuilder',
-      // Use partner names from roadmap if provided, otherwise keep existing
-      partner1: roadmapData.partner1_name || userData?.partner1 || '',
-      partner2: roadmapData.partner2_name || userData?.partner2 || ''
+      partner1: partner1Name,
+      partner2: partner2Name
     };
 
-    console.log('✅ Prepared userData for TogetherForward:', preparedUserData);
-    console.log('📋 Milestones count:', preparedUserData.existingMilestones?.length);
-    console.log('👥 Partner names:', preparedUserData.partner1, '&', preparedUserData.partner2);
-    console.log('📍 Location:', preparedUserData.location);
-
     setUserData(preparedUserData);
-    setStage('main');
+
+    // Navigate to Dashboard to see all created dreams
+    setStage('dashboard');
   };
 
   const handleGoalBuilderEnhanceWithLuna = (data) => {
@@ -643,8 +686,8 @@ const AppContent = () => {
     }
   };
 
-  const handleLunaOptimizationComplete = (optimizedData) => {
-    // Luna has optimized the roadmap - go to main app
+  const handleLunaOptimizationComplete = async (optimizedData) => {
+    // Luna has optimized the roadmap - create separate dreams
     console.log('✨ Luna optimization complete:', optimizedData);
 
     // CRITICAL: Clear the goal basket from localStorage after successful roadmap creation
@@ -655,20 +698,69 @@ const AppContent = () => {
       console.warn('Could not clear localStorage:', e);
     }
 
+    const milestones = optimizedData.milestones || [];
+    const partner1Name = userData?.partner1 || '';
+    const partner2Name = userData?.partner2 || '';
+    const location = userData?.location || '';
+
+    // OPTION A: Create a SEPARATE roadmap/dream for EACH milestone/template
+    if (user && milestones.length > 0) {
+      console.log('📦 Creating separate roadmaps for each Luna-optimized dream...');
+
+      for (const milestone of milestones) {
+        console.log(`  🏆 Creating dream: ${milestone.title}`);
+
+        try {
+          // Create a roadmap for this dream
+          const { data: newRoadmap, error: roadmapError } = await createRoadmap({
+            title: milestone.title,
+            partner1_name: partner1Name,
+            partner2_name: partner2Name,
+            location: location,
+            xp_points: 0
+          });
+
+          if (roadmapError) {
+            console.error('Error creating roadmap:', roadmapError);
+            continue;
+          }
+
+          // Create the milestone under this roadmap
+          await createMilestone({
+            roadmap_id: newRoadmap.id,
+            title: milestone.title,
+            description: milestone.description,
+            icon: milestone.icon,
+            color: milestone.color,
+            category: milestone.category || 'relationship',
+            estimated_cost: milestone.estimatedCost || 0,
+            budget_amount: milestone.budget_amount || milestone.estimatedCost || 0,
+            duration: milestone.duration,
+            ai_generated: true,
+            deep_dive_data: milestone.deepDiveData,
+            order_index: 0
+          });
+
+          console.log(`  ✅ Dream created: ${milestone.title}`);
+        } catch (error) {
+          console.error(`Error creating dream "${milestone.title}":`, error);
+        }
+      }
+
+      console.log('✅ All Luna-optimized dreams created successfully!');
+    }
+
     const preparedUserData = {
       ...userData,
-      // Use Luna's optimized milestones
-      existingMilestones: optimizedData.milestones || [],
-      goals: optimizedData.milestones?.map(m => m.title) || [],
       createdFrom: 'lunaOptimization',
-      lunaOptimized: true,
-      lunaContext: optimizedData.context,
-      conversationHistory: optimizedData.conversationHistory
+      lunaOptimized: true
     };
 
     setUserData(preparedUserData);
     setGoalOrchestrator(null); // Clear orchestrator
-    setStage('main');
+
+    // Navigate to Dashboard to see all created dreams
+    setStage('dashboard');
   };
 
   const handleBackFromLunaOptimization = () => {
