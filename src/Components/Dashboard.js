@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap } from '../services/supabaseService';
+import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap, deleteMilestone, deleteTask, deleteExpense } from '../services/supabaseService';
 
 // Inline styles for custom fonts
 const fontStyles = `
@@ -293,9 +293,46 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   const handleDeleteDream = async () => {
     if (!deleteConfirm.dream) return;
 
+    const dreamId = deleteConfirm.dream.id;
     setDeleting(true);
+
     try {
-      const { error } = await deleteRoadmap(deleteConfirm.dream.id);
+      console.log('🗑️ Starting deletion of dream:', dreamId);
+
+      // Step 1: Get all milestones for this dream
+      const { data: milestones } = await getMilestonesByRoadmap(dreamId);
+      console.log('📋 Found milestones:', milestones?.length || 0);
+
+      // Step 2: Delete all tasks and expenses for each milestone
+      if (milestones && milestones.length > 0) {
+        for (const milestone of milestones) {
+          // Delete tasks for this milestone
+          const { data: tasks } = await getTasksByMilestone(milestone.id);
+          if (tasks && tasks.length > 0) {
+            console.log(`🔧 Deleting ${tasks.length} tasks for milestone:`, milestone.title);
+            for (const task of tasks) {
+              await deleteTask(task.id);
+            }
+          }
+
+          // Delete the milestone
+          console.log('🎯 Deleting milestone:', milestone.title);
+          await deleteMilestone(milestone.id);
+        }
+      }
+
+      // Step 3: Delete all expenses for this roadmap
+      const { data: expenses } = await getExpensesByRoadmap(dreamId);
+      if (expenses && expenses.length > 0) {
+        console.log(`💰 Deleting ${expenses.length} expenses`);
+        for (const expense of expenses) {
+          await deleteExpense(expense.id);
+        }
+      }
+
+      // Step 4: Finally delete the roadmap
+      console.log('🏠 Deleting roadmap');
+      const { error } = await deleteRoadmap(dreamId);
 
       if (error) {
         console.error('Error deleting dream:', error);
@@ -303,7 +340,10 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
         return;
       }
 
+      console.log('✅ Dream deleted successfully!');
       setDeleteConfirm({ show: false, dream: null });
+
+      // Refresh the dashboard
       await loadUserData();
     } catch (error) {
       console.error('Error deleting dream:', error);
