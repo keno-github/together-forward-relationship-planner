@@ -22,7 +22,13 @@ const LunaOptimization = ({ orchestrator, userData, onComplete, onBack }) => {
   const [isLunaTyping, setIsLunaTyping] = useState(false);
   const [context, setContext] = useState(null);
   const [optimizationStage, setOptimizationStage] = useState('initial'); // initial, clarifying, optimizing, ready
+  const [isCreatingRoadmaps, setIsCreatingRoadmaps] = useState(false); // NEW: Loading state for finalization
+  const [creationProgress, setCreationProgress] = useState({ current: 0, total: 0 }); // NEW: Progress tracking
+  const [error, setError] = useState(null); // NEW: Error state
   const chatEndRef = useRef(null);
+
+  // API call timeout (15 seconds)
+  const API_TIMEOUT = 15000;
 
   // Build context on mount
   useEffect(() => {
@@ -126,9 +132,13 @@ const LunaOptimization = ({ orchestrator, userData, onComplete, onBack }) => {
   };
 
   /**
-   * Call Luna API (backend)
+   * Call Luna API with timeout (backend)
    */
   const callLunaAPI = async (messages, ctx) => {
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+
     try {
       const response = await fetch('/api/luna/optimize-goals', {
         method: 'POST',
@@ -136,8 +146,11 @@ const LunaOptimization = ({ orchestrator, userData, onComplete, onBack }) => {
         body: JSON.stringify({
           messages,
           context: ctx
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error('Luna API error');
@@ -146,9 +159,16 @@ const LunaOptimization = ({ orchestrator, userData, onComplete, onBack }) => {
       const data = await response.json();
       return { message: data.message };
     } catch (error) {
-      console.error('Luna API call failed:', error);
+      clearTimeout(timeoutId);
 
-      // Fallback: Simulate Luna response for demo
+      // Log but don't crash - use fallback
+      if (error.name === 'AbortError') {
+        console.warn('Luna API timed out, using fallback');
+      } else {
+        console.warn('Luna API unavailable, using fallback:', error.message);
+      }
+
+      // Fallback: Simulate Luna response (works offline/demo)
       return simulateLunaResponse(messages, ctx);
     }
   };
@@ -181,18 +201,62 @@ const LunaOptimization = ({ orchestrator, userData, onComplete, onBack }) => {
 
   /**
    * Finalize and generate optimized roadmap
+   * FAANG-level: Loading state, error handling, progress tracking
    */
-  const handleFinalize = () => {
-    // Generate optimized milestones
-    const milestones = generateOptimizedMilestones(context, conversation);
+  const handleFinalize = async () => {
+    setIsCreatingRoadmaps(true);
+    setError(null);
 
-    // Return to parent with optimized roadmap
-    onComplete({
-      milestones,
-      context,
-      conversationHistory: conversation,
-      lunaOptimized: true
-    });
+    try {
+      // Generate optimized milestones with error handling
+      let milestones;
+      try {
+        milestones = generateOptimizedMilestones(context, conversation);
+      } catch (genError) {
+        console.error('Error generating milestones:', genError);
+        // Fallback: Use original goals as milestones
+        milestones = context?.goals?.map(goal => ({
+          ...goal,
+          aiGenerated: true,
+          lunaOptimized: true,
+          completed: false,
+          tasks: goal.tasks || [],
+          deepDiveData: {}
+        })) || [];
+      }
+
+      if (!milestones || milestones.length === 0) {
+        throw new Error('No milestones were generated. Please try again.');
+      }
+
+      setCreationProgress({ current: 0, total: milestones.length });
+
+      // Add a small delay so user sees the loading state
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Return to parent with optimized roadmap
+      // Parent (App.js) handles the actual database operations
+      await onComplete({
+        milestones,
+        context,
+        conversationHistory: conversation,
+        lunaOptimized: true
+      });
+
+    } catch (err) {
+      console.error('Error finalizing roadmap:', err);
+      setError(err.message || 'Something went wrong. Please try again.');
+      setIsCreatingRoadmaps(false);
+    }
+    // Note: Don't setIsCreatingRoadmaps(false) on success - component will unmount
+  };
+
+  /**
+   * Retry after error
+   */
+  const handleRetry = () => {
+    setError(null);
+    setOptimizationStage('ready');
   };
 
   return (
@@ -321,8 +385,57 @@ const LunaOptimization = ({ orchestrator, userData, onComplete, onBack }) => {
             </div>
           )}
 
+          {/* Error State */}
+          {error && (
+            <div className="border-t-2 border-red-200 p-4 bg-red-50">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <span className="text-red-500 text-xl">⚠️</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-red-800">Something went wrong</p>
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleRetry}
+                className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {/* Loading State - Creating Roadmaps */}
+          {isCreatingRoadmaps && !error && (
+            <div className="border-t-2 border-purple-200 p-6 bg-gradient-to-r from-purple-50 to-pink-50">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full border-4 border-purple-200 border-t-purple-500 animate-spin" />
+                  <Sparkles className="w-6 h-6 text-purple-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-purple-800 text-lg">Creating Your Dreams...</p>
+                  <p className="text-sm text-purple-600 mt-1">
+                    Setting up {creationProgress.total} optimized roadmaps
+                  </p>
+                </div>
+                {/* Progress bar */}
+                <div className="w-full bg-purple-100 rounded-full h-2 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: '100%' }}
+                    transition={{ duration: 3, ease: 'linear' }}
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                  />
+                </div>
+                <p className="text-xs text-purple-500">This may take a few seconds...</p>
+              </div>
+            </div>
+          )}
+
           {/* Finalize Button */}
-          {optimizationStage === 'ready' && (
+          {optimizationStage === 'ready' && !isCreatingRoadmaps && !error && (
             <div className="border-t-2 border-gray-200 p-4 bg-gradient-to-r from-purple-50 to-pink-50">
               <motion.button
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -330,7 +443,8 @@ const LunaOptimization = ({ orchestrator, userData, onComplete, onBack }) => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleFinalize}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg"
+                disabled={isCreatingRoadmaps}
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <CheckCircle2 className="w-6 h-6" />
                 Create Optimized Roadmap
