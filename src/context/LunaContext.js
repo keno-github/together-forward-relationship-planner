@@ -113,23 +113,10 @@ export const LunaProvider = ({ children }) => {
     return true;
   }, [pendingChanges]);
 
-  // Helper: fetch with timeout
-  const fetchWithTimeout = async (fetchFn, timeoutMs = 8000) => {
-    return Promise.race([
-      fetchFn(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
-      )
-    ]);
-  };
-
-  // Load conversation from database with timeout protection
+  // Load conversation from database
   const loadConversation = async (milestoneId) => {
     try {
-      const { data, error } = await fetchWithTimeout(
-        () => getMilestoneConversation(milestoneId),
-        8000 // 8 second timeout
-      );
+      const { data, error } = await getMilestoneConversation(milestoneId);
       if (data?.messages && Array.isArray(data.messages)) {
         const validMessages = data.messages
           .filter(m => m.content && m.content.trim() !== '')
