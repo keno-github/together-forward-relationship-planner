@@ -537,6 +537,7 @@ const AppContent = () => {
 
   // Navigation handlers
   const handleGoToDashboard = () => {
+    setIsNavigating(false); // Reset navigation lock when going to dashboard
     setStage('dashboard');
   };
 
@@ -549,6 +550,7 @@ const AppContent = () => {
   };
 
   const handleBackToDashboard = () => {
+    setIsNavigating(false); // Reset navigation lock
     if (user) {
       setStage('dashboard');
     } else {
@@ -676,7 +678,8 @@ const AppContent = () => {
     // Force dashboard refresh
     setDashboardRefreshKey(prev => prev + 1);
 
-    // Navigate to Dashboard to see all created dreams
+    // Reset navigation lock and navigate to Dashboard
+    setIsNavigating(false);
     setStage('dashboard');
   };
 
@@ -781,7 +784,8 @@ const AppContent = () => {
     // Force dashboard refresh
     setDashboardRefreshKey(prev => prev + 1);
 
-    // Navigate to Dashboard to see all created dreams
+    // Reset navigation lock and navigate to Dashboard
+    setIsNavigating(false);
     setStage('dashboard');
   };
 
@@ -828,7 +832,8 @@ const AppContent = () => {
     // Force Dashboard to refresh with latest data
     setDashboardRefreshKey(prev => prev + 1);
 
-    // Go back to Dashboard (improved UX - skip intermediate view)
+    // Reset navigation lock and go back to Dashboard
+    setIsNavigating(false);
     setStage('dashboard');
   };
 
