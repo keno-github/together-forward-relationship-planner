@@ -113,10 +113,23 @@ export const LunaProvider = ({ children }) => {
     return true;
   }, [pendingChanges]);
 
-  // Load conversation from database
+  // Helper: fetch with timeout
+  const fetchWithTimeout = async (fetchFn, timeoutMs = 8000) => {
+    return Promise.race([
+      fetchFn(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
+      )
+    ]);
+  };
+
+  // Load conversation from database with timeout protection
   const loadConversation = async (milestoneId) => {
     try {
-      const { data, error } = await getMilestoneConversation(milestoneId);
+      const { data, error } = await fetchWithTimeout(
+        () => getMilestoneConversation(milestoneId),
+        8000 // 8 second timeout
+      );
       if (data?.messages && Array.isArray(data.messages)) {
         const validMessages = data.messages
           .filter(m => m.content && m.content.trim() !== '')
@@ -154,7 +167,7 @@ export const LunaProvider = ({ children }) => {
     }
   };
 
-  // Send message to Luna
+  // Send message to Luna with timeout protection
   const sendMessage = useCallback(async (content) => {
     if (!content?.trim() || isLoading || !currentMilestone) return;
 
@@ -175,9 +188,30 @@ export const LunaProvider = ({ children }) => {
       .filter(m => m.content && m.content.trim() !== '')
       .map(m => ({ role: m.role, content: m.content }));
 
+    // Timeout protection - 45 seconds max for streaming
+    const STREAMING_TIMEOUT = 45000;
+    let timeoutId = null;
+    let streamingCompleted = false;
+
+    const handleTimeout = () => {
+      if (!streamingCompleted) {
+        console.error('Luna streaming timeout - forcing recovery');
+        setIsLoading(false);
+        setStreamingContent('');
+        const errorMessage = {
+          role: 'assistant',
+          content: "I'm sorry, the response took too long. Please try again."
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+    };
+
     try {
       let fullResponse = '';
       const collectedChanges = [];
+
+      // Set timeout
+      timeoutId = setTimeout(handleTimeout, STREAMING_TIMEOUT);
 
       await callLunaOverviewStreaming(apiMessages, context, {
         onChunk: (text) => {
@@ -193,6 +227,9 @@ export const LunaProvider = ({ children }) => {
           }
         },
         onDone: () => {
+          streamingCompleted = true;
+          if (timeoutId) clearTimeout(timeoutId);
+
           const assistantMessage = { role: 'assistant', content: fullResponse };
           const finalMessages = [...updatedMessages, assistantMessage];
           setMessages(finalMessages);
@@ -213,6 +250,9 @@ export const LunaProvider = ({ children }) => {
           saveConversation(finalMessages);
         },
         onError: (error) => {
+          streamingCompleted = true;
+          if (timeoutId) clearTimeout(timeoutId);
+
           console.error('Luna streaming error:', error);
           setIsLoading(false);
           setStreamingContent('');
@@ -225,6 +265,9 @@ export const LunaProvider = ({ children }) => {
         }
       });
     } catch (error) {
+      streamingCompleted = true;
+      if (timeoutId) clearTimeout(timeoutId);
+
       console.error('Luna chat error:', error);
       setIsLoading(false);
       setStreamingContent('');

@@ -3,26 +3,51 @@
  *
  * When APP_VERSION changes, all localStorage data is automatically cleared
  * to prevent stale data issues during development.
+ *
+ * Also clears cache if it's older than MAX_CACHE_AGE to prevent stale data.
  */
 
 // Increment this when you make breaking changes to stored data structures
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
 const VERSION_KEY = 'app_version';
+const CACHE_TIMESTAMP_KEY = 'cache_timestamp';
+
+// Maximum cache age in milliseconds (24 hours)
+const MAX_CACHE_AGE = 24 * 60 * 60 * 1000;
 
 /**
- * Initialize storage - checks version and clears if outdated
+ * Initialize storage - checks version AND cache age, clears if outdated
  * Call this once when the app starts
  */
 export const initializeStorage = () => {
   const storedVersion = localStorage.getItem(VERSION_KEY);
+  const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+  const now = Date.now();
+
+  // Check if cache is too old (older than 24 hours)
+  const cacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp, 10) : Infinity;
+  const isCacheExpired = cacheAge > MAX_CACHE_AGE;
 
   if (storedVersion !== APP_VERSION) {
     console.log(`🔄 App version changed (${storedVersion} → ${APP_VERSION}). Clearing localStorage...`);
     clearAllStorage();
     localStorage.setItem(VERSION_KEY, APP_VERSION);
+    localStorage.setItem(CACHE_TIMESTAMP_KEY, now.toString());
     console.log('✅ localStorage cleared and version updated');
-    return { wasCleared: true, previousVersion: storedVersion, currentVersion: APP_VERSION };
+    return { wasCleared: true, reason: 'version_change', previousVersion: storedVersion, currentVersion: APP_VERSION };
   }
+
+  if (isCacheExpired) {
+    console.log(`🔄 Cache expired (${Math.round(cacheAge / 3600000)}h old). Clearing localStorage...`);
+    clearAllStorage();
+    localStorage.setItem(VERSION_KEY, APP_VERSION);
+    localStorage.setItem(CACHE_TIMESTAMP_KEY, now.toString());
+    console.log('✅ localStorage cleared due to age');
+    return { wasCleared: true, reason: 'cache_expired', cacheAge: Math.round(cacheAge / 3600000), currentVersion: APP_VERSION };
+  }
+
+  // Update timestamp on successful load to extend cache life on active use
+  localStorage.setItem(CACHE_TIMESTAMP_KEY, now.toString());
 
   console.log(`✅ Storage version ${APP_VERSION} matches. Using cached data.`);
   return { wasCleared: false, previousVersion: storedVersion, currentVersion: APP_VERSION };
@@ -122,5 +147,6 @@ export default {
   getStorageInfo,
   getStorageItem,
   setStorageItem,
-  APP_VERSION
+  APP_VERSION,
+  MAX_CACHE_AGE
 };

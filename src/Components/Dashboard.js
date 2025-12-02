@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +13,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   const { user, signOut } = useAuth();
   const [dreams, setDreams] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null); // NEW: Track loading errors
+  const [loadError, setLoadError] = useState(null);
   const [upcomingTasks, setUpcomingTasks] = useState({ overdue: [], dueThisWeek: [], noDueDate: [] });
   const [taskFilter, setTaskFilter] = useState({ dream: 'all', partner: 'all', sortBy: 'urgency' });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, dream: null });
@@ -29,8 +29,32 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     budgetHealth: 0
   });
 
-  // Timeout wrapper for data fetching
-  const fetchWithTimeout = async (fetchFn, timeoutMs = 10000) => {
+  // FAANG-level: Track mounted state and loading in progress
+  const isMountedRef = useRef(true);
+  const loadingInProgressRef = useRef(false);
+  const loadRequestIdRef = useRef(0); // Track which request is current
+
+  // Reset state on mount and cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    loadingInProgressRef.current = false; // Reset on mount to allow fresh fetch
+
+    // Always fetch fresh data on mount (handles navigation back to dashboard)
+    if (user?.id) {
+      loadUserData();
+    } else {
+      setLoading(false);
+      setDreams([]);
+    }
+
+    return () => {
+      isMountedRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run on every mount
+
+  // Timeout wrapper for data fetching - applies to ALL calls
+  const fetchWithTimeout = async (fetchFn, timeoutMs = 8000) => {
     return Promise.race([
       fetchFn(),
       new Promise((_, reject) =>
@@ -47,31 +71,50 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     return () => document.head.removeChild(styleSheet);
   }, []);
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
-
+  // Also refetch if user changes (e.g., login/logout)
   useEffect(() => {
     if (user?.id) {
       loadUserData();
+    } else {
+      setLoading(false);
+      setDreams([]);
     }
-  }, [user?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Refetch when user changes
 
   const loadUserData = async () => {
+    // Guard: No user
     if (!user) {
       setLoading(false);
       return;
     }
 
+    // Guard: Already loading - prevent duplicate requests
+    if (loadingInProgressRef.current) {
+      console.log('Dashboard: Load already in progress, skipping');
+      return;
+    }
+
+    // Track this request
+    const thisRequestId = ++loadRequestIdRef.current;
+    loadingInProgressRef.current = true;
+
     setLoading(true);
-    setLoadError(null); // Clear previous errors
+    setLoadError(null);
 
     try {
       // Fetch with timeout to prevent infinite loading
       const { data: userDreams, error } = await fetchWithTimeout(
         () => getUserRoadmaps(),
-        15000 // 15 second timeout
+        8000 // 8 second timeout (reduced for faster feedback)
       );
+
+      // Check if component unmounted or newer request started
+      if (!isMountedRef.current || thisRequestId !== loadRequestIdRef.current) {
+        console.log('Dashboard: Request cancelled (unmounted or superseded)');
+        loadingInProgressRef.current = false; // CRITICAL: Reset so future loads can proceed
+        return;
+      }
 
       if (error) throw error;
 
@@ -80,13 +123,20 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
 
         const dreamsWithProgress = await Promise.all(
           userDreams.map(async (dream) => {
-            const { data: milestones } = await getMilestonesByRoadmap(dream.id);
+            // Wrap ALL nested calls with timeout
+            const { data: milestones } = await fetchWithTimeout(
+              () => getMilestonesByRoadmap(dream.id),
+              5000 // 5 second timeout per dream
+            ).catch(() => ({ data: [] })); // Graceful fallback on timeout
 
             let allTasks = [];
             if (milestones && milestones.length > 0) {
               const tasksData = await Promise.all(
                 milestones.map(async (milestone) => {
-                  const { data: tasks } = await getTasksByMilestone(milestone.id);
+                  const { data: tasks } = await fetchWithTimeout(
+                    () => getTasksByMilestone(milestone.id),
+                    3000 // 3 second timeout per milestone
+                  ).catch(() => ({ data: [] }));
                   return { milestoneId: milestone.id, tasks: tasks || [] };
                 })
               );
@@ -250,6 +300,13 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
           })
         );
 
+        // Check again after all async operations - component may have unmounted during the long Promise.all
+        if (!isMountedRef.current || thisRequestId !== loadRequestIdRef.current) {
+          console.log('Dashboard: Request cancelled after data processing');
+          loadingInProgressRef.current = false;
+          return;
+        }
+
         setDreams(dreamsWithProgress);
 
         const totalXP = dreamsWithProgress.reduce((sum, d) => sum + (d.xp_points || 0), 0);
@@ -302,9 +359,18 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
       }
     } catch (error) {
       console.error('Error loading user data:', error);
-      setLoadError(error.message || 'Failed to load your dreams. Please try again.');
+      // Only update error state if still mounted and this is still the current request
+      if (isMountedRef.current && thisRequestId === loadRequestIdRef.current) {
+        setLoadError(error.message || 'Failed to load your dreams. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      // CRITICAL: Always reset loading flag so future requests can proceed
+      loadingInProgressRef.current = false;
+
+      // Only update loading state if still mounted
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

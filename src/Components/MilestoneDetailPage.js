@@ -61,12 +61,25 @@ const MilestoneDetailPage = ({
     setActiveSection(section);
   }, [section]);
 
-  // Load tasks from database
+  // Helper: fetch with timeout to prevent hanging
+  const fetchWithTimeout = async (fetchFn, timeoutMs = 8000) => {
+    return Promise.race([
+      fetchFn(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
+      )
+    ]);
+  };
+
+  // Load tasks from database with timeout protection
   const loadTasks = async () => {
     if (!milestone?.id) return;
 
     try {
-      const { data, error } = await getTasksByMilestone(milestone.id);
+      const { data, error } = await fetchWithTimeout(
+        () => getTasksByMilestone(milestone.id),
+        8000 // 8 second timeout
+      );
 
       if (error) {
         console.error('Error loading tasks:', error);
@@ -82,12 +95,15 @@ const MilestoneDetailPage = ({
     }
   };
 
-  // Refresh milestone from database (for Luna chat updates)
+  // Refresh milestone from database (for Luna chat updates) with timeout
   const refreshMilestone = async () => {
     if (!milestone?.id) return;
 
     try {
-      const { data, error } = await getMilestoneById(milestone.id);
+      const { data, error } = await fetchWithTimeout(
+        () => getMilestoneById(milestone.id),
+        8000 // 8 second timeout
+      );
       if (!error && data && onUpdateMilestone) {
         console.log('🔄 Refreshing milestone from database:', data.id);
         onUpdateMilestone(data);

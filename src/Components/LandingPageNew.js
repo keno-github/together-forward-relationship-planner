@@ -488,9 +488,9 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
                 </div>
 
                 <div className="flex gap-8 text-sm text-stone-500">
-                  <a href="#" className="hover:text-stone-900">Privacy Policy</a>
-                  <a href="#" className="hover:text-stone-900">Terms of Service</a>
-                  <a href="#" className="hover:text-stone-900">Contact</a>
+                  <a href="/privacy.html" className="hover:text-stone-900">Privacy Policy</a>
+                  <a href="/terms.html" className="hover:text-stone-900">Terms of Service</a>
+                  <a href="mailto:support@twogetherforward.com" className="hover:text-stone-900">Contact</a>
                 </div>
 
                 <p className="text-sm text-stone-400">© 2025 TwogetherForward</p>
