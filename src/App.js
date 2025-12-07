@@ -160,6 +160,20 @@ const AppContent = () => {
     const initializeApp = async () => {
       if (authLoading) return; // Wait for auth to load
 
+      // Check if we're on a special route that shouldn't be overridden
+      // These routes are handled by useRouteSync and should not redirect to landing
+      const specialRoutes = ['/invite/', '/assessment/join/'];
+      const isOnSpecialRoute = specialRoutes.some(route =>
+        window.location.pathname.startsWith(route)
+      );
+
+      if (isOnSpecialRoute) {
+        console.log('🔗 Special route detected, skipping landing redirect:', window.location.pathname);
+        setCheckingRoadmaps(false);
+        setInitialCheckDone(true);
+        return; // Don't override stage - let useRouteSync handle it
+      }
+
       // CRITICAL FIX: Only run check if we're still in 'loading' stage
       // Don't redirect if user is already navigating (in roadmapProfile, main, etc.)
       if (stage !== 'loading' && initialCheckDone) {
@@ -176,6 +190,20 @@ const AppContent = () => {
 
     initializeApp();
   }, [user, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle pending invite redirect after login
+  // When user logs in after clicking an invite link, redirect them back to the invite page
+  useEffect(() => {
+    if (user && !authLoading && initialCheckDone) {
+      const pendingCode = localStorage.getItem('pending_invite_code');
+      if (pendingCode) {
+        console.log('🔗 Pending invite detected, redirecting to:', pendingCode);
+        localStorage.removeItem('pending_invite_code');
+        // Navigate to the invite page
+        window.location.href = `/invite/${pendingCode}`;
+      }
+    }
+  }, [user, authLoading, initialCheckDone]);
 
   // Show loading screen while checking auth and roadmaps
   if (authLoading || checkingRoadmaps) {

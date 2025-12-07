@@ -49,10 +49,18 @@ export const useNotifications = (options = {}) => {
       setLoading(true);
       setError(null);
 
-      // Fetch notifications and unread count in parallel
-      const [notifResult, countResult] = await Promise.all([
-        getNotifications(limit),
-        getUnreadNotificationCount()
+      // Add timeout to prevent infinite spinning (5 seconds)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout')), 5000)
+      );
+
+      // Fetch notifications and unread count in parallel with timeout
+      const [notifResult, countResult] = await Promise.race([
+        Promise.all([
+          getNotifications(limit),
+          getUnreadNotificationCount()
+        ]),
+        timeoutPromise
       ]);
 
       if (notifResult.error) throw notifResult.error;
@@ -65,6 +73,9 @@ export const useNotifications = (options = {}) => {
     } catch (err) {
       console.error('Error fetching notifications:', err);
       setError(err.message);
+      // Ensure we show "No notifications" instead of spinning forever
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
