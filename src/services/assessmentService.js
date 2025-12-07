@@ -632,10 +632,12 @@ export const subscribeToAssessment = (sessionId, callbacks) => {
 
 /**
  * Unsubscribe from a channel
+ * @param {Object} channel - The Supabase Realtime channel to unsubscribe from
  */
 export const unsubscribe = (channel) => {
   if (channel) {
-    supabase.removeChannel(channel);
+    // Use the channel's unsubscribe method for proper cleanup
+    channel.unsubscribe();
   }
 };
 

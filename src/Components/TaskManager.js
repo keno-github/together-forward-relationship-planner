@@ -14,11 +14,14 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { createTask, updateTask, getTasksByMilestone } from '../services/supabaseService';
+import NudgeButton from './Tasks/NudgeButton';
 
 /**
  * TaskManager - Elegant task management interface
+ * @param {Object} partnerInfo - { user_id, partner_id, partner1_name, partner2_name }
+ * @param {string} currentUserId - Current authenticated user's ID
  */
-const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoadmap }) => {
+const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onProgressUpdate, onNavigateToRoadmap }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -27,11 +30,44 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoa
     title: '',
     description: '',
     assigned_to: '',
+    assigned_to_user_id: null,
     priority: 'medium',
     due_date: '',
     roadmap_phase_index: null
   });
   const [editTask, setEditTask] = useState({});
+
+  // Map partner names to user IDs for assignment
+  const getPartnerOptions = () => {
+    if (!partnerInfo) {
+      // Fallback to text-only assignment
+      return [
+        { name: userContext?.partner1, userId: null },
+        { name: userContext?.partner2, userId: null }
+      ];
+    }
+
+    // Map partner1_name to user_id (owner) and partner2_name to partner_id
+    return [
+      { name: partnerInfo.partner1_name || userContext?.partner1, userId: partnerInfo.user_id },
+      { name: partnerInfo.partner2_name || userContext?.partner2, userId: partnerInfo.partner_id }
+    ].filter(p => p.name);
+  };
+
+  // Get partner's user ID from name
+  const getPartnerUserId = (partnerName) => {
+    if (!partnerName || !partnerInfo) return null;
+    const options = getPartnerOptions();
+    const match = options.find(p => p.name === partnerName);
+    return match?.userId || null;
+  };
+
+  // Get the other partner's ID (not the current user)
+  const getOtherPartnerId = (assignedUserId) => {
+    if (!partnerInfo || !currentUserId) return null;
+    if (assignedUserId === currentUserId) return null; // Task is assigned to me
+    return assignedUserId; // Task is assigned to partner
+  };
 
   useEffect(() => {
     if (milestone?.id) {
@@ -57,11 +93,15 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoa
     if (!newTask.title.trim()) return;
 
     try {
+      // Get the user ID for the assigned partner
+      const assignedUserId = getPartnerUserId(newTask.assigned_to);
+
       const taskData = {
         milestone_id: milestone.id,
         title: newTask.title,
         description: newTask.description || '',
         assigned_to: newTask.assigned_to || null,
+        assigned_to_user_id: assignedUserId,
         priority: newTask.priority,
         due_date: newTask.due_date || null,
         roadmap_phase_index: newTask.roadmap_phase_index,
@@ -74,7 +114,7 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoa
       if (error) return;
 
       setTasks([...tasks, data]);
-      setNewTask({ title: '', description: '', assigned_to: '', priority: 'medium', due_date: '', roadmap_phase_index: null });
+      setNewTask({ title: '', description: '', assigned_to: '', assigned_to_user_id: null, priority: 'medium', due_date: '', roadmap_phase_index: null });
       setShowAddForm(false);
       onProgressUpdate?.();
     } catch (error) {
@@ -106,7 +146,15 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoa
 
   const handleSaveEdit = async (taskId) => {
     try {
-      const { data, error } = await updateTask(taskId, editTask);
+      // Get the user ID for the assigned partner
+      const assignedUserId = getPartnerUserId(editTask.assigned_to);
+
+      const updateData = {
+        ...editTask,
+        assigned_to_user_id: assignedUserId
+      };
+
+      const { data, error } = await updateTask(taskId, updateData);
       if (error) return;
       setTasks(tasks.map(t => t.id === taskId ? { ...t, ...data } : t));
       setEditingTaskId(null);
@@ -339,6 +387,8 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoa
                   <TaskItem
                     task={task}
                     milestone={milestone}
+                    currentUserId={currentUserId}
+                    partnerInfo={partnerInfo}
                     onToggle={() => handleToggleComplete(task)}
                     onEdit={() => handleStartEdit(task)}
                     onDelete={() => handleDeleteTask(task.id)}
@@ -356,7 +406,7 @@ const TaskManager = ({ milestone, userContext, onProgressUpdate, onNavigateToRoa
 /**
  * Task Item
  */
-const TaskItem = ({ task, milestone, onToggle, onEdit, onDelete }) => {
+const TaskItem = ({ task, milestone, currentUserId, partnerInfo, onToggle, onEdit, onDelete }) => {
   const priorityColors = {
     high: { bg: 'rgba(199, 107, 107, 0.1)', text: '#c76b6b' },
     medium: { bg: 'rgba(196, 154, 108, 0.1)', text: '#a88352' },
@@ -364,6 +414,10 @@ const TaskItem = ({ task, milestone, onToggle, onEdit, onDelete }) => {
   };
 
   const priority = priorityColors[task.priority] || priorityColors.medium;
+
+  // Check if task is assigned to the other partner (not me)
+  const isAssignedToPartner = task.assigned_to_user_id && task.assigned_to_user_id !== currentUserId;
+  const assignedPartnerName = task.assigned_to || 'Partner';
 
   return (
     <div
@@ -404,6 +458,14 @@ const TaskItem = ({ task, milestone, onToggle, onEdit, onDelete }) => {
             {/* Actions */}
             {!task.completed && (
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                {/* Nudge Button - only show if assigned to partner */}
+                {isAssignedToPartner && (
+                  <NudgeButton
+                    task={task}
+                    recipientId={task.assigned_to_user_id}
+                    recipientName={assignedPartnerName}
+                  />
+                )}
                 <button
                   onClick={onEdit}
                   className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"

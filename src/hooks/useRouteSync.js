@@ -21,6 +21,7 @@ export const ROUTES = {
   lunaOptimization: '/optimize',
   roadmapProfile: '/roadmap/:roadmapId',
   authTest: '/auth-test',
+  invite: '/invite/:code', // Partner invite route
 };
 
 /**
@@ -120,6 +121,13 @@ export const useRouteSync = (stage, setStage, options = {}) => {
     const roadmapMatch = path.match(/^\/roadmap\/([^/]+)$/);
     if (roadmapMatch) {
       setStage('roadmapProfile');
+      return;
+    }
+
+    // Partner invite: /invite/:code
+    const inviteMatch = path.match(/^\/invite\/([^/]+)$/);
+    if (inviteMatch) {
+      setStage('invite');
       return;
     }
 

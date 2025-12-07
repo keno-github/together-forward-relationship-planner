@@ -9,6 +9,7 @@ import './styles/glassmorphism.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { initializeStorage } from './utils/storageManager';
+import { registerServiceWorker } from './utils/serviceWorker';
 
 // Initialize storage - clears cache if app version changed
 const storageResult = initializeStorage();
@@ -63,3 +64,13 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
+
+// Register service worker for push notifications
+// Only registers in production or when explicitly enabled
+if (process.env.NODE_ENV === 'production' || process.env.REACT_APP_ENABLE_SW === 'true') {
+  registerServiceWorker().then((registration) => {
+    if (registration) {
+      console.log('📱 Service Worker registered for push notifications');
+    }
+  });
+}

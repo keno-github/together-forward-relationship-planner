@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DollarSign, Plus, Edit2, Trash2, Check, X,
-  Calendar, CreditCard, FileText, AlertCircle, Clock
+  Calendar, CreditCard, FileText, AlertCircle, Clock, User
 } from 'lucide-react';
 import {
   createExpense,
@@ -22,6 +22,9 @@ const PAYMENT_METHODS = [
 const ExpenseTracker = ({
   milestone,
   roadmapId,
+  partnerInfo,
+  currentUserId,
+  userContext,
   onExpensesUpdated = null
 }) => {
   const [expenses, setExpenses] = useState([]);
@@ -40,8 +43,35 @@ const ExpenseTracker = ({
     due_date: '',
     status: 'pending',
     payment_method: '',
+    paid_by_name: '',
+    paid_by_user_id: null,
     notes: ''
   });
+
+  // Get partner options for "Paid By" dropdown
+  const getPartnerOptions = () => {
+    if (!partnerInfo) {
+      return [
+        { name: userContext?.partner1 || 'Partner 1', userId: null },
+        { name: userContext?.partner2 || 'Partner 2', userId: null }
+      ];
+    }
+    return [
+      { name: partnerInfo.partner1_name || userContext?.partner1 || 'Partner 1', userId: partnerInfo.user_id },
+      { name: partnerInfo.partner2_name || userContext?.partner2 || 'Partner 2', userId: partnerInfo.partner_id }
+    ].filter(p => p.name);
+  };
+
+  // Handle paid_by selection
+  const handlePaidByChange = (partnerName) => {
+    const options = getPartnerOptions();
+    const selected = options.find(p => p.name === partnerName);
+    setFormData({
+      ...formData,
+      paid_by_name: partnerName,
+      paid_by_user_id: selected?.userId || null
+    });
+  };
 
   // Initialize smart categories based on milestone
   useEffect(() => {
@@ -104,6 +134,8 @@ const ExpenseTracker = ({
       due_date: '',
       status: 'pending',
       payment_method: '',
+      paid_by_name: '',
+      paid_by_user_id: null,
       notes: ''
     });
     setEditingExpense(null);
@@ -120,6 +152,8 @@ const ExpenseTracker = ({
       due_date: expense.due_date || '',
       status: expense.status || 'pending',
       payment_method: expense.payment_method || '',
+      paid_by_name: expense.paid_by_name || '',
+      paid_by_user_id: expense.paid_by_user_id || null,
       notes: expense.notes || ''
     });
     setEditingExpense(expense);
@@ -145,6 +179,8 @@ const ExpenseTracker = ({
         due_date: formData.due_date || null,
         status: formData.status,
         payment_method: formData.payment_method || null,
+        paid_by_name: formData.paid_by_name || null,
+        paid_by_user_id: formData.paid_by_user_id || null,
         notes: formData.notes || null
       };
 
@@ -330,6 +366,12 @@ const ExpenseTracker = ({
                         <Calendar className="w-3 h-3" />
                         {new Date(expense.expense_date).toLocaleDateString()}
                       </span>
+                      {expense.paid_by_name && (
+                        <span className="flex items-center gap-1" style={{ color: '#C084FC' }}>
+                          <User className="w-3 h-3" />
+                          {expense.paid_by_name}
+                        </span>
+                      )}
                       {expense.due_date && expense.status === 'pending' && (
                         <span className="flex items-center gap-1 text-yellow-600">
                           <Clock className="w-3 h-3" />
@@ -526,7 +568,7 @@ const ExpenseTracker = ({
                   </div>
                 </div>
 
-                {/* Status and Payment Method */}
+                {/* Status and Paid By */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold mb-2" style={{color: '#2B2B2B'}}>
@@ -551,11 +593,11 @@ const ExpenseTracker = ({
 
                   <div>
                     <label className="block text-sm font-semibold mb-2" style={{color: '#2B2B2B'}}>
-                      Payment Method
+                      Paid By
                     </label>
                     <select
-                      value={formData.payment_method}
-                      onChange={(e) => setFormData({...formData, payment_method: e.target.value})}
+                      value={formData.paid_by_name}
+                      onChange={(e) => handlePaidByChange(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl"
                       style={{
                         color: '#2B2B2B',
@@ -564,12 +606,35 @@ const ExpenseTracker = ({
                         fontSize: '16px'
                       }}
                     >
-                      <option value="">Select...</option>
-                      {PAYMENT_METHODS.map(method => (
-                        <option key={method} value={method}>{method}</option>
+                      <option value="">Both / Shared</option>
+                      {getPartnerOptions().map(partner => (
+                        <option key={partner.name} value={partner.name}>{partner.name}</option>
                       ))}
                     </select>
                   </div>
+                </div>
+
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{color: '#2B2B2B'}}>
+                    Payment Method
+                  </label>
+                  <select
+                    value={formData.payment_method}
+                    onChange={(e) => setFormData({...formData, payment_method: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl"
+                    style={{
+                      color: '#2B2B2B',
+                      background: 'rgba(0, 0, 0, 0.03)',
+                      border: '1px solid rgba(0, 0, 0, 0.1)',
+                      fontSize: '16px'
+                    }}
+                  >
+                    <option value="">Select...</option>
+                    {PAYMENT_METHODS.map(method => (
+                      <option key={method} value={method}>{method}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Notes */}

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase, isSupabaseConfigured } from '../config/supabaseClient'
 import { getOrCreateUserProfile } from '../services/supabaseService'
+import { unsubscribeAll } from '../utils/subscriptionManager'
 
 const AuthContext = createContext({})
 
@@ -115,6 +116,9 @@ export const AuthProvider = ({ children }) => {
   // Sign out
   const signOut = async () => {
     try {
+      // Cleanup all Realtime subscriptions before signing out
+      unsubscribeAll()
+
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       return { error: null }

@@ -1225,3 +1225,718 @@ export const getDashboardSummary = async (page = 1, limit = 20) => {
     return { data: null, error }
   }
 }
+
+// =====================================================
+// PARTNER & DREAM SHARING OPERATIONS
+// =====================================================
+
+/**
+ * Create a share invite for a dream (roadmap)
+ * Generates an 8-character share code
+ * @param {string} roadmapId - The roadmap to share
+ * @param {string} invitedEmail - Optional email of invited partner
+ * @param {string} message - Optional invitation message
+ */
+export const createDreamShareInvite = async (roadmapId, invitedEmail = null, message = null) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // Use the RPC function to generate unique share code
+    const { data, error } = await supabase.rpc('create_dream_share_invite', {
+      p_roadmap_id: roadmapId,
+      p_invited_email: invitedEmail,
+      p_message: message
+    })
+
+    if (error) throw error
+    return { data: data[0], error: null }
+  } catch (error) {
+    console.error('Create dream share invite error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Accept a dream share invite using share code
+ * @param {string} shareCode - The 8-character share code
+ */
+export const acceptDreamShare = async (shareCode) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // Use the RPC function to accept invite
+    const { data, error } = await supabase.rpc('accept_dream_share', {
+      p_share_code: shareCode.toUpperCase()
+    })
+
+    if (error) throw error
+    return { data: data[0], error: null }
+  } catch (error) {
+    console.error('Accept dream share error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get share info for a dream
+ * @param {string} roadmapId - The roadmap ID
+ */
+export const getDreamShareInfo = async (roadmapId) => {
+  try {
+    const { data, error } = await supabase
+      .from('dream_sharing')
+      .select('*')
+      .eq('roadmap_id', roadmapId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get dream share info error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get pending invites for current user (invites sent to their email)
+ */
+export const getPendingInvites = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('dream_sharing')
+      .select(`
+        *,
+        roadmaps:roadmap_id (
+          id,
+          title,
+          partner1_name,
+          partner2_name
+        )
+      `)
+      .eq('invited_email', user.email)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString())
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get pending invites error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Cancel/revoke a dream share
+ * @param {string} shareId - The dream_sharing record ID
+ */
+export const revokeDreamShare = async (shareId) => {
+  try {
+    const { error } = await supabase
+      .from('dream_sharing')
+      .update({ status: 'cancelled' })
+      .eq('id', shareId)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Revoke dream share error:', error)
+    return { error }
+  }
+}
+
+/**
+ * Get partner info for a roadmap
+ * @param {string} roadmapId - The roadmap ID
+ */
+export const getPartnerInfo = async (roadmapId) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // Get roadmap with partner info
+    const { data: roadmap, error: roadmapError } = await supabase
+      .from('roadmaps')
+      .select('user_id, partner_id, partner1_name, partner2_name')
+      .eq('id', roadmapId)
+      .single()
+
+    if (roadmapError) throw roadmapError
+
+    // Determine which user is the partner
+    const partnerId = roadmap.user_id === user.id ? roadmap.partner_id : roadmap.user_id
+
+    if (!partnerId) {
+      return { data: { hasPartner: false }, error: null }
+    }
+
+    // Get partner's profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, avatar_url')
+      .eq('id', partnerId)
+      .single()
+
+    return {
+      data: {
+        hasPartner: true,
+        partner: profile,
+        isOwner: roadmap.user_id === user.id
+      },
+      error: null
+    }
+  } catch (error) {
+    console.error('Get partner info error:', error)
+    return { data: null, error }
+  }
+}
+
+
+// =====================================================
+// NOTIFICATION OPERATIONS
+// =====================================================
+
+/**
+ * Get notifications for current user
+ * @param {number} limit - Max notifications to return
+ * @param {number} offset - Pagination offset
+ */
+export const getNotifications = async (limit = 50, offset = 0) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('dismissed', false)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (error) throw error
+
+    const unreadCount = data?.filter(n => !n.read).length || 0
+    return { data: { notifications: data, unreadCount }, error: null }
+  } catch (error) {
+    console.error('Get notifications error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get unread notification count
+ */
+export const getUnreadNotificationCount = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: 0, error: null }
+
+    const { data, error } = await supabase.rpc('get_unread_notification_count')
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get unread count error:', error)
+    return { data: 0, error }
+  }
+}
+
+/**
+ * Mark a notification as read
+ * @param {string} notificationId - The notification ID
+ */
+export const markNotificationRead = async (notificationId) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('id', notificationId)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Mark notification read error:', error)
+    return { error }
+  }
+}
+
+/**
+ * Mark all notifications as read
+ */
+export const markAllNotificationsRead = async () => {
+  try {
+    const { data, error } = await supabase.rpc('mark_all_notifications_read')
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Mark all notifications read error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Dismiss a notification (hide it)
+ * @param {string} notificationId - The notification ID
+ */
+export const dismissNotification = async (notificationId) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ dismissed: true })
+      .eq('id', notificationId)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Dismiss notification error:', error)
+    return { error }
+  }
+}
+
+/**
+ * Subscribe to notifications in real-time
+ * @param {function} callback - Called when new notification arrives
+ * @returns {Object} Channel object with unsubscribe method
+ */
+export const subscribeToNotifications = async (callback) => {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const channel = supabase
+    .channel(`notifications:${user.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      },
+      (payload) => {
+        callback(payload.new)
+      }
+    )
+
+  channel.subscribe()
+
+  // Return the channel so .unsubscribe() can be called
+  return channel
+}
+
+
+// =====================================================
+// ACTIVITY FEED OPERATIONS
+// =====================================================
+
+/**
+ * Get activity feed for a roadmap
+ * @param {string} roadmapId - The roadmap ID
+ * @param {number} limit - Max items to return
+ */
+export const getActivityFeed = async (roadmapId, limit = 50) => {
+  try {
+    const { data, error } = await supabase
+      .from('activity_feed')
+      .select('*')
+      .eq('roadmap_id', roadmapId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get activity feed error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Log an activity to the feed
+ * @param {object} activity - Activity data
+ */
+export const logActivity = async (activity) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // Get actor name
+    let actorName = 'Someone'
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single()
+      actorName = profile?.full_name || user.email?.split('@')[0] || 'Someone'
+    }
+
+    const { data, error } = await supabase
+      .from('activity_feed')
+      .insert([{
+        roadmap_id: activity.roadmapId,
+        actor_id: user?.id,
+        actor_name: actorName,
+        action_type: activity.actionType,
+        target_type: activity.targetType,
+        target_id: activity.targetId,
+        target_title: activity.targetTitle,
+        metadata: activity.metadata || {}
+      }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Log activity error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Subscribe to activity feed in real-time
+ * @param {string} roadmapId - The roadmap ID
+ * @param {function} callback - Called when new activity arrives
+ * @returns {Object} Channel object with unsubscribe method
+ */
+export const subscribeToActivityFeed = (roadmapId, callback) => {
+  const channel = supabase
+    .channel(`activity:${roadmapId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'activity_feed',
+        filter: `roadmap_id=eq.${roadmapId}`
+      },
+      (payload) => {
+        callback(payload.new)
+      }
+    )
+
+  channel.subscribe()
+
+  // Return the channel so .unsubscribe() can be called
+  return channel
+}
+
+
+// =====================================================
+// NUDGE OPERATIONS
+// =====================================================
+
+/**
+ * Send a nudge to partner for a task
+ * @param {string} taskId - The task to nudge about
+ * @param {string} recipientId - The partner's user ID
+ * @param {string} message - Optional nudge message
+ * @param {string} nudgeType - 'gentle', 'friendly', or 'urgent'
+ */
+export const sendNudge = async (taskId, recipientId, message = null, nudgeType = 'gentle') => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // Get task info for the notification
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('title, milestone_id')
+      .eq('id', taskId)
+      .single()
+
+    // Get roadmap_id from milestone
+    const { data: milestone } = await supabase
+      .from('milestones')
+      .select('roadmap_id')
+      .eq('id', task?.milestone_id)
+      .single()
+
+    // Create the nudge
+    const { data, error } = await supabase
+      .from('nudges')
+      .insert([{
+        task_id: taskId,
+        roadmap_id: milestone?.roadmap_id,
+        sender_id: user.id,
+        recipient_id: recipientId,
+        message,
+        nudge_type: nudgeType
+      }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Send nudge error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get unread nudges for current user
+ */
+export const getUnreadNudges = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('nudges')
+      .select(`
+        *,
+        tasks:task_id (
+          id,
+          title
+        )
+      `)
+      .eq('recipient_id', user.id)
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get unread nudges error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Mark nudge as read
+ * @param {string} nudgeId - The nudge ID
+ */
+export const markNudgeRead = async (nudgeId) => {
+  try {
+    const { error } = await supabase
+      .from('nudges')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('id', nudgeId)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Mark nudge read error:', error)
+    return { error }
+  }
+}
+
+
+// =====================================================
+// NOTIFICATION PREFERENCES OPERATIONS
+// =====================================================
+
+/**
+ * Get notification preferences for current user
+ */
+export const getNotificationPreferences = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('notification_preferences')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows
+
+    // Return defaults if no preferences exist
+    if (!data) {
+      return {
+        data: {
+          in_app_enabled: true,
+          push_enabled: true,
+          email_enabled: true,
+          email_weekly_digest: true
+        },
+        error: null
+      }
+    }
+
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get notification preferences error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Update notification preferences
+ * @param {object} preferences - The preferences to update
+ */
+export const updateNotificationPreferences = async (preferences) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('notification_preferences')
+      .upsert({
+        user_id: user.id,
+        ...preferences,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Update notification preferences error:', error)
+    return { data: null, error }
+  }
+}
+
+
+// =====================================================
+// PUSH SUBSCRIPTION OPERATIONS
+// =====================================================
+
+/**
+ * Save push subscription for current user
+ * @param {object} subscription - Push subscription data
+ */
+export const savePushSubscription = async (subscription) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('push_subscriptions')
+      .upsert({
+        user_id: user.id,
+        endpoint: subscription.endpoint,
+        p256dh_key: subscription.p256dh_key,
+        auth_key: subscription.auth_key,
+        device_type: subscription.device_type || 'web',
+        active: true,
+        created_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,endpoint'
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Save push subscription error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Remove push subscription
+ * @param {string} endpoint - The subscription endpoint to remove
+ */
+export const removePushSubscription = async (endpoint) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('endpoint', endpoint)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Remove push subscription error:', error)
+    return { error }
+  }
+}
+
+/**
+ * Get all push subscriptions for current user
+ */
+export const getPushSubscriptions = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('active', true)
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get push subscriptions error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Deactivate all push subscriptions for current user
+ */
+export const deactivateAllPushSubscriptions = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .update({ active: false })
+      .eq('user_id', user.id)
+
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    console.error('Deactivate push subscriptions error:', error)
+    return { error }
+  }
+}
+
+
+// =====================================================
+// EMAIL OPERATIONS
+// =====================================================
+
+/**
+ * Send an email via the Edge Function
+ * @param {string} to - Recipient email address
+ * @param {string} type - Email type (partner_invite, task_assigned, nudge, etc.)
+ * @param {object} data - Email data (varies by type)
+ */
+export const sendEmail = async (to, type, data) => {
+  try {
+    const { data: result, error } = await supabase.functions.invoke('send-email', {
+      body: { to, type, data }
+    })
+
+    if (error) throw error
+    return { data: result, error: null }
+  } catch (error) {
+    console.error('Send email error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Send partner invite email
+ * @param {string} email - Partner's email address
+ * @param {object} inviteData - { inviterName, dreamTitle, message, shareCode }
+ */
+export const sendPartnerInviteEmail = async (email, inviteData) => {
+  const inviteUrl = `${window.location.origin}/invite/${inviteData.shareCode}`
+
+  return sendEmail(email, 'partner_invite', {
+    inviter_name: inviteData.inviterName,
+    dream_title: inviteData.dreamTitle,
+    message: inviteData.message,
+    share_code: inviteData.shareCode,
+    invite_url: inviteUrl
+  })
+}

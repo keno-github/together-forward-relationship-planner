@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Calendar, Check, X, Target, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, X, Target, TrendingUp, Share2, Users } from 'lucide-react';
 import { getVisibleNavigationTabs, calculateClientMetrics } from '../utils/navigationHelpers';
-import { getTasksByMilestone, updateMilestone, getMilestoneById } from '../services/supabaseService';
+import { getTasksByMilestone, updateMilestone, getMilestoneById, getRoadmapById } from '../services/supabaseService';
 import RoadmapTreeView from './RoadmapTreeView';
 import BudgetAllocation from './BudgetAllocation';
 import TaskManager from './TaskManager';
 import LunaAssessment from './LunaAssessment';
 import GoalOverviewDashboard from './GoalOverviewDashboard';
+import ShareDreamModal from './Sharing/ShareDreamModal';
+import { ActivityFeed } from './Activity';
 
 /**
  * MilestoneDetailPage - Dream Detail View
@@ -32,6 +34,8 @@ const MilestoneDetailPage = ({
   const [metrics, setMetrics] = useState(milestone.milestone_metrics || {});
   const [editingTargetDate, setEditingTargetDate] = useState(false);
   const [targetDate, setTargetDate] = useState(milestone.target_date || '');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [roadmap, setRoadmap] = useState(null);
 
   // Update visible tabs when milestone changes
   useEffect(() => {
@@ -46,9 +50,16 @@ const MilestoneDetailPage = ({
     setActiveSection(section);
   }, [section]);
 
+  // Check if milestone ID is a placeholder (not a real UUID)
+  const isPlaceholderMilestone = milestone?.id?.startsWith('placeholder-');
+
   // Load tasks from database
   const loadTasks = async () => {
-    if (!milestone?.id) return;
+    if (!milestone?.id || isPlaceholderMilestone) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await getTasksByMilestone(milestone.id);
@@ -69,7 +80,7 @@ const MilestoneDetailPage = ({
 
   // Refresh milestone from database (for Luna chat updates)
   const refreshMilestone = async () => {
-    if (!milestone?.id) return;
+    if (!milestone?.id || isPlaceholderMilestone) return;
 
     try {
       const { data, error } = await getMilestoneById(milestone.id);
@@ -89,6 +100,25 @@ const MilestoneDetailPage = ({
       setExpenses(milestone.expenses || []);
     }
   }, [milestone]);
+
+  // Load roadmap data for sharing
+  useEffect(() => {
+    const loadRoadmap = async () => {
+      const id = roadmapId || milestone?.roadmap_id;
+      if (!id) return;
+
+      try {
+        const { data, error } = await getRoadmapById(id);
+        if (!error && data) {
+          setRoadmap(data);
+        }
+      } catch (err) {
+        console.error('Error loading roadmap:', err);
+      }
+    };
+
+    loadRoadmap();
+  }, [roadmapId, milestone?.roadmap_id]);
 
   const handleSectionChange = (newSection) => {
     setActiveSection(newSection);
@@ -180,8 +210,18 @@ const MilestoneDetailPage = ({
               </div>
             </div>
 
-            {/* Right: Progress & Date */}
+            {/* Right: Actions, Progress & Date */}
             <div className="flex items-center gap-4">
+              {/* Share Button */}
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 transition-all"
+                title="Share this dream with your partner"
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="text-sm font-medium hidden sm:inline">Share</span>
+              </button>
+
               {/* Target Date - Compact */}
               <div className="hidden md:flex items-center gap-2">
                 {!editingTargetDate ? (
@@ -357,6 +397,13 @@ const MilestoneDetailPage = ({
                 <TaskManager
                   milestone={milestone}
                   userContext={userContext}
+                  currentUserId={userContext?.userId}
+                  partnerInfo={roadmap ? {
+                    user_id: roadmap.user_id,
+                    partner_id: roadmap.partner_id,
+                    partner1_name: roadmap.partner1_name,
+                    partner2_name: roadmap.partner2_name
+                  } : null}
                   onProgressUpdate={() => {
                     loadTasks();
                   }}
@@ -367,6 +414,16 @@ const MilestoneDetailPage = ({
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Share Dream Modal */}
+      <ShareDreamModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        roadmap={roadmap || {
+          id: roadmapId || milestone?.roadmap_id,
+          title: milestone?.title
+        }}
+      />
     </div>
   );
 };

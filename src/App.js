@@ -22,6 +22,7 @@ import GoalBuilder from './Components/GoalBuilder';
 import LunaOptimization from './Components/LunaOptimization';
 import LunaAssessment from './Components/LunaAssessment';
 import PortfolioOverview from './Components/PortfolioOverview';
+import AcceptInvitePage from './Components/Partner/AcceptInvitePage';
 import DevTools from './Components/DevTools';
 import { MobileBottomNav } from './Components/Mobile';
 import { useResponsive } from './hooks/useResponsive';
@@ -36,7 +37,7 @@ const AppContent = () => {
   const { user, loading: authLoading } = useAuth();
   const { isMobile } = useResponsive();
 
-  // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, showcase, colorTest, goalBuilder, lunaOptimization, assessment, portfolioOverview
+  // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, goalBuilder, lunaOptimization, assessment, portfolioOverview, invite
   const [stage, setStage] = useState('landing'); // Start with landing page
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0); // Force Dashboard remount
   const [userData, setUserData] = useState(null);
@@ -99,6 +100,7 @@ const AppContent = () => {
       'lunaOptimization': 'Luna Optimization',
       'assessment': 'Luna Assessment',
       'portfolioOverview': 'Portfolio Overview',
+      'invite': 'Partner Invite',
     };
 
     const pageName = pageNames[stage] || stage;
@@ -1137,6 +1139,11 @@ const AppContent = () => {
               location: userData?.location || selectedRoadmap?.location || 'Unknown'
             }}
           />
+        )}
+
+        {/* STAGE 10: Partner Invite Acceptance */}
+        {stage === 'invite' && (
+          <AcceptInvitePage />
         )}
 
         {/* Mobile Bottom Navigation */}

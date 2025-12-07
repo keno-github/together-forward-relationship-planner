@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap, deleteMilestone, deleteTask, deleteExpense } from '../services/supabaseService';
 import { useDashboardData, useDashboardCache } from '../hooks/useDashboardData';
 import DashboardSkeleton from './DashboardSkeleton';
+import { NotificationCenter } from './Notifications';
 
 // Feature flag: Set to true to use the new optimized RPC-based loading
 // Set to false to use legacy loading (for fallback)
@@ -658,6 +659,23 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                 <span className="text-sm font-medium hidden sm:inline">Home</span>
               </button>
             )}
+            {/* Notification Bell */}
+            <div
+              className="rounded-lg"
+              style={{ backgroundColor: 'white', border: '1px solid #E8E2DA' }}
+            >
+              <NotificationCenter
+                onNotificationClick={(notification) => {
+                  // Handle notification click - could navigate to relevant dream/task
+                  if (notification.data?.roadmap_id) {
+                    const dream = dreams.find(d => d.id === notification.data.roadmap_id);
+                    if (dream) {
+                      onContinueRoadmap(dream);
+                    }
+                  }
+                }}
+              />
+            </div>
             <div
               className="px-3 py-2 rounded-lg flex items-center gap-2"
               style={{ backgroundColor: 'white', border: '1px solid #E8E2DA' }}
