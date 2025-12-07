@@ -46,17 +46,43 @@ const GoalOverviewDashboard = ({
   const [editingTargetDate, setEditingTargetDate] = useState(false);
   const [targetDate, setTargetDate] = useState(milestone.target_date || '');
 
-  const { setLunaContext } = useLuna();
+  const { setLunaContext, clearLunaContext } = useLuna();
 
+  // Store callbacks in a ref to avoid infinite loops
+  // (functions are recreated each render, causing useEffect to re-run)
+  const callbacksRef = React.useRef({
+    onMilestoneUpdate: onUpdateMilestone,
+    onTasksUpdate: onRefreshTasks,
+    onRefreshMilestone
+  });
+
+  // Keep callbacks ref updated
+  React.useEffect(() => {
+    callbacksRef.current = {
+      onMilestoneUpdate: onUpdateMilestone,
+      onTasksUpdate: onRefreshTasks,
+      onRefreshMilestone
+    };
+  });
+
+  // Set Luna context when viewing a milestone, clear on unmount
+  // Only re-run when milestone ID changes (not on every render)
   useEffect(() => {
-    if (milestone) {
+    if (milestone?.id) {
       setLunaContext(milestone, tasks, userContext, {
-        onMilestoneUpdate: onUpdateMilestone,
-        onTasksUpdate: onRefreshTasks,
-        onRefreshMilestone: onRefreshMilestone
+        onMilestoneUpdate: (...args) => callbacksRef.current.onMilestoneUpdate?.(...args),
+        onTasksUpdate: (...args) => callbacksRef.current.onTasksUpdate?.(...args),
+        onRefreshMilestone: (...args) => callbacksRef.current.onRefreshMilestone?.(...args)
       });
     }
-  }, [milestone?.id, tasks, userContext, onUpdateMilestone, onRefreshTasks, onRefreshMilestone, setLunaContext]);
+
+    // Cleanup: Clear Luna context when component unmounts
+    // This prevents stale data when navigating between dreams
+    return () => {
+      clearLunaContext();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [milestone?.id]);
 
   useEffect(() => {
     setBudgetAmount(milestone.budget_amount || milestone.estimatedCost || 0);

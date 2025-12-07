@@ -34,7 +34,7 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
             IconComponent && <IconComponent className="w-6 h-6 text-white" />
           )}
           {milestone.aiGenerated && (
-            <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full flex items-center justify-center pulse-glow">
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center shadow-md">
               <Brain className="w-3 h-3 text-white" />
             </div>
           )}
@@ -47,7 +47,7 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-xl font-bold" style={{color: '#2B2B2B'}}>{milestone.title}</h3>
                 {milestone.aiGenerated && (
-                  <span className="px-2 py-0.5 glass-card-light text-xs rounded-full flex items-center gap-1" style={{color: '#C084FC'}}>
+                  <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-full flex items-center gap-1">
                     <Brain className="w-3 h-3" /> AI Generated
                   </span>
                 )}
@@ -58,7 +58,7 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
                 {/* Budget (new field) or Estimated Cost (legacy field) */}
                 {(milestone.budget_amount > 0 || milestone.estimatedCost > 0) && (
                   <div className="flex items-center gap-1">
-                    <DollarSign className="w-4 h-4" style={{color: '#C084FC'}} />
+                    <DollarSign className="w-4 h-4 text-amber-600" />
                     <span className="font-semibold">
                       ${(milestone.budget_amount || milestone.estimatedCost || 0).toLocaleString()}
                     </span>
@@ -80,7 +80,7 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
               {openMilestoneDetail && (
                 <button
                   onClick={() => openMilestoneDetail(milestone, 'overview')}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:shadow-lg smooth-transition flex items-center gap-2 font-medium"
+                  className="px-4 py-2 bg-stone-900 text-white rounded-xl hover:bg-amber-600 hover:shadow-lg smooth-transition flex items-center gap-2 font-medium"
                   title="View full milestone details with overview, roadmap, budget, etc."
                 >
                   <Target className="w-4 h-4" />
@@ -133,10 +133,9 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
                   onClick={() => setActiveTab('tasks')}
                   className={`px-4 py-2 rounded-xl font-medium smooth-transition ${
                     activeTab === 'tasks'
-                      ? 'glass-card text-white'
-                      : 'glass-card-light'
+                      ? 'bg-stone-900 text-white'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
-                  style={activeTab === 'tasks' ? {background: 'linear-gradient(135deg, #C084FC, #F8C6D0)'} : {color: '#2B2B2B', opacity: 0.7}}
                 >
                   Tasks {milestone.tasks && `(${milestone.tasks.length})`}
                 </button>
@@ -144,10 +143,9 @@ const MileStoneCard = ({ milestone, selectedMilestone, setSelectedMilestone, roa
                   onClick={() => setActiveTab('expenses')}
                   className={`px-4 py-2 rounded-xl font-medium smooth-transition flex items-center gap-2 ${
                     activeTab === 'expenses'
-                      ? 'glass-card text-white'
-                      : 'glass-card-light'
+                      ? 'bg-stone-900 text-white'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
-                  style={activeTab === 'expenses' ? {background: 'linear-gradient(135deg, #C084FC, #F8C6D0)'} : {color: '#2B2B2B', opacity: 0.7}}
                 >
                   <Receipt className="w-4 h-4" />
                   Budget & Expenses

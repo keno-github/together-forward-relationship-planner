@@ -47,8 +47,9 @@ const LunaFloatingButton = () => {
     }
   }, [hasContext, isPanelOpen]);
 
-  // Don't render if no milestone context
-  if (!hasContext) return null;
+  // Don't render if no milestone context or if panel is already open
+  // (Panel has its own close button, no need to show floating button)
+  if (!hasContext || isPanelOpen) return null;
 
   return (
     <>

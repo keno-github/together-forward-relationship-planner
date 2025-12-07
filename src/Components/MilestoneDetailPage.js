@@ -1,34 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronRight, Calendar, Check, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, X, Target, TrendingUp } from 'lucide-react';
 import { getVisibleNavigationTabs, calculateClientMetrics } from '../utils/navigationHelpers';
 import { getTasksByMilestone, updateMilestone, getMilestoneById } from '../services/supabaseService';
-import RoadmapTreeView from './RoadmapTreeView'; // NEW: Tree-based roadmap
-import BudgetAllocation from './BudgetAllocation'; // Budget section
-import TaskManager from './TaskManager'; // NEW: Full-featured task management
-import LunaAssessment from './LunaAssessment'; // Luna Assessment with AI insights
-import GoalOverviewDashboard from './GoalOverviewDashboard'; // Overview with budget setting
+import RoadmapTreeView from './RoadmapTreeView';
+import BudgetAllocation from './BudgetAllocation';
+import TaskManager from './TaskManager';
+import LunaAssessment from './LunaAssessment';
+import GoalOverviewDashboard from './GoalOverviewDashboard';
 
 /**
- * MilestoneDetailPage - Parent Container
+ * MilestoneDetailPage - Dream Detail View
  *
- * Multi-dimensional milestone navigation with persistent header
- *
- * Features:
- * - Tabbed navigation (Overview, Roadmap, Budget, Assessment, Tasks)
- * - Conditional tab rendering (e.g., hide Budget for non-monetary goals)
- * - Responsive design (desktop header nav + mobile top nav)
- * - Section state management
- * - Progress indicator in header
- *
- * Props:
- * - milestone: Full milestone object
- * - section: Current active section ('overview', 'roadmap', etc.)
- * - onSectionChange: Callback when user switches sections
- * - onBack: Navigate back to milestone list
- * - onUpdateMilestone: Update parent state
- * - roadmapId: For database queries
- * - userContext: Partner names, location
+ * A warm, editorial design for viewing and managing a specific dream/goal.
+ * Features a clean header with progress, and tabbed content sections.
  */
 const MilestoneDetailPage = ({
   milestone,
@@ -153,197 +138,171 @@ const MilestoneDetailPage = ({
 
   if (!milestone) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">No milestone selected</p>
+      <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center">
+        <p className="text-stone-500">No dream selected</p>
       </div>
     );
   }
 
   const currentTab = visibleTabs.find(t => t.id === activeSection) || visibleTabs[0];
+  const progressPercent = metrics.progress_percentage || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
-      {/* Header with Navigation */}
-      <header className="bg-white border-b-2 border-gray-100 sticky top-0 z-50 shadow-sm">
-        {/* Top Bar: Back button, Title, Progress */}
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back</span>
-            </button>
+    <div className="min-h-screen bg-[#FDFCF8]">
+      {/* Elegant Header */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-stone-200/60 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Left: Back & Title */}
+            <div className="flex items-center gap-5">
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 text-stone-500 hover:text-stone-800 transition-colors group"
+              >
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                <span className="text-sm font-medium hidden sm:inline">Back</span>
+              </button>
 
-            <div className="hidden md:block w-px h-6 bg-gray-300" />
+              <div className="h-6 w-px bg-stone-200 hidden sm:block" />
 
-            <div className="hidden md:block">
-              <h1 className="text-xl font-bold text-gray-900">{milestone.title}</h1>
-              <p className="text-sm text-gray-600">
-                {userContext?.partner1} & {userContext?.partner2}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Target Date */}
-            <div className="flex items-center gap-2">
-              {!editingTargetDate ? (
-                <button
-                  onClick={() => setEditingTargetDate(true)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-gray-200 hover:border-purple-300 transition-colors group"
+              <div>
+                <h1
+                  className="text-xl md:text-2xl font-semibold text-stone-900 tracking-tight"
+                  style={{ fontFamily: 'Georgia, Cambria, serif' }}
                 >
-                  <Calendar className="w-4 h-4 text-gray-600 group-hover:text-purple-600" />
-                  <div className="text-left">
-                    <p className="text-xs text-gray-500">Target Date</p>
-                    <p className="text-sm font-medium text-gray-900">
+                  {milestone.title}
+                </h1>
+                {userContext?.partner1 && userContext?.partner2 && (
+                  <p className="text-sm text-stone-500 mt-0.5">
+                    {userContext.partner1} & {userContext.partner2}'s journey
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Progress & Date */}
+            <div className="flex items-center gap-4">
+              {/* Target Date - Compact */}
+              <div className="hidden md:flex items-center gap-2">
+                {!editingTargetDate ? (
+                  <button
+                    onClick={() => setEditingTargetDate(true)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-stone-50 hover:bg-stone-100 border border-stone-200 transition-all group"
+                  >
+                    <Calendar className="w-4 h-4 text-stone-400 group-hover:text-amber-600" />
+                    <span className="text-sm text-stone-600">
                       {milestone.target_date
                         ? new Date(milestone.target_date).toLocaleDateString('en-US', {
                             month: 'short',
-                            day: 'numeric',
                             year: 'numeric'
                           })
-                        : 'Set date'}
-                    </p>
+                        : 'Set target'}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-300 bg-amber-50">
+                    <input
+                      type="date"
+                      value={targetDate}
+                      onChange={(e) => setTargetDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="px-2 py-1 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent bg-white"
+                    />
+                    <button
+                      onClick={handleSaveTargetDate}
+                      className="p-1.5 hover:bg-green-100 rounded-lg transition-colors"
+                    >
+                      <Check className="w-4 h-4 text-green-600" />
+                    </button>
+                    <button
+                      onClick={handleCancelTargetDate}
+                      className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
+                    >
+                      <X className="w-4 h-4 text-red-500" />
+                    </button>
                   </div>
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-purple-300 bg-purple-50">
-                  <input
-                    type="date"
-                    value={targetDate}
-                    onChange={(e) => setTargetDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleSaveTargetDate}
-                    className="p-1 hover:bg-green-100 rounded transition-colors"
-                    title="Save"
-                  >
-                    <Check className="w-4 h-4 text-green-600" />
-                  </button>
-                  <button
-                    onClick={handleCancelTargetDate}
-                    className="p-1 hover:bg-red-100 rounded transition-colors"
-                    title="Cancel"
-                  >
-                    <X className="w-4 h-4 text-red-600" />
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* Progress Indicator */}
-            {metrics.progress_percentage !== undefined && (
+              {/* Progress Ring */}
               <div className="flex items-center gap-3">
-                <div className="hidden md:block text-right">
-                  <p className="text-sm font-medium text-gray-900">
-                    {metrics.progress_percentage}% Complete
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {metrics.tasks_completed}/{metrics.tasks_total} tasks
-                  </p>
-                </div>
-
-                {/* Circular progress indicator */}
-                <div className="relative w-12 h-12">
-                  <svg className="transform -rotate-90" width="48" height="48">
+                <div className="relative w-11 h-11">
+                  <svg className="transform -rotate-90" width="44" height="44">
                     <circle
-                      cx="24"
-                      cy="24"
-                      r="20"
-                      stroke="#E5E7EB"
-                      strokeWidth="4"
+                      cx="22"
+                      cy="22"
+                      r="18"
+                      stroke="#E7E5E4"
+                      strokeWidth="3"
                       fill="none"
                     />
                     <circle
-                      cx="24"
-                      cy="24"
-                      r="20"
-                      stroke="#8B5CF6"
-                      strokeWidth="4"
+                      cx="22"
+                      cy="22"
+                      r="18"
+                      stroke="#F59E0B"
+                      strokeWidth="3"
                       fill="none"
-                      strokeDasharray={2 * Math.PI * 20}
-                      strokeDashoffset={2 * Math.PI * 20 * (1 - metrics.progress_percentage / 100)}
+                      strokeDasharray={2 * Math.PI * 18}
+                      strokeDashoffset={2 * Math.PI * 18 * (1 - progressPercent / 100)}
                       strokeLinecap="round"
-                      className="transition-all duration-500"
+                      className="transition-all duration-700"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs font-bold text-purple-600">
-                      {metrics.progress_percentage}
+                    <span className="text-xs font-semibold text-stone-700">
+                      {progressPercent}%
                     </span>
                   </div>
                 </div>
+                <div className="hidden lg:block text-right">
+                  <p className="text-sm font-medium text-stone-700">Progress</p>
+                  <p className="text-xs text-stone-500">
+                    {metrics.tasks_completed || 0}/{metrics.tasks_total || 0} tasks
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
+
+          {/* Tab Navigation - Clean pills style */}
+          <nav className="mt-4 -mb-px overflow-x-auto scrollbar-hide">
+            <div className="flex gap-1 min-w-max">
+              {visibleTabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeSection === tab.id;
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleSectionChange(tab.id)}
+                    className={`
+                      flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all
+                      ${isActive
+                        ? 'bg-stone-900 text-white shadow-lg shadow-stone-900/20'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                      }
+                    `}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="whitespace-nowrap">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
         </div>
-
-        {/* Mobile: Title (shown below back button) */}
-        <div className="md:hidden px-6 pb-3">
-          <h1 className="text-lg font-bold text-gray-900">{milestone.title}</h1>
-        </div>
-
-        {/* Tab Navigation */}
-        <nav className="px-6 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {visibleTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeSection === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleSectionChange(tab.id)}
-                  className={`
-                    flex items-center gap-2 px-4 py-3 font-medium transition-all relative
-                    ${isActive
-                      ? 'text-purple-600'
-                      : 'text-gray-600 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="whitespace-nowrap">{tab.label}</span>
-
-                  {/* Active indicator */}
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600"
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
       </header>
 
-      {/* Breadcrumbs */}
-      <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span>Your Roadmap</span>
-          <ChevronRight className="w-4 h-4" />
-          <span className="font-medium text-gray-900">{milestone.title}</span>
-          <ChevronRight className="w-4 h-4" />
-          <span className="text-purple-600 font-medium">{currentTab?.label}</span>
-        </div>
-      </div>
-
       {/* Main Content Area */}
-      <main className="container mx-auto max-w-7xl">
+      <main className="max-w-7xl mx-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeSection}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
           >
             {activeSection === 'overview' && (
               <div className="p-6">
@@ -366,9 +325,7 @@ const MilestoneDetailPage = ({
                 tasks={tasks}
                 userContext={userContext}
                 onTaskClick={(task) => {
-                  // Navigate to tasks tab with specific task selected
                   handleSectionChange('tasks');
-                  // TODO: Pass selected task to tasks section
                 }}
                 onTasksUpdated={loadTasks}
               />
@@ -401,7 +358,6 @@ const MilestoneDetailPage = ({
                   milestone={milestone}
                   userContext={userContext}
                   onProgressUpdate={() => {
-                    // Reload tasks to refresh progress
                     loadTasks();
                   }}
                   onNavigateToRoadmap={() => handleSectionChange('roadmap')}
@@ -417,55 +373,57 @@ const MilestoneDetailPage = ({
 
 /**
  * Placeholder components for sections not yet built
- * These will be replaced with full components in later phases
  */
 
 const LunaAssessmentPlaceholder = ({ milestone }) => (
-  <div className="bg-white rounded-2xl p-8 border-2 border-gray-100">
-    <h2 className="text-2xl font-bold text-gray-900 mb-4">Luna's Assessment</h2>
+  <div className="bg-white rounded-2xl p-8 border border-stone-200 shadow-sm">
+    <h2
+      className="text-2xl font-semibold text-stone-900 mb-4"
+      style={{ fontFamily: 'Georgia, serif' }}
+    >
+      Luna's Assessment
+    </h2>
     <div className="space-y-4">
-      <div className="bg-purple-50 rounded-xl p-6">
-        <h3 className="font-semibold text-purple-900 mb-2">Confidence Level</h3>
-        <p className="text-gray-700">
-          {milestone.confidence_level || 'High'} confidence in achieving this milestone
+      <div className="bg-amber-50 rounded-xl p-6 border border-amber-100">
+        <h3 className="font-medium text-amber-900 mb-2">Confidence Level</h3>
+        <p className="text-stone-700">
+          {milestone.confidence_level || 'High'} confidence in achieving this dream
         </p>
       </div>
 
       {milestone.personalizedInsights && (
-        <div className="bg-blue-50 rounded-xl p-6">
-          <h3 className="font-semibold text-blue-900 mb-2">Key Insights</h3>
-          <p className="text-gray-700">
+        <div className="bg-stone-50 rounded-xl p-6 border border-stone-200">
+          <h3 className="font-medium text-stone-800 mb-2">Key Insights</h3>
+          <p className="text-stone-600">
             {milestone.personalizedInsights.assessment || 'Analyzing your situation...'}
           </p>
         </div>
       )}
-
-      <p className="text-sm text-gray-500 italic">
-        Full assessment section coming soon...
-      </p>
     </div>
   </div>
 );
 
 const TaskAssignmentPlaceholder = ({ tasks, userContext }) => (
-  <div className="bg-white rounded-2xl p-8 border-2 border-gray-100">
-    <h2 className="text-2xl font-bold text-gray-900 mb-4">Task Assignment</h2>
+  <div className="bg-white rounded-2xl p-8 border border-stone-200 shadow-sm">
+    <h2
+      className="text-2xl font-semibold text-stone-900 mb-4"
+      style={{ fontFamily: 'Georgia, serif' }}
+    >
+      Task Assignment
+    </h2>
     <div className="space-y-3">
       {tasks.length > 0 ? (
         tasks.map((task, idx) => (
-          <div key={idx} className="bg-gray-50 rounded-xl p-4">
-            <p className="font-medium text-gray-900">{task.title}</p>
-            <p className="text-sm text-gray-600 mt-1">
+          <div key={idx} className="bg-stone-50 rounded-xl p-4 border border-stone-100">
+            <p className="font-medium text-stone-900">{task.title}</p>
+            <p className="text-sm text-stone-500 mt-1">
               Assigned to: {task.assigned_to || 'Unassigned'}
             </p>
           </div>
         ))
       ) : (
-        <p className="text-gray-600">No tasks yet</p>
+        <p className="text-stone-500">No tasks yet</p>
       )}
-      <p className="text-sm text-gray-500 italic mt-6">
-        Full task assignment interface coming soon...
-      </p>
     </div>
   </div>
 );

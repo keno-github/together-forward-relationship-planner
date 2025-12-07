@@ -1,8 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap, deleteMilestone, deleteTask, deleteExpense } from '../services/supabaseService';
+import { useDashboardData, useDashboardCache } from '../hooks/useDashboardData';
+import DashboardSkeleton from './DashboardSkeleton';
+
+// Feature flag: Set to true to use the new optimized RPC-based loading
+// Set to false to use legacy loading (for fallback)
+const USE_OPTIMIZED_LOADING = true;
 
 // Inline styles for custom fonts
 const fontStyles = `
@@ -19,6 +25,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, dream: null });
   const [deleting, setDeleting] = useState(false);
   const [hoveredDream, setHoveredDream] = useState(null);
+  const [useLegacyLoading, setUseLegacyLoading] = useState(!USE_OPTIMIZED_LOADING);
   const [stats, setStats] = useState({
     totalXP: 0,
     totalMilestones: 0,
@@ -32,6 +39,94 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   // Track mounted state to prevent state updates on unmounted component
   const isMountedRef = useRef(true);
 
+  // React Query hook for optimized loading (only used when USE_OPTIMIZED_LOADING is true)
+  const { invalidateDashboard } = useDashboardCache();
+  const {
+    data: rpcData,
+    isLoading: rpcLoading,
+    error: rpcError,
+    refetch: rpcRefetch
+  } = useDashboardData(1, {
+    enabled: USE_OPTIMIZED_LOADING && !!user?.id && !useLegacyLoading,
+  });
+
+  // Transform RPC data to component format when available
+  useEffect(() => {
+    if (!USE_OPTIMIZED_LOADING || useLegacyLoading) return;
+
+    if (rpcError) {
+      // RPC failed (function might not exist yet), fall back to legacy loading
+      console.log('📊 RPC not available, falling back to legacy loading');
+      setUseLegacyLoading(true);
+      return;
+    }
+
+    if (rpcData && rpcData.dreams) {
+      // Transform RPC response to component format
+      const transformedDreams = rpcData.dreams.map(dream => ({
+        ...dream,
+        progress: dream.progress_percentage || 0,
+        totalMilestones: dream.total_milestones || 0,
+        completedMilestones: dream.completed_milestones || 0,
+        totalTasks: dream.total_tasks || 0,
+        completedTasks: dream.completed_tasks || 0,
+        budgetProgress: dream.budget_amount > 0
+          ? Math.min((dream.budget_spent / dream.budget_amount) * 100, 200)
+          : 0,
+        milestones: [], // Will be loaded on click
+      }));
+
+      setDreams(transformedDreams);
+
+      // Set stats from RPC response
+      const totalMilestones = transformedDreams.reduce((sum, d) => sum + d.totalMilestones, 0);
+      const completedMilestones = transformedDreams.reduce((sum, d) => sum + d.completedMilestones, 0);
+      const avgBudgetHealth = transformedDreams.length > 0
+        ? transformedDreams.reduce((sum, d) => sum + (d.budgetProgress || 0), 0) / transformedDreams.length
+        : 0;
+
+      const completionRate = totalMilestones > 0 ? (completedMilestones / totalMilestones) : 0;
+      let velocity = 'On Track';
+      if (completionRate >= 0.7) velocity = 'Excellent';
+      else if (completionRate >= 0.4) velocity = 'On Track';
+      else velocity = 'Needs Attention';
+
+      setStats({
+        totalXP: rpcData.stats?.total_xp || 0,
+        totalMilestones,
+        completedMilestones,
+        openMilestones: totalMilestones - completedMilestones,
+        activeDreams: rpcData.stats?.active_dreams || transformedDreams.length,
+        overallVelocity: velocity,
+        budgetHealth: Math.round(avgBudgetHealth)
+      });
+
+      // Set upcoming tasks from next_task data
+      const overdueTasks = transformedDreams
+        .filter(d => d.next_task && d.overdue_tasks > 0)
+        .map(d => ({
+          ...d.next_task,
+          dreamId: d.id,
+          dreamTitle: d.title,
+        }));
+
+      setUpcomingTasks({
+        overdue: overdueTasks,
+        dueThisWeek: [],
+        noDueDate: []
+      });
+
+      setLoading(false);
+    }
+  }, [rpcData, rpcError, useLegacyLoading]);
+
+  // Update loading state from RPC
+  useEffect(() => {
+    if (USE_OPTIMIZED_LOADING && !useLegacyLoading) {
+      setLoading(rpcLoading);
+    }
+  }, [rpcLoading, useLegacyLoading]);
+
   // Inject fonts
   useEffect(() => {
     const styleSheet = document.createElement('style');
@@ -40,8 +135,10 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     return () => document.head.removeChild(styleSheet);
   }, []);
 
-  // SINGLE useEffect for data loading - runs on mount and when user changes
+  // LEGACY: useEffect for data loading - only used when RPC is not available
   useEffect(() => {
+    if (!useLegacyLoading) return; // Skip if using optimized loading
+
     isMountedRef.current = true;
 
     if (user?.id) {
@@ -55,7 +152,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
       isMountedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]); // Run on mount AND when user changes
+  }, [user?.id, useLegacyLoading]); // Run on mount AND when user changes
 
   const loadUserData = async () => {
     // Guard: No user
@@ -319,10 +416,23 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     }
   };
 
-  // Retry handler
+  // Retry handler - works with both optimized and legacy loading
   const handleRetryLoad = () => {
     setLoadError(null);
-    loadUserData();
+    if (USE_OPTIMIZED_LOADING && !useLegacyLoading) {
+      rpcRefetch();
+    } else {
+      loadUserData();
+    }
+  };
+
+  // Refresh handler for after mutations (delete, etc.)
+  const refreshDashboard = async () => {
+    if (USE_OPTIMIZED_LOADING && !useLegacyLoading) {
+      invalidateDashboard();
+    } else {
+      await loadUserData();
+    }
   };
 
   const handleDeleteDream = async () => {
@@ -378,8 +488,8 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
       console.log('✅ Dream deleted successfully!');
       setDeleteConfirm({ show: false, dream: null });
 
-      // Refresh the dashboard
-      await loadUserData();
+      // Refresh the dashboard (uses optimized or legacy method automatically)
+      await refreshDashboard();
     } catch (error) {
       console.error('Error deleting dream:', error);
       alert('An error occurred while deleting the dream.');
@@ -419,20 +529,8 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   };
 
   if (loading) {
-    return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: '#FAF7F2', fontFamily: "'DM Sans', sans-serif" }}
-      >
-        <div className="text-center">
-          <div
-            className="w-10 h-10 rounded-full animate-spin mx-auto mb-4"
-            style={{ border: '3px solid #E8E2DA', borderTopColor: '#C4785A' }}
-          />
-          <p style={{ color: '#6B5E54' }}>Loading your dreams...</p>
-        </div>
-      </div>
-    );
+    // Use skeleton loading for better UX (shows content structure immediately)
+    return <DashboardSkeleton />;
   }
 
   // Error state with retry option

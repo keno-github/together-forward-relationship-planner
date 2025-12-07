@@ -199,12 +199,27 @@ export const getMilestoneById = async (milestoneId) => {
 
 /**
  * Update a milestone
+ * For non-authenticated users, returns local success without hitting Supabase
  */
 export const updateMilestone = async (milestoneId, updates) => {
   try {
     console.log('💾 updateMilestone called:');
     console.log('   - milestoneId:', milestoneId);
     console.log('   - updates:', updates);
+
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log('ℹ️ User not authenticated - applying changes locally (demo mode)');
+      // For demo users, return success with merged data
+      // This allows the UI to update without hitting Supabase
+      return {
+        data: { id: milestoneId, ...updates },
+        error: null,
+        isLocalOnly: true,
+        message: 'Changes applied locally. Sign in to save permanently.'
+      };
+    }
 
     // Check if the milestone ID is a valid UUID
     if (!isValidUUID(milestoneId)) {
@@ -227,18 +242,33 @@ export const updateMilestone = async (milestoneId, updates) => {
       .update(updates)
       .eq('id', milestoneId)
       .select()
-      .single()
 
     if (error) {
       console.error('❌ Update milestone failed:', error);
       throw error;
     }
 
-    console.log('✅ Update milestone success! Returned data:');
-    console.log('   - budget_amount:', data.budget_amount);
-    console.log('   - target_date:', data.target_date);
+    // Check if update affected any rows
+    if (!data || data.length === 0) {
+      console.error('❌ Update milestone: No rows affected. This could mean:');
+      console.error('   1. The milestone does not exist in the database');
+      console.error('   2. RLS policy is blocking the update (check your Supabase auth)');
+      console.error('   3. The user does not have permission to update this milestone');
+      return {
+        data: null,
+        error: {
+          code: 'NO_ROWS_AFFECTED',
+          message: 'Update failed: milestone not found or you do not have permission to update it. Try signing out and back in.'
+        }
+      };
+    }
 
-    return { data, error: null }
+    const updatedMilestone = data[0];
+    console.log('✅ Update milestone success! Returned data:');
+    console.log('   - budget_amount:', updatedMilestone.budget_amount);
+    console.log('   - target_date:', updatedMilestone.target_date);
+
+    return { data: updatedMilestone, error: null }
   } catch (error) {
     console.error('Update milestone error:', error)
     return { data: null, error }
@@ -979,6 +1009,24 @@ export const subscribeToExpenses = (roadmapId, callback) => {
  */
 export const getMilestoneConversation = async (milestoneId) => {
   try {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      // For demo users, check localStorage first
+      try {
+        const key = `luna_conversation_${milestoneId}`;
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log('ℹ️ Loaded conversation from localStorage (demo mode)');
+          return { data: parsed, error: null, isLocalOnly: true };
+        }
+      } catch (e) {
+        console.warn('Could not load conversation from localStorage:', e);
+      }
+      return { data: null, error: null };
+    }
+
     const { data, error } = await supabase
       .from('milestone_conversations')
       .select('*')
@@ -998,6 +1046,21 @@ export const getMilestoneConversation = async (milestoneId) => {
  */
 export const saveMilestoneConversation = async (milestoneId, messages) => {
   try {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      // For demo users, store in localStorage instead
+      try {
+        const key = `luna_conversation_${milestoneId}`;
+        localStorage.setItem(key, JSON.stringify({ messages, updated_at: new Date().toISOString() }));
+        console.log('ℹ️ Conversation saved to localStorage (demo mode)');
+        return { data: { messages }, error: null, isLocalOnly: true };
+      } catch (e) {
+        console.warn('Could not save conversation to localStorage:', e);
+        return { data: null, error: null }; // Silently fail for demo mode
+      }
+    }
+
     // Use upsert - insert or update if exists
     const { data, error } = await supabase
       .from('milestone_conversations')
@@ -1128,5 +1191,37 @@ export const migrateLocalStorageToSupabase = async () => {
   } catch (error) {
     console.error('Migration error:', error)
     return { success: false, error }
+  }
+}
+
+// =====================================================
+// DASHBOARD OPTIMIZED QUERIES
+// =====================================================
+
+/**
+ * Get dashboard summary with pre-computed metrics
+ * Uses RPC function for single-query performance
+ * Replaces 22+ individual API calls with 1 optimized query
+ *
+ * @param {number} page - Page number (default: 1)
+ * @param {number} limit - Items per page (default: 20)
+ * @returns {Promise<{data: DashboardData, error: Error|null}>}
+ */
+export const getDashboardSummary = async (page = 1, limit = 20) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase.rpc('get_dashboard_summary', {
+      user_uuid: user.id,
+      page_num: page,
+      page_size: limit
+    })
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get dashboard summary error:', error)
+    return { data: null, error }
   }
 }

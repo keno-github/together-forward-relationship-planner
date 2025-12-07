@@ -25,6 +25,7 @@ import PortfolioOverview from './Components/PortfolioOverview';
 import DevTools from './Components/DevTools';
 import { MobileBottomNav } from './Components/Mobile';
 import { useResponsive } from './hooks/useResponsive';
+import { useRouteSync } from './hooks/useRouteSync';
 import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap, createRoadmap, createMilestone } from './services/supabaseService';
@@ -61,6 +62,19 @@ const AppContent = () => {
   // Chat state for Deep Dive
   const [deepDiveChatMessages, setDeepDiveChatMessages] = useState([]);
   const [isDeepDiveChatLoading, setIsDeepDiveChatLoading] = useState(false);
+
+  // NEW: Dream ID for URL routing (e.g., /dream/:dreamId)
+  const [dreamId, setDreamId] = useState(null);
+
+  // Initialize URL ↔ Stage sync for shareable URLs
+  // This allows partners to share links like /dream/abc123 or /dashboard
+  const { navigateTo, navigateToDream, currentPath } = useRouteSync(stage, setStage, {
+    dreamId,
+    setDreamId,
+    milestoneDetailState,
+    setMilestoneDetailState,
+    selectedRoadmapId: selectedRoadmap?.id,
+  });
 
   // Initialize Google Analytics on mount
   useEffect(() => {

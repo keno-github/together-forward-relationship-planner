@@ -33,7 +33,7 @@ const DevTools = () => {
       {/* Floating toggle button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-4 right-4 z-50 bg-gray-800 text-white p-3 rounded-full shadow-lg hover:bg-gray-700 transition-all"
+        className="fixed bottom-4 left-4 z-50 bg-gray-800 text-white p-3 rounded-full shadow-lg hover:bg-gray-700 transition-all"
         title="Dev Tools"
       >
         {isOpen ? <X className="w-5 h-5" /> : <Bug className="w-5 h-5" />}
@@ -41,7 +41,7 @@ const DevTools = () => {
 
       {/* Dev Tools Panel */}
       {isOpen && (
-        <div className="fixed bottom-20 right-4 z-50 bg-gray-900 text-white rounded-xl shadow-2xl p-4 w-72">
+        <div className="fixed bottom-20 left-4 z-50 bg-gray-900 text-white rounded-xl shadow-2xl p-4 w-72">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-sm flex items-center gap-2">
               <Bug className="w-4 h-4" />

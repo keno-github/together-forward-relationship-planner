@@ -474,7 +474,10 @@ export const toolHandlers = {
         status: 'error',
         icon: '❌',
         summary: `Phase at index ${input.phase_index} not found`,
-        reason: input.reason
+        reason: input.reason,
+        applyFn: async () => {
+          throw new Error(`Cannot modify: Phase at index ${input.phase_index} does not exist`);
+        }
       };
     }
 
@@ -520,7 +523,10 @@ export const toolHandlers = {
         status: 'error',
         icon: '❌',
         summary: `Phase at index ${input.phase_index} not found`,
-        reason: input.reason
+        reason: input.reason,
+        applyFn: async () => {
+          throw new Error(`Cannot remove: Phase at index ${input.phase_index} does not exist`);
+        }
       };
     }
 
@@ -593,7 +599,10 @@ export const toolHandlers = {
         status: 'error',
         icon: '❌',
         summary: `Task with ID ${input.task_id} not found`,
-        reason: input.reason
+        reason: input.reason,
+        applyFn: async () => {
+          throw new Error(`Cannot update: Task with ID ${input.task_id} does not exist`);
+        }
       };
     }
 
@@ -626,7 +635,10 @@ export const toolHandlers = {
         status: 'error',
         icon: '❌',
         summary: `Task with ID ${input.task_id} not found`,
-        reason: input.reason
+        reason: input.reason,
+        applyFn: async () => {
+          throw new Error(`Cannot delete: Task with ID ${input.task_id} does not exist`);
+        }
       };
     }
 

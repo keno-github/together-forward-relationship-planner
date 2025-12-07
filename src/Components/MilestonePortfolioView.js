@@ -388,79 +388,36 @@ const MilestonePortfolioView = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      {/* Decorative Ambient Background */}
-      <div className="fixed top-0 left-0 w-full h-screen overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-100/40 blur-[100px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] rounded-full bg-rose-100/30 blur-[100px]" />
-      </div>
-
-      <div className="max-w-6xl mx-auto px-6 py-10 relative z-10">
-        {/* Header */}
-        <header className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-bold text-lg shadow-lg shadow-slate-300/50">
-              T
-            </div>
-            <span className="font-semibold text-lg tracking-tight">
-              {userContext.partner1 && userContext.partner2
-                ? `${userContext.partner1} & ${userContext.partner2}`
-                : 'TwogetherForward'}
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm">
-            <span className="text-xs">
-              {userContext.partner1?.charAt(0) || 'J'}{userContext.partner2?.charAt(0) || 'M'}
-            </span>
-          </div>
+    <div className="min-h-screen text-stone-900 font-sans">
+      <div className="max-w-5xl mx-auto px-6 py-8 relative z-10">
+        {/* Simple Header - just partner names */}
+        <header className="mb-8">
+          <h2
+            className="text-2xl font-semibold text-stone-800"
+            style={{ fontFamily: 'Georgia, Cambria, serif' }}
+          >
+            {userContext.partner1 && userContext.partner2
+              ? `${userContext.partner1} & ${userContext.partner2}'s Dreams`
+              : 'Your Dreams'}
+          </h2>
+          <p className="text-stone-500 text-sm mt-1">
+            Click on a dream to view details and start planning
+          </p>
         </header>
 
-        {/* THE SLIDING TOGGLE */}
-        <PerspectiveToggle active={viewMode} onChange={setViewMode} />
-
-        <AnimatePresence mode="wait">
-          {viewMode === 'dreams' && (
-            <motion.div
-              key="dreams"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6 animate-[fadeIn_0.6s_ease-out]"
-            >
-              {milestones.length === 0 ? (
-                <EmptyState />
-              ) : (
-                milestones.map((milestone) => renderMilestoneCard(milestone))
-              )}
-            </motion.div>
+        {/* Dreams Grid - No Toggle, Just Show Dreams */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="space-y-5"
+        >
+          {milestones.length === 0 ? (
+            <EmptyState />
+          ) : (
+            milestones.map((milestone) => renderMilestoneCard(milestone))
           )}
-
-          {viewMode === 'overview' && (
-            <motion.div
-              key="overview"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-              className="animate-[fadeIn_0.6s_ease-out]"
-            >
-              {loading ? (
-                <LoadingState />
-              ) : portfolioData?.isEmpty ? (
-                <EmptyPortfolioState />
-              ) : (
-                <OverviewContent
-                  portfolioData={portfolioData}
-                  monthlyCapacity={monthlyCapacity}
-                  onMilestoneClick={onMilestoneClick}
-                  onOptimizationTips={handleOptimizationTips}
-                  onExportSpreadsheet={handleExportSpreadsheet}
-                />
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </motion.div>
       </div>
     </div>
   );
@@ -538,9 +495,14 @@ const StatusBadge = ({ status }) => {
 // --- STATES ---
 
 const EmptyState = () => (
-  <div className="text-center py-20 bg-white rounded-3xl border border-slate-100">
-    <Wallet className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-    <p className="text-slate-500 text-lg">No dreams yet. Start building your future!</p>
+  <div className="text-center py-20 bg-white rounded-2xl border border-stone-200 shadow-sm">
+    <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
+      <Sparkles className="w-8 h-8 text-amber-500" />
+    </div>
+    <h3 className="text-xl font-semibold text-stone-800 mb-2" style={{ fontFamily: 'Georgia, serif' }}>
+      No dreams yet
+    </h3>
+    <p className="text-stone-500">Start building your future together!</p>
   </div>
 );
 

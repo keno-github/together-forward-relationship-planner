@@ -213,7 +213,7 @@ export const LunaProvider = ({ children }) => {
             collectedChanges.push(pendingChange);
           }
         },
-        onDone: () => {
+        onDone: async () => {
           streamingCompleted = true;
           if (timeoutId) clearTimeout(timeoutId);
 
@@ -234,7 +234,7 @@ export const LunaProvider = ({ children }) => {
             });
           }
 
-          saveConversation(finalMessages);
+          await saveConversation(finalMessages);
         },
         onError: (error) => {
           streamingCompleted = true;
@@ -265,9 +265,15 @@ export const LunaProvider = ({ children }) => {
   const confirmAllChanges = useCallback(async () => {
     setIsApplyingChanges(true);
     const results = [];
+    const failedChangeDescriptions = [];
 
     for (const change of pendingChanges) {
-      if (change.status === 'error') continue;
+      // Record error-type changes as failed instead of silently skipping
+      if (change.status === 'error') {
+        results.push({ change, success: false, error: 'Validation error' });
+        failedChangeDescriptions.push(change.summary || 'Unknown error');
+        continue;
+      }
 
       try {
         if (change.requiresRegeneration) {
@@ -275,11 +281,21 @@ export const LunaProvider = ({ children }) => {
         } else if (change.applyFn) {
           const supabaseService = { updateMilestone, createTask, updateTask, deleteTask };
           const result = await change.applyFn(supabaseService);
-          results.push({ change, success: !result.error, result });
+          // Fix: Check both result existence and error property properly
+          const hasError = !result || result.error;
+          if (hasError) {
+            failedChangeDescriptions.push(change.summary || 'Unknown change');
+          }
+          results.push({ change, success: !hasError, result });
+        } else {
+          // Handle changes without applyFn - don't silently skip
+          results.push({ change, success: false, error: 'No apply function defined' });
+          failedChangeDescriptions.push(change.summary || 'Unknown change');
         }
       } catch (err) {
         console.error(`Failed to apply change ${change.id}:`, err);
         results.push({ change, success: false, error: err });
+        failedChangeDescriptions.push(change.summary || 'Unknown change');
       }
     }
 
@@ -287,28 +303,57 @@ export const LunaProvider = ({ children }) => {
 
     // Trigger refresh callbacks
     if (successfulChanges.length > 0) {
-      if (refreshCallbacks.current.onRefreshMilestone) {
-        refreshCallbacks.current.onRefreshMilestone();
+      // Check if any changes were local-only (demo mode)
+      const hasLocalOnlyChanges = successfulChanges.some(r => r.result?.isLocalOnly);
+
+      if (hasLocalOnlyChanges) {
+        // For local-only changes (non-authenticated users), update state directly
+        // Merge all successful changes into the current milestone
+        let updatedMilestone = { ...currentMilestone };
+        for (const r of successfulChanges) {
+          if (r.result?.data) {
+            updatedMilestone = { ...updatedMilestone, ...r.result.data };
+          }
+        }
+        // Call onMilestoneUpdate directly with merged data
+        if (refreshCallbacks.current.onMilestoneUpdate) {
+          refreshCallbacks.current.onMilestoneUpdate(updatedMilestone);
+        }
+        // Also update local context
+        setCurrentMilestone(updatedMilestone);
+      } else {
+        // For authenticated users, refresh from database
+        if (refreshCallbacks.current.onRefreshMilestone) {
+          refreshCallbacks.current.onRefreshMilestone();
+        }
       }
+
       if (refreshCallbacks.current.onTasksUpdate) {
         refreshCallbacks.current.onTasksUpdate();
       }
     }
 
-    // Add confirmation message
+    // Add confirmation message with details about failures
+    let confirmContent;
+    if (successfulChanges.length === pendingChanges.length) {
+      confirmContent = `Done! I've applied all ${successfulChanges.length} changes. Your milestone has been updated.`;
+    } else if (successfulChanges.length === 0) {
+      confirmContent = `I couldn't apply any of the ${pendingChanges.length} changes. ${failedChangeDescriptions.length > 0 ? 'Issues: ' + failedChangeDescriptions.join(', ') : 'Please try again.'}`;
+    } else {
+      confirmContent = `I applied ${successfulChanges.length} of ${pendingChanges.length} changes. Some couldn't be applied: ${failedChangeDescriptions.join(', ')}`;
+    }
+
     const confirmMessage = {
       role: 'assistant',
-      content: successfulChanges.length === pendingChanges.length
-        ? `Done! I've applied all ${successfulChanges.length} changes. Your milestone has been updated.`
-        : `I applied ${successfulChanges.length} of ${pendingChanges.length} changes. Some changes couldn't be applied.`
+      content: confirmContent
     };
     const newMessages = [...messages, confirmMessage];
     setMessages(newMessages);
-    saveConversation(newMessages);
+    await saveConversation(newMessages);
 
     setPendingChanges([]);
     setIsApplyingChanges(false);
-  }, [pendingChanges, messages]);
+  }, [pendingChanges, messages, currentMilestone]);
 
   // Confirm single change
   const confirmChange = useCallback(async (change) => {
@@ -317,14 +362,33 @@ export const LunaProvider = ({ children }) => {
     try {
       if (change.applyFn) {
         const supabaseService = { updateMilestone, createTask, updateTask, deleteTask };
-        await change.applyFn(supabaseService);
+        const result = await change.applyFn(supabaseService);
 
-        if (refreshCallbacks.current.onMilestoneUpdate) {
-          refreshCallbacks.current.onMilestoneUpdate();
+        // Check if the operation failed
+        if (!result || result.error) {
+          throw new Error(result?.error?.message || 'Database operation failed');
         }
+
+        // Check if this was a local-only change (demo mode)
+        if (result.isLocalOnly) {
+          // For local-only changes, update state directly
+          if (result.data && refreshCallbacks.current.onMilestoneUpdate) {
+            const updatedMilestone = { ...currentMilestone, ...result.data };
+            refreshCallbacks.current.onMilestoneUpdate(updatedMilestone);
+            setCurrentMilestone(updatedMilestone);
+          }
+        } else {
+          // For authenticated users, refresh from database
+          if (refreshCallbacks.current.onRefreshMilestone) {
+            refreshCallbacks.current.onRefreshMilestone();
+          }
+        }
+
         if (refreshCallbacks.current.onTasksUpdate) {
           refreshCallbacks.current.onTasksUpdate();
         }
+      } else {
+        throw new Error('This change cannot be applied');
       }
 
       setPendingChanges(prev => prev.filter(c => c.id !== change.id));
@@ -335,16 +399,24 @@ export const LunaProvider = ({ children }) => {
       };
       const newMessages = [...messages, confirmMessage];
       setMessages(newMessages);
-      saveConversation(newMessages);
+      await saveConversation(newMessages);
     } catch (err) {
       console.error('Failed to apply change:', err);
+      // Add error message to chat so user sees feedback
+      const errorMessage = {
+        role: 'assistant',
+        content: `I couldn't apply that change: ${err.message || 'Unknown error'}. Please try again or ask me to help in a different way.`
+      };
+      const newMessages = [...messages, errorMessage];
+      setMessages(newMessages);
+      await saveConversation(newMessages);
     }
 
     setIsApplyingChanges(false);
-  }, [messages]);
+  }, [messages, currentMilestone]);
 
   // Reject all changes
-  const rejectAllChanges = useCallback(() => {
+  const rejectAllChanges = useCallback(async () => {
     setPendingChanges([]);
 
     const rejectMessage = {
@@ -353,7 +425,7 @@ export const LunaProvider = ({ children }) => {
     };
     const newMessages = [...messages, rejectMessage];
     setMessages(newMessages);
-    saveConversation(newMessages);
+    await saveConversation(newMessages);
   }, [messages]);
 
   // Reject single change
@@ -362,9 +434,9 @@ export const LunaProvider = ({ children }) => {
   }, []);
 
   /**
-   * Add pending changes from any component (including LunaOverviewChat)
+   * Add pending changes from any component (LunaChatPanel, etc.)
    * This enables shared pending changes state across all Luna interfaces
-   * FAANG-level: Deduplication, validation, and merge logic
+   * Includes deduplication, validation, and merge logic
    */
   const addPendingChanges = useCallback((newChanges) => {
     if (!Array.isArray(newChanges) || newChanges.length === 0) return;

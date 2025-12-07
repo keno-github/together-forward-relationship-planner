@@ -6,6 +6,7 @@ import {
   MessageCircle, Zap
 } from 'lucide-react';
 import { useLuna } from '../../context/LunaContext';
+import MarkdownMessage from '../MarkdownMessage';
 
 /**
  * Luna Chat Panel
@@ -495,18 +496,20 @@ const ChatMessage = ({ message, isStreaming = false }) => {
             : 'bg-white text-stone-800 rounded-2xl rounded-tl-md shadow-sm border border-stone-100'
         }`}
       >
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-          {isUser ? (
-            // User messages: show immediately
-            message.content
-          ) : isStreaming ? (
-            // Assistant streaming: use typewriter effect
-            <TypewriterText text={message.content} isStreaming={isStreaming} />
-          ) : (
-            // Assistant completed: show full text
-            message.content
-          )}
-        </p>
+        {isUser ? (
+          // User messages: show as plain text
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+            {message.content}
+          </p>
+        ) : (
+          // Assistant messages: render with markdown support
+          <div className="text-sm leading-relaxed">
+            <MarkdownMessage
+              content={message.content}
+              isStreaming={isStreaming}
+            />
+          </div>
+        )}
       </div>
 
       {/* User Avatar */}

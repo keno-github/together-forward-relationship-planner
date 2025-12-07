@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle } from 'lucide-react';
 import { getUserRoadmaps } from '../services/supabaseService';
 import { useAuth } from '../context/AuthContext';
 import { converseWithLuna, isRoadmapComplete, getRoadmapData } from '../services/lunaService';
+import { callClaudeStreaming } from '../services/claudeAPI';
 import Auth from './Auth';
 import GoalSelectionHub from './GoalSelectionHub';
+import MarkdownMessage from './MarkdownMessage';
+import DreamCreationOverlay from './DreamCreationOverlay';
 
 const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onGoToProfile = null, onGoToSettings = null, isReturningUser = false }) => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -20,9 +23,23 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
   const [conversation, setConversation] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [isLunaTyping, setIsLunaTyping] = useState(false);
+  const [streamingContent, setStreamingContent] = useState(''); // For streaming text
   const [partner1Name, setPartner1Name] = useState('');
   const [partner2Name, setPartner2Name] = useState('');
   const [lunaContext, setLunaContext] = useState({});
+  const chatContainerRef = useRef(null);
+
+  // Dream creation overlay state
+  const [showCreationOverlay, setShowCreationOverlay] = useState(false);
+  const [pendingRoadmapData, setPendingRoadmapData] = useState(null);
+  const [pendingConversation, setPendingConversation] = useState(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [conversation, streamingContent]);
 
   // Check if user has existing roadmaps
   useEffect(() => {
@@ -49,19 +66,62 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
     if (chosenPath === 'luna') {
       setStage('lunaConversation');
       setIsLunaTyping(true);
+      setStreamingContent('');
+
+      // Luna's greeting system prompt (simplified for initial greeting)
+      const greetingPrompt = `You are Luna, a warm and intelligent AI planning assistant for couples.
+
+This is the user's FIRST message - they just said "Hi" to start the conversation.
+
+Your response should be:
+1. A friendly, warm greeting (use an emoji or two)
+2. Brief introduction of yourself
+3. An open-ended question about what they're hoping to achieve together
+
+Keep it conversational and under 100 words. Use **bold** for emphasis on key phrases.`;
+
       try {
-        const initialMessage = { role: 'user', content: 'Hi' };
-        const result = await converseWithLuna([initialMessage], {});
-        setConversation([{ role: 'assistant', content: result.message }]);
-        setLunaContext(result.context);
+        // Use a ref-like approach to capture the accumulated content
+        let accumulatedContent = '';
+
+        // Use streaming for the initial greeting
+        await callClaudeStreaming(
+          [{ role: 'user', content: 'Hi' }],
+          { systemPrompt: greetingPrompt, maxTokens: 512, temperature: 0.9 },
+          {
+            onChunk: (text) => {
+              accumulatedContent += text;
+              setStreamingContent(accumulatedContent);
+            },
+            onDone: () => {
+              // Move streaming content to conversation
+              if (accumulatedContent) {
+                setConversation([{ role: 'assistant', content: accumulatedContent }]);
+              }
+              setStreamingContent('');
+              setIsLunaTyping(false);
+            },
+            onError: (error) => {
+              console.error('Streaming error:', error);
+              // Fallback to non-streaming
+              setStreamingContent('');
+              setConversation([{
+                role: 'assistant',
+                content: "Hey there! 👋 Welcome! I'm Luna, your planning assistant for couples. I'm here to help you and your partner create a realistic roadmap for whatever you're dreaming about together – whether it's buying a home, planning a wedding, starting a business, or **literally anything else** you want to achieve as a team.\n\n**So, what brings you here today?** What's something you and your partner are thinking about doing together? 💭"
+              }]);
+              setIsLunaTyping(false);
+            }
+          }
+        );
       } catch (error) {
         console.error('Error getting Luna response:', error);
+        setStreamingContent('');
         setConversation([{
           role: 'assistant',
-          content: "Hi there! 👋 I'm Luna, your AI planning assistant. I'm here to help you turn your dreams into achievable plans. What are you hoping to accomplish together?"
+          content: "Hey there! 👋 Welcome! I'm Luna, your planning assistant for couples. I'm here to help you and your partner create a realistic roadmap for whatever you're dreaming about together.\n\n**So, what brings you here today?** What's something you and your partner are thinking about doing together? 💭"
         }]);
+        setIsLunaTyping(false);
       }
-      setIsLunaTyping(false);
     } else if (chosenPath === 'compatibility') {
       onComplete({ chosenPath: 'compatibility' });
     } else if (chosenPath === 'ready') {
@@ -93,8 +153,11 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
     setConversation(newConversation);
     setUserInput('');
     setIsLunaTyping(true);
+    setStreamingContent('');
 
     try {
+      // For subsequent messages, use the full Luna service (supports tool calling)
+      // But we'll add streaming display while waiting
       const claudeMessages = newConversation.map(msg => ({
         role: msg.role,
         content: msg.content
@@ -106,13 +169,10 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
 
       if (isRoadmapComplete(result.context)) {
         const roadmapData = getRoadmapData(result.context);
-        setTimeout(() => {
-          onComplete({
-            chosenPath: 'luna',
-            ...roadmapData,
-            conversationHistory: [...newConversation, { role: 'assistant', content: result.message }]
-          });
-        }, 2000);
+        // Store data and show creation overlay instead of immediate redirect
+        setPendingRoadmapData(roadmapData);
+        setPendingConversation([...newConversation, { role: 'assistant', content: result.message }]);
+        setShowCreationOverlay(true);
       }
     } catch (error) {
       console.error('❌ Error in Luna conversation:', error);
@@ -121,7 +181,19 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
         content: "I'm having a moment of trouble connecting. Could you tell me again what you're hoping to accomplish?"
       }]);
     }
+    setStreamingContent('');
     setIsLunaTyping(false);
+  };
+
+  // Handle overlay completion - navigate to dashboard
+  const handleCreationComplete = () => {
+    if (pendingRoadmapData) {
+      onComplete({
+        chosenPath: 'luna',
+        ...pendingRoadmapData,
+        conversationHistory: pendingConversation
+      });
+    }
   };
 
   return (
@@ -695,7 +767,7 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
                 style={{ height: '500px', display: 'flex', flexDirection: 'column' }}
               >
                 {/* Chat Messages */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
                   {conversation.map((message, index) => (
                     <motion.div
                       key={index}
@@ -710,11 +782,30 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
                             : 'bg-stone-50 border border-stone-200 text-stone-900'
                         }`}
                       >
-                        {message.content}
+                        {message.role === 'user' ? (
+                          message.content
+                        ) : (
+                          <MarkdownMessage content={message.content} />
+                        )}
                       </div>
                     </motion.div>
                   ))}
-                  {isLunaTyping && (
+
+                  {/* Show streaming content while Luna is typing */}
+                  {streamingContent && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex justify-start"
+                    >
+                      <div className="max-w-[80%] bg-stone-50 border border-stone-200 rounded-2xl p-4 text-stone-900">
+                        <MarkdownMessage content={streamingContent} isStreaming={true} />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Show typing indicator only when waiting for response (no streaming yet) */}
+                  {isLunaTyping && !streamingContent && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -795,6 +886,18 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Dream Creation Overlay */}
+      <DreamCreationOverlay
+        isVisible={showCreationOverlay}
+        dreamTitle={pendingRoadmapData?.milestones?.[0]?.title || pendingRoadmapData?.title || 'Your Dream'}
+        dreamDetails={{
+          budget: pendingRoadmapData?.milestones?.[0]?.budget || pendingRoadmapData?.estimatedCost,
+          timeline: pendingRoadmapData?.milestones?.[0]?.timeline_months || pendingRoadmapData?.timelineMonths,
+          location: pendingRoadmapData?.location
+        }}
+        onComplete={handleCreationComplete}
+      />
     </div>
   );
 };
