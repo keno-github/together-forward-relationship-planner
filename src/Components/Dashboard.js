@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap, deleteMilestone, deleteTask, deleteExpense } from '../services/supabaseService';
+import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap } from '../services/supabaseService';
 import { useDashboardData, useDashboardCache } from '../hooks/useDashboardData';
 import DashboardSkeleton from './DashboardSkeleton';
 import { NotificationCenter } from './Notifications';
@@ -440,60 +440,39 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     if (!deleteConfirm.dream) return;
 
     const dreamId = deleteConfirm.dream.id;
+    const dreamTitle = deleteConfirm.dream.title || 'Dream';
     setDeleting(true);
 
     try {
-      console.log('🗑️ Starting deletion of dream:', dreamId);
+      console.log('🗑️ Deleting dream:', dreamTitle, '(', dreamId, ')');
 
-      // Step 1: Get all milestones for this dream
-      const { data: milestones } = await getMilestonesByRoadmap(dreamId);
-      console.log('📋 Found milestones:', milestones?.length || 0);
-
-      // Step 2: Delete all tasks and expenses for each milestone
-      if (milestones && milestones.length > 0) {
-        for (const milestone of milestones) {
-          // Delete tasks for this milestone
-          const { data: tasks } = await getTasksByMilestone(milestone.id);
-          if (tasks && tasks.length > 0) {
-            console.log(`🔧 Deleting ${tasks.length} tasks for milestone:`, milestone.title);
-            for (const task of tasks) {
-              await deleteTask(task.id);
-            }
-          }
-
-          // Delete the milestone
-          console.log('🎯 Deleting milestone:', milestone.title);
-          await deleteMilestone(milestone.id);
-        }
-      }
-
-      // Step 3: Delete all expenses for this roadmap
-      const { data: expenses } = await getExpensesByRoadmap(dreamId);
-      if (expenses && expenses.length > 0) {
-        console.log(`💰 Deleting ${expenses.length} expenses`);
-        for (const expense of expenses) {
-          await deleteExpense(expense.id);
-        }
-      }
-
-      // Step 4: Finally delete the roadmap
-      console.log('🏠 Deleting roadmap');
+      // Delete the roadmap - database CASCADE will automatically delete:
+      // - milestones (and their tasks, nudges)
+      // - expenses
+      // - dream_sharing records
+      // - activity_feed entries
+      // - notifications
       const { error } = await deleteRoadmap(dreamId);
 
       if (error) {
         console.error('Error deleting dream:', error);
-        alert('Failed to delete dream. Please try again.');
+        // Provide more helpful error messages
+        if (error.code === '42501' || error.message?.includes('policy')) {
+          alert('You do not have permission to delete this dream. Only the dream owner or partner can delete it.');
+        } else {
+          alert('Failed to delete dream. Please try again.');
+        }
         return;
       }
 
-      console.log('✅ Dream deleted successfully!');
+      console.log('✅ Dream deleted successfully:', dreamTitle);
       setDeleteConfirm({ show: false, dream: null });
 
-      // Refresh the dashboard (uses optimized or legacy method automatically)
+      // Refresh the dashboard
       await refreshDashboard();
     } catch (error) {
       console.error('Error deleting dream:', error);
-      alert('An error occurred while deleting the dream.');
+      alert('An error occurred while deleting the dream. Please try again.');
     } finally {
       setDeleting(false);
     }
