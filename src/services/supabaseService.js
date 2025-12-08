@@ -1266,12 +1266,25 @@ export const acceptDreamShare = async (shareCode) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
+    // Add timeout to prevent infinite hanging (10 seconds)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out. Please try again.')), 10000)
+    )
+
     // Use the RPC function to accept invite
-    const { data, error } = await supabase.rpc('accept_dream_share', {
+    const rpcPromise = supabase.rpc('accept_dream_share', {
       p_share_code: shareCode.toUpperCase()
     })
 
+    const { data, error } = await Promise.race([rpcPromise, timeoutPromise])
+
     if (error) throw error
+
+    // Handle case where RPC returns empty or no data
+    if (!data || data.length === 0) {
+      return { data: { success: false, message: 'Invalid or expired invite code' }, error: null }
+    }
+
     return { data: data[0], error: null }
   } catch (error) {
     console.error('Accept dream share error:', error)
