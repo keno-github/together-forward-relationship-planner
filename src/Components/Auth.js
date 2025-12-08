@@ -23,7 +23,7 @@ const GoogleIcon = () => (
   </svg>
 )
 
-const Auth = ({ onSuccess }) => {
+const Auth = ({ onSuccess, googleRedirectTo = null }) => {
   const [isLogin, setIsLogin] = useState(true)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [email, setEmail] = useState('')
@@ -103,7 +103,8 @@ const Auth = ({ onSuccess }) => {
         return
       }
 
-      const { error } = await signInWithGoogle()
+      // Pass custom redirect URL if provided (e.g., to return to invite page after OAuth)
+      const { error } = await signInWithGoogle(googleRedirectTo)
       if (error) throw error
     } catch (err) {
       setError(getErrorMessage(err))

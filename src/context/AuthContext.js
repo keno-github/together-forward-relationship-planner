@@ -97,12 +97,13 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Sign in with Google
-  const signInWithGoogle = async () => {
+  // redirectTo parameter allows customizing where to return after OAuth (e.g., back to invite page)
+  const signInWithGoogle = async (redirectTo = null) => {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: redirectTo || window.location.origin
         }
       })
       if (error) throw error

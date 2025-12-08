@@ -1265,10 +1265,10 @@ export const acceptDreamShare = async (shareCode) => {
   console.log('🔗 acceptDreamShare called with code:', shareCode)
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log('🔗 User check:', user ? 'authenticated' : 'not authenticated')
-
-    if (!user) throw new Error('User not authenticated')
+    // Note: We don't call getUser() here because:
+    // 1. AcceptInvitePage already verified user is logged in
+    // 2. The RPC function uses auth.uid() from the JWT token automatically
+    // 3. getUser() was causing hangs in some cases
 
     console.log('🔗 Calling accept_dream_share RPC...')
 

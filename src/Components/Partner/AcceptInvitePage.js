@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, Users, Check, AlertCircle, LogIn, Loader2 } from 'lucide-react';
+import { Heart, Users, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { acceptDreamShare } from '../../services/supabaseService';
 import { useAuth } from '../../context/AuthContext';
+import Auth from '../Auth';
 
 /**
  * AcceptInvitePage - Landing page for partner invite links
@@ -19,34 +20,10 @@ const AcceptInvitePage = () => {
   const [status, setStatus] = useState('loading'); // 'loading', 'ready', 'success', 'error', 'auth_required'
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [hasTriedAutoAccept, setHasTriedAutoAccept] = useState(false);
 
-  useEffect(() => {
-    console.log('📋 AcceptInvitePage useEffect - code:', code, 'authLoading:', authLoading, 'user:', user?.email);
-
-    // If no code in URL, redirect to landing
-    if (!code) {
-      console.log('📋 No code, redirecting to landing');
-      navigate('/');
-      return;
-    }
-
-    if (authLoading) {
-      console.log('📋 Auth still loading, waiting...');
-      return;
-    }
-
-    if (!user) {
-      console.log('📋 No user, setting auth_required');
-      setStatus('auth_required');
-      return;
-    }
-
-    // User is logged in, ready to accept
-    console.log('📋 User logged in, setting ready');
-    setStatus('ready');
-  }, [user, authLoading, code, navigate]);
-
-  const handleAcceptInvite = async () => {
+  // Define handleAcceptInvite first so it can be used in useEffect
+  const handleAcceptInvite = useCallback(async () => {
     console.log('📋 handleAcceptInvite called with code:', code);
     setStatus('loading');
     setError('');
@@ -72,19 +49,56 @@ const AcceptInvitePage = () => {
       setError(err.message || 'Something went wrong');
       setStatus('error');
     }
-  };
+  }, [code]);
 
-  const handleGoToLogin = () => {
-    // Store the invite code to resume after login
-    localStorage.setItem('pending_invite_code', code);
-    navigate('/login');
-  };
+  // Called after successful authentication (email/password) - auto-accept the invite
+  const handleAuthSuccess = useCallback((authenticatedUser) => {
+    console.log('📋 Auth success, user:', authenticatedUser?.email);
+    // Small delay to ensure auth state has propagated
+    setTimeout(() => {
+      handleAcceptInvite();
+    }, 500);
+  }, [handleAcceptInvite]);
 
-  const handleGoToSignup = () => {
-    // Store the invite code to resume after signup
-    localStorage.setItem('pending_invite_code', code);
-    navigate('/signup');
-  };
+  useEffect(() => {
+    console.log('📋 AcceptInvitePage useEffect - code:', code, 'authLoading:', authLoading, 'user:', user?.email);
+
+    // If no code in URL, redirect to landing
+    if (!code) {
+      console.log('📋 No code, redirecting to landing');
+      navigate('/');
+      return;
+    }
+
+    if (authLoading) {
+      console.log('📋 Auth still loading, waiting...');
+      return;
+    }
+
+    if (!user) {
+      console.log('📋 No user, setting auth_required');
+      setStatus('auth_required');
+      return;
+    }
+
+    // User is logged in - check if returning from OAuth (hash contains access_token)
+    // If so, auto-accept the invite instead of showing "ready" state
+    const isOAuthReturn = window.location.hash?.includes('access_token');
+
+    if (isOAuthReturn && !hasTriedAutoAccept) {
+      console.log('📋 User returned from OAuth, auto-accepting invite...');
+      setHasTriedAutoAccept(true);
+      // Clean up the URL hash
+      window.history.replaceState(null, '', window.location.pathname);
+      // Auto-accept the invite
+      handleAcceptInvite();
+      return;
+    }
+
+    // User is logged in and not from OAuth, show ready state
+    console.log('📋 User logged in, setting ready');
+    setStatus('ready');
+  }, [user, authLoading, code, navigate, hasTriedAutoAccept, handleAcceptInvite]);
 
   const handleGoToDream = () => {
     if (result?.roadmap_id) {
@@ -124,45 +138,24 @@ const AcceptInvitePage = () => {
             </div>
           )}
 
-          {/* Auth Required State */}
+          {/* Auth Required State - Show inline Auth component */}
           {status === 'auth_required' && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-stone-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <LogIn className="w-8 h-8 text-stone-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-stone-800 mb-2">
-                  Sign in to Continue
-                </h2>
-                <p className="text-stone-600 text-sm">
-                  You need an account to join this shared dream.
-                  Your progress and contributions will be synced together.
-                </p>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2">
                 <p className="text-sm text-amber-800 text-center">
                   <span className="font-medium">Invite Code:</span>{' '}
                   <span className="font-mono font-bold tracking-wider">{code}</span>
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <button
-                  onClick={handleGoToLogin}
-                  className="w-full py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors"
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={handleGoToSignup}
-                  className="w-full py-3 bg-white border border-stone-200 text-stone-700 rounded-xl font-medium hover:bg-stone-50 transition-colors"
-                >
-                  Create Account
-                </button>
-              </div>
+              {/* Inline Auth component - no redirect needed */}
+              {/* googleRedirectTo ensures Google OAuth returns to this invite page */}
+              <Auth
+                onSuccess={handleAuthSuccess}
+                googleRedirectTo={window.location.href}
+              />
 
-              <p className="text-xs text-stone-500 text-center">
+              <p className="text-xs text-stone-500 text-center pt-2">
                 After signing in, you'll automatically join the shared dream.
               </p>
             </div>
