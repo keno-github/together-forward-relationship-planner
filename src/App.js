@@ -155,7 +155,7 @@ const AppContent = () => {
     }
   };
 
-  // Initialize app - always show landing page (no automatic dashboard redirect)
+  // Initialize app - handle special routes and pending invites
   useEffect(() => {
     const initializeApp = async () => {
       if (authLoading) return; // Wait for auth to load
@@ -174,6 +174,19 @@ const AppContent = () => {
         return; // Don't override stage - let useRouteSync handle it
       }
 
+      // CRITICAL: Check for pending invite BEFORE redirecting to landing
+      // This handles the case where user just logged in after clicking invite link
+      if (user) {
+        const pendingCode = localStorage.getItem('pending_invite_code');
+        if (pendingCode) {
+          console.log('🔗 Pending invite detected after login, redirecting to:', pendingCode);
+          localStorage.removeItem('pending_invite_code');
+          // Full page redirect to invite page
+          window.location.href = `/invite/${pendingCode}`;
+          return; // Don't continue with initialization
+        }
+      }
+
       // CRITICAL FIX: Only run check if we're still in 'loading' stage
       // Don't redirect if user is already navigating (in roadmapProfile, main, etc.)
       if (stage !== 'loading' && initialCheckDone) {
@@ -190,20 +203,6 @@ const AppContent = () => {
 
     initializeApp();
   }, [user, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Handle pending invite redirect after login
-  // When user logs in after clicking an invite link, redirect them back to the invite page
-  useEffect(() => {
-    if (user && !authLoading && initialCheckDone) {
-      const pendingCode = localStorage.getItem('pending_invite_code');
-      if (pendingCode) {
-        console.log('🔗 Pending invite detected, redirecting to:', pendingCode);
-        localStorage.removeItem('pending_invite_code');
-        // Navigate to the invite page
-        window.location.href = `/invite/${pendingCode}`;
-      }
-    }
-  }, [user, authLoading, initialCheckDone]);
 
   // Show loading screen while checking auth and roadmaps
   if (authLoading || checkingRoadmaps) {
