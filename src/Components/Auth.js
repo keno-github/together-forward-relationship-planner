@@ -41,29 +41,40 @@ const Auth = ({ onSuccess, googleRedirectTo = null, embedded = false }) => {
     setMessage('')
     setLoading(true)
 
+    console.log('🔐 Auth handleSubmit -', isLogin ? 'LOGIN' : 'SIGNUP', 'email:', email)
+
     try {
       if (!isConfigured) {
+        console.warn('🔐 Auth not configured')
         setError('Authentication not configured. Please contact support.')
         setLoading(false)
         return
       }
 
       if (isLogin) {
+        console.log('🔐 Attempting sign in...')
         const { data, error } = await signIn(email, password)
         if (error) throw error
+        console.log('🔐 Sign in successful, user:', data.user?.email)
         setMessage('Welcome back! Redirecting...')
-        setTimeout(() => onSuccess && onSuccess(data.user), 1000)
+        setTimeout(() => {
+          console.log('🔐 Calling onSuccess callback')
+          onSuccess && onSuccess(data.user)
+        }, 1000)
       } else {
         if (!fullName.trim()) {
           setError('Please enter your name')
           setLoading(false)
           return
         }
+        console.log('🔐 Attempting sign up...')
         const { data, error } = await signUp(email, password, { full_name: fullName })
         if (error) throw error
+        console.log('🔐 Sign up successful, awaiting email verification')
         setMessage('Account created! Check your email to verify.')
       }
     } catch (err) {
+      console.error('🔐 Auth error:', err.message)
       setError(getErrorMessage(err))
     } finally {
       setLoading(false)
@@ -96,17 +107,23 @@ const Auth = ({ onSuccess, googleRedirectTo = null, embedded = false }) => {
     setMessage('')
     setLoading(true)
 
+    console.log('🔐 Google sign in initiated, redirectTo:', googleRedirectTo || 'default (origin)')
+
     try {
       if (!isConfigured) {
+        console.warn('🔐 Auth not configured')
         setError('Authentication not configured. Please contact support.')
         setLoading(false)
         return
       }
 
       // Pass custom redirect URL if provided (e.g., to return to invite page after OAuth)
+      console.log('🔐 Calling signInWithGoogle...')
       const { error } = await signInWithGoogle(googleRedirectTo)
       if (error) throw error
+      console.log('🔐 Google OAuth redirect initiated')
     } catch (err) {
+      console.error('🔐 Google sign in error:', err.message)
       setError(getErrorMessage(err))
       setLoading(false)
     }

@@ -26,6 +26,7 @@ const AcceptInvitePage = () => {
   // When user signs up, verifies email, and returns - we can still accept the invite
   useEffect(() => {
     if (code) {
+      console.log('📋 Storing pending_invite_code:', code);
       localStorage.setItem('pending_invite_code', code);
     }
   }, [code]);
@@ -93,15 +94,18 @@ const AcceptInvitePage = () => {
 
     // User is logged in - check if returning from OAuth
     // Check both hash (if not yet cleared) and sessionStorage flag (set by AuthContext before clearing hash)
-    const isOAuthReturn = window.location.hash?.includes('access_token') ||
-                          sessionStorage.getItem('oauth_return') === 'true';
+    const hasHashToken = window.location.hash?.includes('access_token');
+    const hasOAuthFlag = sessionStorage.getItem('oauth_return') === 'true';
+    const isOAuthReturn = hasHashToken || hasOAuthFlag;
+
+    console.log('📋 OAuth check - hashToken:', hasHashToken, 'oauthFlag:', hasOAuthFlag, 'hasTriedAutoAccept:', hasTriedAutoAccept);
 
     if (isOAuthReturn && !hasTriedAutoAccept) {
       console.log('📋 User returned from OAuth, auto-accepting invite...');
       setHasTriedAutoAccept(true);
       // Clean up OAuth indicators
       sessionStorage.removeItem('oauth_return');
-      if (window.location.hash?.includes('access_token')) {
+      if (hasHashToken) {
         window.history.replaceState(null, '', window.location.pathname);
       }
       // Auto-accept the invite

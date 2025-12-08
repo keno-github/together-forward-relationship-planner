@@ -27,13 +27,16 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Get initial session
+    console.log('🔑 AuthContext: Getting initial session...')
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('🔑 AuthContext: Session retrieved, user:', session?.user?.email || 'none')
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
 
       // Clear URL hash after retrieving session to prevent stale token warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
+        console.log('🔑 AuthContext: OAuth return detected (hash), setting sessionStorage flag')
         // Store flag so components can detect OAuth return (hash will be cleared)
         sessionStorage.setItem('oauth_return', 'true')
         // Replace the URL without the hash to clean up
@@ -43,12 +46,14 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔑 AuthContext: onAuthStateChange -', event, 'user:', session?.user?.email || 'none')
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
 
       // Clear URL hash after auth to prevent stale token warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
+        console.log('🔑 AuthContext: OAuth return detected in onAuthStateChange, setting flag')
         // Store flag so components can detect OAuth return (hash will be cleared)
         sessionStorage.setItem('oauth_return', 'true')
         window.history.replaceState(null, '', window.location.pathname)
