@@ -1,19 +1,18 @@
 /**
  * Storage Manager - Handles localStorage with version-based cache invalidation
  *
- * When APP_VERSION changes, all localStorage data is automatically cleared
- * to prevent stale data issues during development.
- *
+ * Uses BUILD_TIMESTAMP for automatic cache invalidation on every deploy.
  * Also clears cache if it's older than MAX_CACHE_AGE to prevent stale data.
  */
 
-// Increment this when you make breaking changes to stored data structures
-export const APP_VERSION = '1.0.1';
+// Build timestamp - set during build process, or use package version as fallback
+// This ensures cache is cleared on every new deploy
+export const APP_VERSION = process.env.REACT_APP_BUILD_TIME || '2.0.0';
 const VERSION_KEY = 'app_version';
 const CACHE_TIMESTAMP_KEY = 'cache_timestamp';
 
-// Maximum cache age in milliseconds (24 hours)
-const MAX_CACHE_AGE = 24 * 60 * 60 * 1000;
+// Maximum cache age in milliseconds (4 hours for more frequent refresh)
+const MAX_CACHE_AGE = 4 * 60 * 60 * 1000;
 
 /**
  * Initialize storage - checks version AND cache age, clears if outdated

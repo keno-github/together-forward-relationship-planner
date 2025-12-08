@@ -145,6 +145,13 @@ export const useRouteSync = (stage, setStage, options = {}) => {
     const currentPath = location.pathname;
     let targetPath = ROUTES[stage] || '/';
 
+    // Skip URL sync for stages that are entered via direct URL (contain dynamic params)
+    // These stages preserve the URL the user navigated to
+    if (stage === 'invite') {
+      // User arrived via /invite/ACTUALCODE - don't overwrite with /invite/:code
+      return;
+    }
+
     // Handle dynamic routes
     if (stage === 'milestoneDetail' && dreamId) {
       const section = milestoneDetailState?.section;

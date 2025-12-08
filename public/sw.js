@@ -1,32 +1,47 @@
 /**
  * TwogetherForward Service Worker
  * Handles push notifications when the app is closed or in background
+ *
+ * IMPORTANT: This SW does NOT cache app assets. It's only for push notifications.
+ * App files are served fresh from the network to ensure updates are immediate.
  */
 
-const CACHE_NAME = 'twogetherforward-v1';
+// Version this SW - increment when making changes
+const SW_VERSION = '2.0.0';
 
-// Install event - cache essential assets
+// Install event - skip waiting to activate immediately
 self.addEventListener('install', (event) => {
-  console.log('[SW] Service Worker installing...');
+  console.log(`[SW] Service Worker v${SW_VERSION} installing...`);
+  // Take over immediately, don't wait for old SW to finish
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - claim all clients immediately
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Service Worker activating...');
+  console.log(`[SW] Service Worker v${SW_VERSION} activating...`);
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cacheName);
+    Promise.all([
+      // Delete ALL caches to ensure fresh content
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            console.log('[SW] Deleting cache:', cacheName);
             return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+          })
+        );
+      }),
+      // Claim all clients so new SW takes effect immediately
+      self.clients.claim()
+    ])
   );
-  self.clients.claim();
+});
+
+// Fetch event - BYPASS cache, always fetch from network
+// This ensures users always get the latest app version
+self.addEventListener('fetch', (event) => {
+  // Don't cache anything - let browser handle normally
+  // This SW is only for push notifications, not for offline caching
+  return;
 });
 
 // Push event - handle incoming push notifications

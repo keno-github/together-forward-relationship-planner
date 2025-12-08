@@ -32,10 +32,14 @@ export const registerServiceWorker = async () => {
 
   try {
     const registration = await navigator.serviceWorker.register('/sw.js', {
-      scope: '/'
+      scope: '/',
+      updateViaCache: 'none' // Always check server for SW updates
     });
 
     console.log('[SW] Service Worker registered:', registration.scope);
+
+    // Force check for updates immediately
+    registration.update().catch(err => console.log('[SW] Update check failed:', err));
 
     // Handle updates
     registration.addEventListener('updatefound', () => {
@@ -43,12 +47,24 @@ export const registerServiceWorker = async () => {
       console.log('[SW] New service worker installing...');
 
       newWorker.addEventListener('statechange', () => {
-        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          // New version available
-          console.log('[SW] New version available');
-          // Could show update prompt here
+        if (newWorker.state === 'installed') {
+          if (navigator.serviceWorker.controller) {
+            // New version available - tell it to take over immediately
+            console.log('[SW] New version available, activating...');
+            newWorker.postMessage({ type: 'SKIP_WAITING' });
+          } else {
+            // First install
+            console.log('[SW] Service worker installed for first time');
+          }
         }
       });
+    });
+
+    // Listen for controller change (new SW took over)
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('[SW] New service worker activated, reloading...');
+      // Optionally reload the page to use new SW
+      // window.location.reload();
     });
 
     return registration;
