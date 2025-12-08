@@ -22,6 +22,14 @@ const AcceptInvitePage = () => {
   const [error, setError] = useState('');
   const [hasTriedAutoAccept, setHasTriedAutoAccept] = useState(false);
 
+  // Store invite code in localStorage for email verification flow
+  // When user signs up, verifies email, and returns - we can still accept the invite
+  useEffect(() => {
+    if (code) {
+      localStorage.setItem('pending_invite_code', code);
+    }
+  }, [code]);
+
   // Define handleAcceptInvite first so it can be used in useEffect
   const handleAcceptInvite = useCallback(async () => {
     console.log('📋 handleAcceptInvite called with code:', code);
@@ -37,6 +45,8 @@ const AcceptInvitePage = () => {
 
       if (data?.success) {
         console.log('📋 Success! Setting result and status');
+        // Clear pending invite code since we successfully accepted
+        localStorage.removeItem('pending_invite_code');
         setResult(data);
         setStatus('success');
       } else {
@@ -81,15 +91,19 @@ const AcceptInvitePage = () => {
       return;
     }
 
-    // User is logged in - check if returning from OAuth (hash contains access_token)
-    // If so, auto-accept the invite instead of showing "ready" state
-    const isOAuthReturn = window.location.hash?.includes('access_token');
+    // User is logged in - check if returning from OAuth
+    // Check both hash (if not yet cleared) and sessionStorage flag (set by AuthContext before clearing hash)
+    const isOAuthReturn = window.location.hash?.includes('access_token') ||
+                          sessionStorage.getItem('oauth_return') === 'true';
 
     if (isOAuthReturn && !hasTriedAutoAccept) {
       console.log('📋 User returned from OAuth, auto-accepting invite...');
       setHasTriedAutoAccept(true);
-      // Clean up the URL hash
-      window.history.replaceState(null, '', window.location.pathname);
+      // Clean up OAuth indicators
+      sessionStorage.removeItem('oauth_return');
+      if (window.location.hash?.includes('access_token')) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
       // Auto-accept the invite
       handleAcceptInvite();
       return;
@@ -149,10 +163,11 @@ const AcceptInvitePage = () => {
               </div>
 
               {/* Inline Auth component - no redirect needed */}
-              {/* googleRedirectTo ensures Google OAuth returns to this invite page */}
+              {/* embedded=true removes container styling, googleRedirectTo returns to this page after OAuth */}
               <Auth
                 onSuccess={handleAuthSuccess}
                 googleRedirectTo={window.location.href}
+                embedded={true}
               />
 
               <p className="text-xs text-stone-500 text-center pt-2">
@@ -254,7 +269,14 @@ const AcceptInvitePage = () => {
 
               <div className="space-y-3">
                 <button
-                  onClick={() => setStatus('ready')}
+                  onClick={() => {
+                    // Reset to appropriate state based on auth
+                    if (user) {
+                      setStatus('ready');
+                    } else {
+                      setStatus('auth_required');
+                    }
+                  }}
                   className="w-full py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors"
                 >
                   Try Again

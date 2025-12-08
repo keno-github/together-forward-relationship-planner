@@ -23,7 +23,7 @@ const GoogleIcon = () => (
   </svg>
 )
 
-const Auth = ({ onSuccess, googleRedirectTo = null }) => {
+const Auth = ({ onSuccess, googleRedirectTo = null, embedded = false }) => {
   const [isLogin, setIsLogin] = useState(true)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [email, setEmail] = useState('')
@@ -217,15 +217,17 @@ const Auth = ({ onSuccess, googleRedirectTo = null }) => {
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-white rounded-2xl p-6 sm:p-8 shadow-xl"
+      className={embedded ? '' : 'bg-white rounded-2xl p-6 sm:p-8 shadow-xl'}
     >
-      {/* Brand */}
-      <div className="flex items-center gap-2 mb-6">
-        <div className="w-9 h-9 rounded-full bg-stone-900 flex items-center justify-center">
-          <Heart className="w-4 h-4 text-white" fill="currentColor" />
+      {/* Brand - hide when embedded in another component */}
+      {!embedded && (
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-9 h-9 rounded-full bg-stone-900 flex items-center justify-center">
+            <Heart className="w-4 h-4 text-white" fill="currentColor" />
+          </div>
+          <span className="font-serif text-lg font-bold text-stone-900">TwogetherForward</span>
         </div>
-        <span className="font-serif text-lg font-bold text-stone-900">TwogetherForward</span>
-      </div>
+      )}
 
       {/* Header */}
       <AnimatePresence mode="wait">

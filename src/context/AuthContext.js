@@ -34,6 +34,8 @@ export const AuthProvider = ({ children }) => {
 
       // Clear URL hash after retrieving session to prevent stale token warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
+        // Store flag so components can detect OAuth return (hash will be cleared)
+        sessionStorage.setItem('oauth_return', 'true')
         // Replace the URL without the hash to clean up
         window.history.replaceState(null, '', window.location.pathname)
       }
@@ -47,6 +49,8 @@ export const AuthProvider = ({ children }) => {
 
       // Clear URL hash after auth to prevent stale token warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
+        // Store flag so components can detect OAuth return (hash will be cleared)
+        sessionStorage.setItem('oauth_return', 'true')
         window.history.replaceState(null, '', window.location.pathname)
       }
 
