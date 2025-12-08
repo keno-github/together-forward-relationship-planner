@@ -21,40 +21,54 @@ const AcceptInvitePage = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    console.log('📋 AcceptInvitePage useEffect - code:', code, 'authLoading:', authLoading, 'user:', user?.email);
+
     // If no code in URL, redirect to landing
     if (!code) {
+      console.log('📋 No code, redirecting to landing');
       navigate('/');
       return;
     }
 
-    if (authLoading) return;
+    if (authLoading) {
+      console.log('📋 Auth still loading, waiting...');
+      return;
+    }
 
     if (!user) {
+      console.log('📋 No user, setting auth_required');
       setStatus('auth_required');
       return;
     }
 
     // User is logged in, ready to accept
+    console.log('📋 User logged in, setting ready');
     setStatus('ready');
   }, [user, authLoading, code, navigate]);
 
   const handleAcceptInvite = async () => {
+    console.log('📋 handleAcceptInvite called with code:', code);
     setStatus('loading');
     setError('');
 
     try {
+      console.log('📋 Calling acceptDreamShare...');
       const { data, error: acceptError } = await acceptDreamShare(code);
+      console.log('📋 acceptDreamShare returned - data:', data, 'error:', acceptError);
 
       if (acceptError) throw acceptError;
 
       if (data?.success) {
+        console.log('📋 Success! Setting result and status');
         setResult(data);
         setStatus('success');
       } else {
+        console.log('📋 Failed - message:', data?.message);
         setError(data?.message || 'Failed to accept invite');
         setStatus('error');
       }
     } catch (err) {
+      console.error('📋 Error in handleAcceptInvite:', err);
       setError(err.message || 'Something went wrong');
       setStatus('error');
     }

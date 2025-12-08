@@ -1262,32 +1262,60 @@ export const createDreamShareInvite = async (roadmapId, invitedEmail = null, mes
  * @param {string} shareCode - The 8-character share code
  */
 export const acceptDreamShare = async (shareCode) => {
+  console.log('🔗 acceptDreamShare called with code:', shareCode)
+
   try {
     const { data: { user } } = await supabase.auth.getUser()
+    console.log('🔗 User check:', user ? 'authenticated' : 'not authenticated')
+
     if (!user) throw new Error('User not authenticated')
 
-    // Add timeout to prevent infinite hanging (10 seconds)
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out. Please try again.')), 10000)
-    )
+    console.log('🔗 Calling accept_dream_share RPC...')
 
-    // Use the RPC function to accept invite
-    const rpcPromise = supabase.rpc('accept_dream_share', {
-      p_share_code: shareCode.toUpperCase()
+    // Create a proper timeout wrapper
+    const timeoutMs = 15000 // 15 seconds
+    let timeoutId
+
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        console.error('🔗 RPC call timed out after', timeoutMs, 'ms')
+        reject(new Error('Request timed out. Please try again.'))
+      }, timeoutMs)
+    })
+
+    // Wrap the RPC call in a proper Promise to ensure Promise.race works
+    const rpcPromise = new Promise(async (resolve, reject) => {
+      try {
+        const result = await supabase.rpc('accept_dream_share', {
+          p_share_code: shareCode.toUpperCase()
+        })
+        console.log('🔗 RPC completed:', result)
+        resolve(result)
+      } catch (err) {
+        console.error('🔗 RPC error:', err)
+        reject(err)
+      }
     })
 
     const { data, error } = await Promise.race([rpcPromise, timeoutPromise])
+
+    // Clear the timeout since we got a response
+    clearTimeout(timeoutId)
+
+    console.log('🔗 RPC result - data:', data, 'error:', error)
 
     if (error) throw error
 
     // Handle case where RPC returns empty or no data
     if (!data || data.length === 0) {
+      console.log('🔗 No data returned from RPC')
       return { data: { success: false, message: 'Invalid or expired invite code' }, error: null }
     }
 
+    console.log('🔗 Success! Returning:', data[0])
     return { data: data[0], error: null }
   } catch (error) {
-    console.error('Accept dream share error:', error)
+    console.error('🔗 Accept dream share error:', error)
     return { data: null, error }
   }
 }
