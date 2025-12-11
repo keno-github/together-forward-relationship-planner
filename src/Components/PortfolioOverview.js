@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, TrendingUp, Calendar, AlertTriangle, CheckCircle2,
   ChevronRight, Zap, ArrowUpRight, ArrowDownRight, Minus,
-  BarChart3, GitBranch, Shield, RefreshCw
+  BarChart3, GitBranch, Shield, RefreshCw, HelpCircle, X
 } from 'lucide-react';
 import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByMilestone } from '../services/supabaseService';
 import GoalOrchestrator from '../services/goalOrchestrator';
@@ -19,6 +19,7 @@ const PortfolioOverview = ({ onBack, userId, userContext }) => {
   const [dreams, setDreams] = useState([]);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [showTimelineHelp, setShowTimelineHelp] = useState(false);
 
   const loadPortfolioData = useCallback(async () => {
     setLoading(true);
@@ -186,7 +187,7 @@ const PortfolioOverview = ({ onBack, userId, userContext }) => {
             <div className="w-px h-6 bg-stone-200" />
             <div>
               <h1 className="text-xl font-bold text-stone-900">Portfolio Intelligence</h1>
-              {userContext && (
+              {userContext && (userContext.partner1_name || userContext.partner1 || userContext.partner2_name || userContext.partner2) && (
                 <p className="text-xs text-stone-500">
                   {userContext.partner1_name || userContext.partner1} & {userContext.partner2_name || userContext.partner2}
                 </p>
@@ -266,12 +267,70 @@ const PortfolioOverview = ({ onBack, userId, userContext }) => {
               </div>
             </section>
 
-            {/* Timeline Section */}
+            {/* Suggested Timeline Section */}
             {stats?.timeline && stats.timeline.length > 0 && (
               <section className="bg-white rounded-2xl border-2 border-stone-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-stone-100 flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-stone-600" />
-                  <h3 className="font-bold text-stone-900">Timeline</h3>
+                  <h3 className="font-bold text-stone-900 flex-1">Suggested Timeline</h3>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowTimelineHelp(!showTimelineHelp)}
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                      style={{
+                        backgroundColor: showTimelineHelp ? '#c49a6c' : '#f5f2ed',
+                        color: showTimelineHelp ? 'white' : '#6b635b'
+                      }}
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+
+                    <AnimatePresence>
+                      {showTimelineHelp && (
+                        <>
+                          {/* Backdrop */}
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowTimelineHelp(false)}
+                            className="fixed inset-0 z-40"
+                            style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}
+                          />
+
+                          {/* Tooltip Card */}
+                          <motion.div
+                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute top-10 right-0 z-50 w-80 rounded-xl p-5 shadow-xl"
+                            style={{
+                              backgroundColor: 'white',
+                              border: '1px solid #e8e4de'
+                            }}
+                          >
+                            {/* Close button */}
+                            <button
+                              onClick={() => setShowTimelineHelp(false)}
+                              className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                              style={{ backgroundColor: '#f5f2ed', color: '#6b635b' }}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+
+                            <h4 className="font-bold text-stone-900 mb-3 pr-6">What is this?</h4>
+                            <p className="text-sm text-stone-600 leading-relaxed mb-4">
+                              This is your guided timeline. A gentle sequence created by Luna to help you and your partner grow toward your dreams without stress.
+                            </p>
+                            <p className="text-xs text-stone-500 italic">
+                              Luna's gentle guidance for moving forward together, one dream at a time.
+                            </p>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
                 <div className="p-6">

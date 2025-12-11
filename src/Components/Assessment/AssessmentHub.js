@@ -966,6 +966,26 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
                   <span>AI-Powered Insights</span>
                 </div>
               </motion.div>
+
+              {/* Back to Dashboard button */}
+              {onBack && (
+                <motion.button
+                  className="btn-secondary"
+                  onClick={onBack}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1 }}
+                  style={{
+                    marginTop: '2rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  <ArrowLeft size={18} />
+                  Back to Dashboard
+                </motion.button>
+              )}
             </div>
           </motion.div>
         );

@@ -799,7 +799,12 @@ const GoalBuilder = ({ onBack, onComplete, onEnhanceWithLuna, user, locationData
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
-            <div className="text-4xl mb-4">💫</div>
+            <div
+              className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4"
+              style={{ backgroundColor: '#F5F1EC' }}
+            >
+              <Sparkles size={32} strokeWidth={1.5} style={{ color: '#C4785A' }} />
+            </div>
             <p
               className="text-lg font-light"
               style={{

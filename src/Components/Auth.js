@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Mail, Lock, User, LogIn, UserPlus, ArrowLeft, Heart } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { validateEmail } from '../utils/emailValidation'
 
 // User-friendly error messages
 const getErrorMessage = (error) => {
@@ -62,11 +63,21 @@ const Auth = ({ onSuccess, googleRedirectTo = null, embedded = false }) => {
           onSuccess && onSuccess(data.user)
         }, 1000)
       } else {
+        // Signup validation
         if (!fullName.trim()) {
           setError('Please enter your name')
           setLoading(false)
           return
         }
+
+        // Validate email domain
+        const emailValidation = validateEmail(email)
+        if (!emailValidation.valid) {
+          setError(emailValidation.error)
+          setLoading(false)
+          return
+        }
+
         console.log('🔐 Attempting sign up...')
         const { data, error } = await signUp(email, password, { full_name: fullName })
         if (error) throw error

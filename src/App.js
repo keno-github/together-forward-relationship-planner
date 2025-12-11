@@ -23,6 +23,7 @@ import LunaOptimization from './Components/LunaOptimization';
 import LunaAssessment from './Components/LunaAssessment';
 import PortfolioOverview from './Components/PortfolioOverview';
 import AcceptInvitePage from './Components/Partner/AcceptInvitePage';
+import ResetPasswordPage from './Components/ResetPasswordPage';
 import DevTools from './Components/DevTools';
 import { MobileBottomNav } from './Components/Mobile';
 import { useResponsive } from './hooks/useResponsive';
@@ -187,22 +188,57 @@ const AppContent = () => {
         }
       }
 
-      // CRITICAL FIX: Only run check if we're still in 'loading' stage
-      // Don't redirect if user is already navigating (in roadmapProfile, main, etc.)
-      if (stage !== 'loading' && initialCheckDone) {
-        return; // User is actively using the app, don't redirect
+      // CRITICAL FIX: If user is null (logged out), ALWAYS redirect to landing
+      // This handles sign out from any page (Settings, Dashboard, etc.)
+      if (!user) {
+        console.log('🚫 No user logged in → redirecting to landing page');
+        setStage('landing');
+        setCheckingRoadmaps(false);
+        setInitialCheckDone(true);
+        return;
       }
 
-      // NEW UX: Always show landing page first (no automatic dashboard redirect)
-      // The landing page will show appropriate CTAs based on user state
-      setStage('landing');
+      // CRITICAL FIX: Don't redirect if user is already navigating
+      // BUT: Allow roadmap check to run when user logs in (even if initialCheckDone)
+      const isUserNavigating = stage !== 'loading' && stage !== 'landing' && initialCheckDone;
+      if (isUserNavigating) {
+        return; // User is actively using the app (in roadmapProfile, main, etc.), don't redirect
+      }
 
+      // UX: Returning users with existing roadmaps go directly to Dashboard (HomeHub)
+      // New users or users without roadmaps see the landing page
+      console.log('🔍 Checking roadmaps for user:', user.email);
+      try {
+        const { getUserRoadmaps } = await import('./services/supabaseService');
+        const { data: roadmaps } = await getUserRoadmaps();
+        console.log('🔍 Found', roadmaps?.length || 0, 'roadmap(s)');
+
+        if (roadmaps && roadmaps.length > 0) {
+          console.log('🏠 Returning user with roadmaps → going to Dashboard/HomeHub');
+          setStage('dashboard');
+          setCheckingRoadmaps(false);
+          setInitialCheckDone(true);
+          return;
+        } else {
+          console.log('📝 New user or no roadmaps → showing landing page');
+        }
+      } catch (error) {
+        console.error('❌ Error checking roadmaps:', error);
+      }
+
+      // New users or users without roadmaps see landing page
+      setStage('landing');
       setCheckingRoadmaps(false);
       setInitialCheckDone(true); // Mark initial check as done
     };
 
     initializeApp();
   }, [user, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle reset password route (from email link)
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPasswordPage />;
+  }
 
   // Show loading screen while checking auth and roadmaps
   if (authLoading || checkingRoadmaps) {
@@ -606,11 +642,17 @@ const AppContent = () => {
   };
 
   const handleOpenAssessment = () => {
-    setStage('assessment');
+    setStage('compatibility');
   };
 
   const handleOpenPortfolioOverview = () => {
     setStage('portfolioOverview');
+  };
+
+  const handleOpenHomeHub = () => {
+    // Navigate to dashboard and open HomeHub
+    setStage('dashboard');
+    // The HomeHub will automatically show on dashboard if not seen this session
   };
 
   // Handle alignment assessment completion (Luna-powered)
@@ -974,6 +1016,8 @@ const AppContent = () => {
           onBackToHome={() => setStage('landing')}
           onOpenAssessment={handleOpenAssessment}
           onOpenPortfolioOverview={handleOpenPortfolioOverview}
+          onGoToProfile={handleGoToProfile}
+          onGoToSettings={handleGoToSettings}
           successNotification={successNotification}
           onDismissNotification={() => setSuccessNotification(null)}
         />
@@ -1006,6 +1050,11 @@ const AppContent = () => {
           onGoToDashboard={handleGoToDashboard} // Navigate to dashboard
           onGoToProfile={handleGoToProfile} // Navigate to profile
           onGoToSettings={handleGoToSettings} // Navigate to settings
+          onOpenHomeHub={handleOpenHomeHub} // Navigate to HomeHub
+          onOpenAssessment={handleOpenAssessment} // Navigate to Alignment Test
+          onOpenPortfolioOverview={handleOpenPortfolioOverview} // Navigate to Portfolio Overview
+          hasMultipleDreams={false} // Portfolio Overview shown in Dashboard menu instead
+          notificationCount={0} // TODO: Implement notification count
           isReturningUser={userData?.isReturningUser} // Pass flag to skip hero
         />
       )}
@@ -1035,7 +1084,7 @@ const AppContent = () => {
         {stage === 'compatibility' && (
           <AssessmentHub
             joinCode={assessmentJoinCode}
-            onBack={handleBackToLanding}
+            onBack={handleBackToDashboard}
             onComplete={handleAlignmentAssessmentComplete}
           />
         )}

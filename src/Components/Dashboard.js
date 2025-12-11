@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight } from 'lucide-react';
+import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight, Sunrise, Bell, HeartHandshake, LayoutDashboard, UserCircle, Settings as SettingsIcon, MoreVertical } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap } from '../services/supabaseService';
 import { useDashboardData, useDashboardCache } from '../hooks/useDashboardData';
 import DashboardSkeleton from './DashboardSkeleton';
 import { NotificationCenter } from './Notifications';
+import { HomeHub } from './HomeHub';
+import { useWelcomeBrief } from '../hooks/useWelcomeBrief';
+import { useNotifications } from '../hooks/useNotifications';
 
 // Feature flag: Set to true to use the new optimized RPC-based loading
 // Set to false to use legacy loading (for fallback)
@@ -16,7 +19,7 @@ const fontStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap');
 `;
 
-const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessment, onOpenPortfolioOverview, successNotification, onDismissNotification }) => {
+const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessment, onOpenPortfolioOverview, onGoToProfile, onGoToSettings, successNotification, onDismissNotification }) => {
   const { user, signOut } = useAuth();
   const [dreams, setDreams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +30,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   const [deleting, setDeleting] = useState(false);
   const [hoveredDream, setHoveredDream] = useState(null);
   const [useLegacyLoading, setUseLegacyLoading] = useState(!USE_OPTIMIZED_LOADING);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [stats, setStats] = useState({
     totalXP: 0,
     totalMilestones: 0,
@@ -37,8 +41,19 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     budgetHealth: 0
   });
 
+  // Home Hub visibility state
+  const [showHomeHub, setShowHomeHub] = useState(() => {
+    // Check if this is a fresh session (show HomeHub on first load)
+    if (!user?.id) return false;
+    const seenThisSession = sessionStorage.getItem(`homeHub_seen_${user.id}`);
+    return seenThisSession !== 'true';
+  });
+
   // Track mounted state to prevent state updates on unmounted component
   const isMountedRef = useRef(true);
+
+  // Get notification unread count
+  const { unreadCount } = useNotifications({ limit: 1 });
 
   // React Query hook for optimized loading (only used when USE_OPTIMIZED_LOADING is true)
   const { invalidateDashboard } = useDashboardCache();
@@ -548,6 +563,77 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
     );
   }
 
+  // Handle closing HomeHub
+  const handleCloseHomeHub = () => {
+    if (user?.id) {
+      sessionStorage.setItem(`homeHub_seen_${user.id}`, 'true');
+    }
+    setShowHomeHub(false);
+  };
+
+  // Handle opening HomeHub from navbar
+  const handleOpenHomeHub = () => {
+    setShowHomeHub(true);
+  };
+
+  // Track last viewed dream for "Continue Where You Left Off"
+  const trackAndContinue = (dream, tab) => {
+    if (user?.id && dream) {
+      localStorage.setItem(`lastViewed_${user.id}`, JSON.stringify({
+        dreamId: dream.id,
+        dreamTitle: dream.title,
+        milestoneName: null,
+        timestamp: Date.now(),
+      }));
+    }
+    onContinueRoadmap(dream, tab);
+  };
+
+  // Show HomeHub overlay if it should be visible
+  // IMPORTANT: Wait for actual data before showing HomeHub
+  // Use 'dreams' state which is populated by BOTH RPC and legacy loading
+  const hasData = dreams && dreams.length > 0;
+  const isDataReady = !loading && !rpcLoading && (hasData || (!rpcError && rpcData));
+
+  // Show loading while waiting for data
+  if (showHomeHub && (loading || rpcLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FAF7F2' }}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: '#C4785A' }}></div>
+          <p className="text-sm" style={{ color: '#6B5E54' }}>Loading your Home Hub...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showHomeHub && isDataReady) {
+    // Create dashboardData from either RPC or legacy-loaded dreams
+    const dashboardDataForHub = rpcData || {
+      dreams: dreams,
+      stats: stats
+    };
+
+    return (
+      <HomeHub
+        dashboardData={dashboardDataForHub}
+        user={user}
+        onClose={handleCloseHomeHub}
+        onNavigateToDream={(dreamId) => {
+          const dream = dreams.find(d => d.id === dreamId);
+          if (dream) {
+            handleCloseHomeHub();
+            onContinueRoadmap(dream);
+          }
+        }}
+        onCreateNew={() => {
+          handleCloseHomeHub();
+          onCreateNew();
+        }}
+      />
+    );
+  }
+
   return (
     <div
       className="min-h-screen relative"
@@ -638,40 +724,125 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                 <span className="text-sm font-medium hidden sm:inline">Home</span>
               </button>
             )}
-            {/* Notification Bell */}
-            <div
-              className="rounded-lg"
-              style={{ backgroundColor: 'white', border: '1px solid #E8E2DA' }}
-            >
-              <NotificationCenter
-                onNotificationClick={(notification) => {
-                  // Handle notification click - could navigate to relevant dream/task
-                  if (notification.data?.roadmap_id) {
-                    const dream = dreams.find(d => d.id === notification.data.roadmap_id);
-                    if (dream) {
-                      onContinueRoadmap(dream);
-                    }
-                  }
+
+            {/* User Menu with Ellipses */}
+            <div className="relative">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                style={{
+                  backgroundColor: 'white',
+                  border: '1px solid #E8E2DA'
                 }}
-              />
+              >
+                <User className="w-4 h-4" style={{ color: '#6B5E54' }} />
+                <span className="text-sm font-medium" style={{ color: '#2D2926' }}>
+                  {user?.email?.split('@')[0]}
+                </span>
+                <MoreVertical className="w-4 h-4" style={{ color: '#6B5E54' }} />
+              </motion.button>
+
+              {showUserMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="absolute right-0 mt-2 bg-white rounded-2xl p-2 min-w-[240px] shadow-xl z-50"
+                  style={{ border: '1px solid #E8E2DA' }}
+                >
+                  {/* User Info Header */}
+                  <div className="px-3 py-2 mb-2" style={{ borderBottom: '1px solid #E8E2DA' }}>
+                    <p className="text-xs" style={{ color: '#8B8178' }}>Signed in as</p>
+                    <p className="text-sm font-medium" style={{ color: '#2D2926' }}>{user?.email}</p>
+                  </div>
+
+                  {/* Planning Tools Section */}
+                  <div className="mb-2">
+                    <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider" style={{ color: '#A09890' }}>Planning Tools</p>
+                    <button onClick={() => { /* Already on dashboard */ setShowUserMenu(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm"
+                      style={{ color: '#2D2926', backgroundColor: '#FAF7F2' }}
+                    >
+                      <LayoutDashboard className="w-4 h-4" style={{ color: '#6B5E54' }} />
+                      Dashboard
+                    </button>
+                    <button onClick={() => { handleOpenHomeHub(); setShowUserMenu(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm"
+                      style={{ color: '#2D2926' }}
+                    >
+                      <Sunrise className="w-4 h-4 text-amber-600" />
+                      Home Hub
+                    </button>
+                    {onOpenAssessment && (
+                      <button onClick={() => { onOpenAssessment(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm"
+                        style={{ color: '#2D2926' }}
+                      >
+                        <HeartHandshake className="w-4 h-4 text-rose-600" />
+                        Alignment Test
+                      </button>
+                    )}
+                    {onOpenPortfolioOverview && dreams.length >= 2 && (
+                      <button onClick={() => { onOpenPortfolioOverview(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm"
+                        style={{ color: '#2D2926' }}
+                      >
+                        <Target className="w-4 h-4" style={{ color: '#6B5E54' }} />
+                        Portfolio Overview
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #E8E2DA', margin: '8px 0' }}></div>
+
+                  {/* Account Section */}
+                  <div className="mb-2">
+                    <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider" style={{ color: '#A09890' }}>Your Account</p>
+                    <div className="relative">
+                      <NotificationCenter
+                        onNotificationClick={(notification) => {
+                          setShowUserMenu(false);
+                          if (notification.data?.roadmap_id) {
+                            const dream = dreams.find(d => d.id === notification.data.roadmap_id);
+                            if (dream) {
+                              onContinueRoadmap(dream);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    {onGoToProfile && (
+                      <button onClick={() => { onGoToProfile(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm"
+                        style={{ color: '#2D2926' }}
+                      >
+                        <UserCircle className="w-4 h-4" style={{ color: '#6B5E54' }} />
+                        Profile
+                      </button>
+                    )}
+                    {onGoToSettings && (
+                      <button onClick={() => { onGoToSettings(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm"
+                        style={{ color: '#2D2926' }}
+                      >
+                        <SettingsIcon className="w-4 h-4" style={{ color: '#6B5E54' }} />
+                        Settings
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #E8E2DA', margin: '8px 0' }}></div>
+
+                  {/* Sign Out */}
+                  <button onClick={async () => { await signOut(); setShowUserMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors text-sm text-red-600">
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </motion.div>
+              )}
             </div>
-            <div
-              className="px-3 py-2 rounded-lg flex items-center gap-2"
-              style={{ backgroundColor: 'white', border: '1px solid #E8E2DA' }}
-            >
-              <User className="w-4 h-4" style={{ color: '#6B5E54' }} />
-              <span className="text-sm font-medium" style={{ color: '#2D2926' }}>
-                {user?.email?.split('@')[0]}
-              </span>
-            </div>
-            <button
-              onClick={() => signOut()}
-              className="p-2 rounded-lg transition-colors"
-              style={{ backgroundColor: 'white', border: '1px solid #E8E2DA' }}
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" style={{ color: '#6B5E54' }} />
-            </button>
           </div>
         </div>
       </header>
@@ -857,7 +1028,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                       onClick={() => {
                         const dream = dreams.find(d => d.id === task.dreamId);
                         if (dream) {
-                          onContinueRoadmap(dream, 'tasks');
+                          trackAndContinue(dream, 'tasks');
                         }
                       }}
                     />
@@ -970,7 +1141,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + index * 0.05 }}
-                onClick={() => onContinueRoadmap(dream)}
+                onClick={() => trackAndContinue(dream)}
                 onMouseEnter={() => setHoveredDream(dream.id)}
                 onMouseLeave={() => setHoveredDream(null)}
                 className="group rounded-xl p-6 cursor-pointer transition-all relative overflow-hidden"

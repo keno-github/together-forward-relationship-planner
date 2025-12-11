@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle } from 'lucide-react';
+import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle, Bell, Home, Sunrise } from 'lucide-react';
 import { getUserRoadmaps } from '../services/supabaseService';
 import { useAuth } from '../context/AuthContext';
 import { converseWithLuna, isRoadmapComplete, getRoadmapData } from '../services/lunaService';
@@ -10,7 +10,7 @@ import GoalSelectionHub from './GoalSelectionHub';
 import MarkdownMessage from './MarkdownMessage';
 import DreamCreationOverlay from './DreamCreationOverlay';
 
-const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onGoToProfile = null, onGoToSettings = null, isReturningUser = false }) => {
+const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onGoToProfile = null, onGoToSettings = null, onOpenHomeHub = null, onOpenAssessment = null, onOpenPortfolioOverview = null, hasMultipleDreams = false, notificationCount = 0, isReturningUser = false }) => {
   const { user, loading: authLoading, signOut } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -228,34 +228,81 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="absolute right-0 mt-2 bg-white border border-stone-200 rounded-2xl p-2 min-w-[220px] shadow-xl"
+                      className="absolute right-0 mt-2 bg-white border border-stone-200 rounded-2xl p-2 min-w-[240px] shadow-xl"
                     >
+                      {/* User Info Header */}
                       <div className="px-3 py-2 border-b border-stone-100 mb-2">
                         <p className="text-xs text-stone-500">Signed in as</p>
                         <p className="text-sm font-medium text-stone-900">{user.email}</p>
                       </div>
-                      {onGoToDashboard && (
-                        <button onClick={() => { onGoToDashboard(); setShowUserMenu(false); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
-                          <LayoutDashboard className="w-4 h-4 text-stone-700" />
-                          My Dashboard
-                        </button>
-                      )}
-                      {onGoToProfile && (
-                        <button onClick={() => { onGoToProfile(); setShowUserMenu(false); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
-                          <UserCircle className="w-4 h-4 text-stone-700" />
-                          My Profile
-                        </button>
-                      )}
-                      {onGoToSettings && (
-                        <button onClick={() => { onGoToSettings(); setShowUserMenu(false); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
-                          <Settings className="w-4 h-4 text-stone-700" />
-                          Settings
-                        </button>
-                      )}
+
+                      {/* Planning Tools Section */}
+                      <div className="mb-2">
+                        <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stone-400">Planning Tools</p>
+                        {onGoToDashboard && (
+                          <button onClick={() => { onGoToDashboard(); setShowUserMenu(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
+                            <LayoutDashboard className="w-4 h-4 text-stone-700" />
+                            Dashboard
+                          </button>
+                        )}
+                        {onOpenHomeHub && (
+                          <button onClick={() => { onOpenHomeHub(); setShowUserMenu(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
+                            <Sunrise className="w-4 h-4 text-amber-600" />
+                            Home Hub
+                          </button>
+                        )}
+                        {onOpenAssessment && (
+                          <button onClick={() => { onOpenAssessment(); setShowUserMenu(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
+                            <HeartHandshake className="w-4 h-4 text-rose-600" />
+                            Alignment Test
+                          </button>
+                        )}
+                        {onOpenPortfolioOverview && hasMultipleDreams && (
+                          <button onClick={() => { onOpenPortfolioOverview(); setShowUserMenu(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
+                            <Target className="w-4 h-4 text-stone-700" />
+                            Portfolio Overview
+                          </button>
+                        )}
+                      </div>
+
                       <div className="border-t border-stone-100 my-2"></div>
+
+                      {/* Account Section */}
+                      <div className="mb-2">
+                        <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stone-400">Your Account</p>
+                        <button onClick={() => { /* TODO: Open notifications panel */ setShowUserMenu(false); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
+                          <Bell className="w-4 h-4 text-stone-700" />
+                          <span className="flex-1 text-left">Notifications</span>
+                          {notificationCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                              {notificationCount > 9 ? '9+' : notificationCount}
+                            </span>
+                          )}
+                        </button>
+                        {onGoToProfile && (
+                          <button onClick={() => { onGoToProfile(); setShowUserMenu(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
+                            <UserCircle className="w-4 h-4 text-stone-700" />
+                            Profile
+                          </button>
+                        )}
+                        {onGoToSettings && (
+                          <button onClick={() => { onGoToSettings(); setShowUserMenu(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
+                            <Settings className="w-4 h-4 text-stone-700" />
+                            Settings
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="border-t border-stone-100 my-2"></div>
+
+                      {/* Sign Out */}
                       <button onClick={async () => { await signOut(); setShowUserMenu(false); }}
                         className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors text-sm text-red-600">
                         <LogOut className="w-4 h-4" />
