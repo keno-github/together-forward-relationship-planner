@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight, Sunrise, Bell, HeartHandshake, LayoutDashboard, UserCircle, Settings as SettingsIcon, MoreVertical, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import logoDark from '../assets/logo-dark.png';
 import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap } from '../services/supabaseService';
 import { useDashboardData, useDashboardCache } from '../hooks/useDashboardData';
 import DashboardSkeleton from './DashboardSkeleton';
@@ -690,23 +691,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
       >
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: '#2D2926' }}
-            >
-              <Heart className="w-5 h-5 text-white" fill="white" />
-            </div>
-            <div>
-              <h1
-                className="text-lg font-semibold"
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  color: '#2D2926'
-                }}
-              >
-                TwogetherForward
-              </h1>
-            </div>
+            <img src={logoDark} alt="TwogetherForward" className="h-8" />
           </div>
 
           <div className="flex items-center gap-2">

@@ -82,7 +82,7 @@ const PricingPage = ({ onUpgrade, onClose }) => {
           >
             <Heart size={14} style={{ color: '#C4785A' }} fill="#C4785A" />
             <span className="text-xs font-semibold tracking-wider uppercase" style={{ color: '#6B5E54' }}>
-              AI-Powered Relationship Planning
+              AI-Powered Dream Planning for Couples
             </span>
           </motion.div>
 
@@ -270,7 +270,7 @@ const PricingPage = ({ onUpgrade, onClose }) => {
                 boxShadow: '0 4px 16px rgba(45, 41, 38, 0.3)'
               }}
             >
-              {loading ? 'Processing...' : 'Upgrade to Premium'}
+              {loading ? 'Processing...' : 'Upgrade to Twogether Pro'}
               <ArrowRight size={18} />
             </motion.button>
 
@@ -298,7 +298,7 @@ const PricingPage = ({ onUpgrade, onClose }) => {
                 14-Day Money-Back Guarantee
               </p>
               <p className="text-xs mt-1" style={{ color: '#8B8178' }}>
-                Try Premium risk-free. Cancel anytime.
+                Try Twogether Pro risk-free. Cancel anytime.
               </p>
             </div>
           </motion.div>
@@ -398,16 +398,16 @@ const PricingPage = ({ onUpgrade, onClose }) => {
               answer="Yes! Cancel anytime with one click. No questions asked. If you're on an annual plan, you'll have access until the end of your billing period."
             />
             <FAQItem
-              question="What if we're not ready for Premium yet?"
+              question="What if we're not ready for Twogether Pro yet?"
               answer="No problem! Start with our free plan. You can upgrade whenever you hit limitations or want more features. Your data carries over seamlessly."
             />
             <FAQItem
               question="How does the 14-day guarantee work?"
-              answer="Try Premium risk-free for 14 days. If you're not completely satisfied, email us and we'll refund you in full—no questions asked."
+              answer="Try Twogether Pro risk-free for 14 days. If you're not completely satisfied, email us and we'll refund you in full—no questions asked."
             />
             <FAQItem
-              question="Do we both need Premium accounts?"
-              answer="Nope! Only one partner needs Premium to unlock all features for both of you. Share one account or invite your partner—they get all Premium features too."
+              question="Do we both need Twogether Pro accounts?"
+              answer="Nope! Only one partner needs Twogether Pro to unlock all features for both of you. Share one account or invite your partner—they get all Pro features too."
             />
             <FAQItem
               question="What payment methods do you accept?"
@@ -451,7 +451,7 @@ const PricingPage = ({ onUpgrade, onClose }) => {
               boxShadow: '0 8px 24px rgba(196, 120, 90, 0.4)'
             }}
           >
-            Start Your Premium Journey
+            Start Your Twogether Pro Journey
             <Heart size={20} fill="currentColor" />
           </motion.button>
           <p className="text-xs mt-4" style={{ color: '#8B8178' }}>

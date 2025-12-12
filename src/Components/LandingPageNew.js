@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle, Bell, Home, Sunrise, Crown } from 'lucide-react';
 import { getUserRoadmaps } from '../services/supabaseService';
 import { useAuth } from '../context/AuthContext';
+import logoDark from '../assets/logo-dark.png';
 import { converseWithLuna, isRoadmapComplete, getRoadmapData } from '../services/lunaService';
 import { callClaudeStreaming } from '../services/claudeAPI';
 import Auth from './Auth';
@@ -202,10 +203,7 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
       {/* NAVIGATION */}
       <nav className="w-full px-8 py-6 flex justify-between items-center max-w-7xl mx-auto sticky top-0 z-50 bg-[#FDFCF8]/95 backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-full bg-stone-900 flex items-center justify-center">
-            <Heart className="w-5 h-5 text-[#FDFCF8]" fill="currentColor" />
-          </div>
-          <span className="font-serif text-xl font-bold tracking-tight">TwogetherForward</span>
+          <img src={logoDark} alt="TwogetherForward" className="h-8" />
         </div>
 
         <div className="flex items-center gap-4">
@@ -397,7 +395,7 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                   <button
                     onClick={handleGetStarted}
                     className="px-8 py-4 bg-stone-900 text-[#FDFCF8] rounded-full font-medium text-lg hover:bg-stone-800 transition flex items-center justify-center gap-2 shadow-xl shadow-stone-900/20">
-                    Create your Dream <ArrowRight size={18} />
+                    Start Planning Together <ArrowRight size={18} />
                   </button>
                   {user && hasExistingRoadmaps && onGoToDashboard && (
                     <button
@@ -410,7 +408,7 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                 </div>
 
                 <p className="text-sm text-stone-400 pt-2">
-                  Free forever plan • No credit card • 2-min setup
+                  2 dreams included • No credit card
                 </p>
               </div>
 
@@ -621,9 +619,9 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                 <button
                   onClick={handleGetStarted}
                   className="px-8 py-4 bg-stone-900 text-[#FDFCF8] rounded-full font-medium text-lg hover:bg-stone-800 transition shadow-xl shadow-stone-900/20 inline-flex items-center gap-2">
-                  Get Started — Free Forever <ArrowRight size={18} />
+                  Start Planning Together <ArrowRight size={18} />
                 </button>
-                <p className="text-xs text-stone-400 mt-4">No credit card required • 2-minute setup</p>
+                <p className="text-xs text-stone-400 mt-4">2 dreams included • Upgrade anytime</p>
               </div>
             </section>
 
@@ -631,10 +629,7 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
             <footer className="bg-white py-12 border-t border-stone-100">
               <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-stone-900 flex items-center justify-center">
-                    <Heart className="w-3 h-3 text-[#FDFCF8]" fill="currentColor" />
-                  </div>
-                  <span className="font-serif font-bold text-stone-900">TwogetherForward</span>
+                  <img src={logoDark} alt="TwogetherForward" className="h-6" />
                 </div>
 
                 <div className="flex gap-8 text-sm text-stone-500">

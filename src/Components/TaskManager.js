@@ -111,7 +111,11 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
       };
 
       const { data, error } = await createTask(taskData);
-      if (error) return;
+      if (error) {
+        console.error('Error adding task:', error);
+        alert(`Failed to save task: ${error.message || 'Unknown error'}`);
+        return;
+      }
 
       setTasks([...tasks, data]);
       setNewTask({ title: '', description: '', assigned_to: '', assigned_to_user_id: null, priority: 'medium', due_date: '', roadmap_phase_index: null });
@@ -119,6 +123,7 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
       onProgressUpdate?.();
     } catch (error) {
       console.error('Error adding task:', error);
+      alert(`Failed to save task: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -155,13 +160,18 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
       };
 
       const { data, error } = await updateTask(taskId, updateData);
-      if (error) return;
+      if (error) {
+        console.error('Error saving task:', error);
+        alert(`Failed to save task: ${error.message || 'Unknown error'}`);
+        return;
+      }
       setTasks(tasks.map(t => t.id === taskId ? { ...t, ...data } : t));
       setEditingTaskId(null);
       setEditTask({});
       onProgressUpdate?.();
     } catch (error) {
       console.error('Error saving task:', error);
+      alert(`Failed to save task: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -312,8 +322,11 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
                       style={{ border: '1px solid #e8e4de' }}
                     >
                       <option value="">Both Partners</option>
-                      <option value={userContext?.partner1}>{userContext?.partner1}</option>
-                      <option value={userContext?.partner2}>{userContext?.partner2}</option>
+                      {getPartnerOptions().map((partner, idx) => (
+                        <option key={idx} value={partner.name}>
+                          {partner.name}
+                        </option>
+                      ))}
                     </select>
 
                     <select
@@ -380,6 +393,7 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
                     editTask={editTask}
                     setEditTask={setEditTask}
                     userContext={userContext}
+                    partnerOptions={getPartnerOptions()}
                     onSave={() => handleSaveEdit(task.id)}
                     onCancel={() => { setEditingTaskId(null); setEditTask({}); }}
                   />
@@ -547,7 +561,7 @@ const TaskItem = ({ task, milestone, currentUserId, partnerInfo, onToggle, onEdi
 /**
  * Edit Task Form
  */
-const EditTaskForm = ({ editTask, setEditTask, userContext, onSave, onCancel }) => {
+const EditTaskForm = ({ editTask, setEditTask, userContext, partnerOptions, onSave, onCancel }) => {
   return (
     <div
       className="rounded-xl p-4"
@@ -581,8 +595,11 @@ const EditTaskForm = ({ editTask, setEditTask, userContext, onSave, onCancel }) 
             style={{ border: '1px solid #e8e4de' }}
           >
             <option value="">Both Partners</option>
-            <option value={userContext?.partner1}>{userContext?.partner1 || 'Partner 1'}</option>
-            <option value={userContext?.partner2}>{userContext?.partner2 || 'Partner 2'}</option>
+            {partnerOptions?.map((partner, idx) => (
+              <option key={idx} value={partner.name}>
+                {partner.name}
+              </option>
+            ))}
           </select>
 
           <select
