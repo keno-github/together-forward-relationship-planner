@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle, Bell, Home, Sunrise, Crown } from 'lucide-react';
 import { getUserRoadmaps } from '../services/supabaseService';
 import { useAuth } from '../context/AuthContext';
-import logoDark from '../assets/logo-dark.png';
+import faviconDark from '../assets/favicon-dark.png';
 import { converseWithLuna, isRoadmapComplete, getRoadmapData } from '../services/lunaService';
 import { callClaudeStreaming } from '../services/claudeAPI';
 import Auth from './Auth';
@@ -202,8 +202,9 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
 
       {/* NAVIGATION */}
       <nav className="w-full px-8 py-6 flex justify-between items-center max-w-7xl mx-auto sticky top-0 z-50 bg-[#FDFCF8]/95 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <img src={logoDark} alt="TwogetherForward" className="h-8" />
+        <div className="flex items-center gap-3">
+          <img src={faviconDark} alt="TwogetherForward" className="w-8 h-8" />
+          <span className="font-serif text-xl font-bold tracking-tight">TwogetherForward</span>
         </div>
 
         <div className="flex items-center gap-4">
@@ -300,7 +301,7 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                             }}
                           >
                             <Crown className="w-4 h-4" />
-                            Upgrade to Premium
+                            Upgrade to Twogether Pro
                           </button>
                         )}
                         <button onClick={() => { /* TODO: Open notifications panel */ setShowUserMenu(false); }}
@@ -629,7 +630,8 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
             <footer className="bg-white py-12 border-t border-stone-100">
               <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <img src={logoDark} alt="TwogetherForward" className="h-6" />
+                  <img src={faviconDark} alt="TwogetherForward" className="w-6 h-6" />
+                  <span className="font-serif font-bold text-stone-900">TwogetherForward</span>
                 </div>
 
                 <div className="flex gap-8 text-sm text-stone-500">
