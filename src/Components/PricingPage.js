@@ -176,7 +176,7 @@ const PricingPage = ({ onUpgrade, onClose }) => {
           >
             <div className="mb-6">
               <h3 className="text-2xl font-semibold mb-2" style={{ color: '#2D2926' }}>
-                Together Starter
+                Twogether Starter
               </h3>
               <p className="text-sm mb-4" style={{ color: '#6B5E54' }}>
                 Perfect for couples just beginning their journey
