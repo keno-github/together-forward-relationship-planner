@@ -11,6 +11,7 @@ import Dashboard from './Components/Dashboard';
 import RoadmapProfile from './Components/RoadmapProfile';
 import Profile from './Components/Profile';
 import Settings from './Components/Settings';
+import PricingPage from './Components/PricingPage';
 import CompatibilityResults from './Components/CompatibilityResults';
 import CompatibilityTransition from './Components/CompatibilityTransition';
 import AssessmentHub from './Components/Assessment/AssessmentHub';
@@ -188,9 +189,18 @@ const AppContent = () => {
         }
       }
 
-      // CRITICAL FIX: If user is null (logged out), ALWAYS redirect to landing
+      // CRITICAL FIX: If user is null (logged out), redirect to landing
+      // EXCEPT: Allow access to pricing page (public page)
       // This handles sign out from any page (Settings, Dashboard, etc.)
       if (!user) {
+        // Allow pricing page for everyone (public access)
+        if (stage === 'pricing') {
+          console.log('💰 No user, but allowing public pricing page access');
+          setCheckingRoadmaps(false);
+          setInitialCheckDone(true);
+          return;
+        }
+
         console.log('🚫 No user logged in → redirecting to landing page');
         setStage('landing');
         setCheckingRoadmaps(false);
@@ -628,6 +638,10 @@ const AppContent = () => {
     setStage('settings');
   };
 
+  const handleGoToPricing = () => {
+    setStage('pricing');
+  };
+
   const handleBackToDashboard = () => {
     setIsNavigating(false); // Reset navigation lock
     if (user) {
@@ -1018,6 +1032,7 @@ const AppContent = () => {
           onOpenPortfolioOverview={handleOpenPortfolioOverview}
           onGoToProfile={handleGoToProfile}
           onGoToSettings={handleGoToSettings}
+          onGoToPricing={handleGoToPricing}
           successNotification={successNotification}
           onDismissNotification={() => setSuccessNotification(null)}
         />
@@ -1042,6 +1057,18 @@ const AppContent = () => {
         <Settings onBack={handleBackToLanding} />
       )}
 
+      {/* STAGE: Pricing */}
+      {stage === 'pricing' && (
+        <PricingPage
+          onUpgrade={async (tier, billingPeriod) => {
+            console.log('Upgrade clicked:', tier, billingPeriod);
+            // TODO: Implement Stripe checkout
+            alert('Stripe integration coming soon! You selected: ' + tier + ' - ' + billingPeriod);
+          }}
+          onClose={user ? handleBackToDashboard : () => setStage('landing')}
+        />
+      )}
+
       {/* STAGE 1: Landing Page */}
       {stage === 'landing' && (
         <LandingPage
@@ -1050,6 +1077,7 @@ const AppContent = () => {
           onGoToDashboard={handleGoToDashboard} // Navigate to dashboard
           onGoToProfile={handleGoToProfile} // Navigate to profile
           onGoToSettings={handleGoToSettings} // Navigate to settings
+          onGoToPricing={handleGoToPricing} // Navigate to pricing page
           onOpenHomeHub={handleOpenHomeHub} // Navigate to HomeHub
           onOpenAssessment={handleOpenAssessment} // Navigate to Alignment Test
           onOpenPortfolioOverview={handleOpenPortfolioOverview} // Navigate to Portfolio Overview

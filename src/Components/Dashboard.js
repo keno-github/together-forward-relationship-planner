@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight, Sunrise, Bell, HeartHandshake, LayoutDashboard, UserCircle, Settings as SettingsIcon, MoreVertical } from 'lucide-react';
+import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight, Sunrise, Bell, HeartHandshake, LayoutDashboard, UserCircle, Settings as SettingsIcon, MoreVertical, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap } from '../services/supabaseService';
 import { useDashboardData, useDashboardCache } from '../hooks/useDashboardData';
@@ -19,7 +19,7 @@ const fontStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap');
 `;
 
-const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessment, onOpenPortfolioOverview, onGoToProfile, onGoToSettings, successNotification, onDismissNotification }) => {
+const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessment, onOpenPortfolioOverview, onGoToProfile, onGoToSettings, onGoToPricing, successNotification, onDismissNotification }) => {
   const { user, signOut } = useAuth();
   const [dreams, setDreams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -799,6 +799,25 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                   {/* Account Section */}
                   <div className="mb-2">
                     <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider" style={{ color: '#A09890' }}>Your Account</p>
+                    {onGoToPricing && (
+                      <button onClick={() => { onGoToPricing(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm font-semibold"
+                        style={{
+                          background: 'linear-gradient(135deg, #C4785A 0%, #d4916f 100%)',
+                          color: 'white',
+                          boxShadow: '0 2px 8px rgba(196, 120, 90, 0.3)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.02)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                      >
+                        <Crown className="w-4 h-4" />
+                        Upgrade to Premium
+                      </button>
+                    )}
                     <div className="relative">
                       <NotificationCenter
                         onNotificationClick={(notification) => {

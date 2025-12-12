@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle, Bell, Home, Sunrise } from 'lucide-react';
+import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle, Bell, Home, Sunrise, Crown } from 'lucide-react';
 import { getUserRoadmaps } from '../services/supabaseService';
 import { useAuth } from '../context/AuthContext';
 import { converseWithLuna, isRoadmapComplete, getRoadmapData } from '../services/lunaService';
@@ -10,7 +10,7 @@ import GoalSelectionHub from './GoalSelectionHub';
 import MarkdownMessage from './MarkdownMessage';
 import DreamCreationOverlay from './DreamCreationOverlay';
 
-const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onGoToProfile = null, onGoToSettings = null, onOpenHomeHub = null, onOpenAssessment = null, onOpenPortfolioOverview = null, hasMultipleDreams = false, notificationCount = 0, isReturningUser = false }) => {
+const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onGoToProfile = null, onGoToSettings = null, onGoToPricing = null, onOpenHomeHub = null, onOpenAssessment = null, onOpenPortfolioOverview = null, hasMultipleDreams = false, notificationCount = 0, isReturningUser = false }) => {
   const { user, loading: authLoading, signOut } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -211,6 +211,18 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
         <div className="flex items-center gap-4">
           {!authLoading && (
             <>
+              {/* Pricing link for everyone */}
+              {onGoToPricing && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onGoToPricing}
+                  className="text-sm font-medium text-stone-700 hover:text-stone-900 transition"
+                >
+                  Pricing
+                </motion.button>
+              )}
+
               {user ? (
                 <div className="relative">
                   <motion.button
@@ -274,6 +286,25 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                       {/* Account Section */}
                       <div className="mb-2">
                         <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stone-400">Your Account</p>
+                        {onGoToPricing && (
+                          <button onClick={() => { onGoToPricing(); setShowUserMenu(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm font-semibold mb-2"
+                            style={{
+                              background: 'linear-gradient(135deg, #C4785A 0%, #d4916f 100%)',
+                              color: 'white',
+                              boxShadow: '0 2px 8px rgba(196, 120, 90, 0.3)'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'scale(1.02)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scale(1)';
+                            }}
+                          >
+                            <Crown className="w-4 h-4" />
+                            Upgrade to Premium
+                          </button>
+                        )}
                         <button onClick={() => { /* TODO: Open notifications panel */ setShowUserMenu(false); }}
                           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors text-sm text-stone-900">
                           <Bell className="w-4 h-4 text-stone-700" />
