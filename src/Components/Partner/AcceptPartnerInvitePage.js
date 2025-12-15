@@ -49,34 +49,66 @@ const AcceptPartnerInvitePage = () => {
   useEffect(() => {
     if (!inviteCode) return;
 
+    let isCancelled = false;
+
     const validate = async () => {
+      console.log('🎫 Partner Invite: Starting validation for code:', inviteCode);
       setValidating(true);
+
+      // Timeout promise to catch hanging RPC calls
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Validation timeout - please try again')), 15000);
+      });
+
       try {
-        const { data, error } = await validatePartnershipCode(inviteCode);
+        const validationPromise = validatePartnershipCode(inviteCode);
+        const { data, error } = await Promise.race([validationPromise, timeoutPromise]);
+
+        if (isCancelled) return;
+
+        console.log('🎫 Partner Invite: Validation response:', { data, error });
         if (error) throw error;
 
         if (data?.valid) {
+          console.log('🎫 Partner Invite: Code is valid');
           setIsValid(true);
           // Store the code for auto-accept after auth
           localStorage.setItem('pending_partner_invite_code', inviteCode);
         } else {
+          console.log('🎫 Partner Invite: Code is invalid:', data?.reason);
           setValidationError(data?.reason || 'Invalid invite code');
         }
       } catch (error) {
-        console.error('Validation error:', error);
-        setValidationError('Failed to validate invite code');
+        if (isCancelled) return;
+        console.error('🎫 Partner Invite: Validation error:', error);
+        setValidationError(error.message || 'Failed to validate invite code');
       } finally {
-        setValidating(false);
+        if (!isCancelled) {
+          console.log('🎫 Partner Invite: Validation complete, setting validating=false');
+          setValidating(false);
+        }
       }
     };
 
     validate();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [inviteCode]);
 
   // Auto-accept after login if code is valid
   useEffect(() => {
     const pendingCode = localStorage.getItem('pending_partner_invite_code');
+    console.log('🎫 Partner Invite: Auto-accept check:', {
+      user: !!user,
+      pendingCode,
+      isValid,
+      accepted,
+      accepting
+    });
     if (user && pendingCode && isValid && !accepted && !accepting) {
+      console.log('🎫 Partner Invite: Auto-accepting partnership...');
       localStorage.removeItem('pending_partner_invite_code');
       handleAccept();
     }
@@ -165,13 +197,34 @@ const AcceptPartnerInvitePage = () => {
           <p className="mb-6" style={{ color: '#6B5E54' }}>
             {validationError}
           </p>
-          <button
-            onClick={() => window.location.href = '/'}
-            className="px-6 py-3 rounded-xl font-medium"
-            style={{ backgroundColor: '#FAF7F2', color: '#6B5E54', border: '1px solid #E8E2DA' }}
-          >
-            Go to Home
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {validationError.includes('timeout') && (
+              <button
+                onClick={() => {
+                  setValidationError(null);
+                  setValidating(true);
+                  // Re-trigger validation by clearing and resetting inviteCode
+                  const code = inviteCode;
+                  setInviteCode(null);
+                  setTimeout(() => setInviteCode(code), 10);
+                }}
+                className="px-6 py-3 rounded-xl font-medium"
+                style={{
+                  background: 'linear-gradient(135deg, #C4785A, #d4916f)',
+                  color: 'white'
+                }}
+              >
+                Try Again
+              </button>
+            )}
+            <button
+              onClick={() => window.location.href = '/'}
+              className="px-6 py-3 rounded-xl font-medium"
+              style={{ backgroundColor: '#FAF7F2', color: '#6B5E54', border: '1px solid #E8E2DA' }}
+            >
+              Go to Home
+            </button>
+          </div>
         </motion.div>
       </div>
     );
@@ -257,7 +310,8 @@ const AcceptPartnerInvitePage = () => {
               Sign up or log in to accept the invite
             </p>
             <Auth
-              onAuthSuccess={handleAuthSuccess}
+              onSuccess={handleAuthSuccess}
+              googleRedirectTo={window.location.href}
               embedded={true}
             />
           </div>
