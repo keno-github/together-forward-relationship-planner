@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 
 /**
@@ -9,6 +9,7 @@ export const ROUTES = {
   dashboard: '/dashboard',
   profile: '/profile',
   settings: '/settings',
+  pricing: '/pricing',
   goalBuilder: '/create',
   compatibility: '/assessment',
   results: '/assessment/results',
@@ -21,7 +22,8 @@ export const ROUTES = {
   lunaOptimization: '/optimize',
   roadmapProfile: '/roadmap/:roadmapId',
   authTest: '/auth-test',
-  invite: '/invite/:code', // Partner invite route
+  invite: '/invite/:code', // Dream share invite route
+  partnerInvite: '/partner-invite/:code', // Global partnership invite route
 };
 
 /**
@@ -32,6 +34,7 @@ const PATH_TO_STAGE = {
   '/dashboard': 'dashboard',
   '/profile': 'profile',
   '/settings': 'settings',
+  '/pricing': 'pricing',
   '/create': 'goalBuilder',
   '/assessment': 'compatibility',
   '/assessment/results': 'results',
@@ -65,16 +68,27 @@ export const useRouteSync = (stage, setStage, options = {}) => {
     setMilestoneDetailState,
   } = options;
 
+  // Track when stage was set by URL change to prevent circular navigation
+  const stageSetByUrlRef = useRef(false);
+  const lastPathRef = useRef(location.pathname);
+
   /**
    * Sync URL → Stage (on URL change or initial load)
    */
   useEffect(() => {
     const path = location.pathname;
 
+    // Skip if path hasn't actually changed (prevents unnecessary processing)
+    if (path === lastPathRef.current && stage !== 'landing') {
+      return;
+    }
+    lastPathRef.current = path;
+
     // Check for exact path matches first
     if (PATH_TO_STAGE[path]) {
       const newStage = PATH_TO_STAGE[path];
       if (stage !== newStage) {
+        stageSetByUrlRef.current = true; // Mark that URL is setting the stage
         setStage(newStage);
       }
       return;
@@ -88,10 +102,12 @@ export const useRouteSync = (stage, setStage, options = {}) => {
 
       if (section === 'deep-dive') {
         if (stage !== 'deepDive') {
+          stageSetByUrlRef.current = true;
           setStage('deepDive');
         }
       } else {
         if (stage !== 'milestoneDetail') {
+          stageSetByUrlRef.current = true;
           setStage('milestoneDetail');
         }
         // Update section if provided
@@ -111,23 +127,41 @@ export const useRouteSync = (stage, setStage, options = {}) => {
     }
 
     // Assessment join with code: /assessment/join/:code
+    // NOTE: Don't set stage here - App.js handles this route and extracts the joinCode
+    // Setting stage here would cause a race condition where stage is set before code is extracted
     const assessmentJoinMatch = path.match(/^\/assessment\/join\/([^/]+)$/);
     if (assessmentJoinMatch) {
-      setStage('compatibility');
+      // Let App.js initializeApp handle this - it extracts the code and sets state together
       return;
     }
 
     // Roadmap profile: /roadmap/:roadmapId
     const roadmapMatch = path.match(/^\/roadmap\/([^/]+)$/);
     if (roadmapMatch) {
-      setStage('roadmapProfile');
+      if (stage !== 'roadmapProfile') {
+        stageSetByUrlRef.current = true;
+        setStage('roadmapProfile');
+      }
       return;
     }
 
-    // Partner invite: /invite/:code
+    // Dream share invite: /invite/:code
     const inviteMatch = path.match(/^\/invite\/([^/]+)$/);
     if (inviteMatch) {
-      setStage('invite');
+      if (stage !== 'invite') {
+        stageSetByUrlRef.current = true;
+        setStage('invite');
+      }
+      return;
+    }
+
+    // Global partnership invite: /partner-invite/:code
+    const partnerInviteMatch = path.match(/^\/partner-invite\/([^/]+)$/);
+    if (partnerInviteMatch) {
+      if (stage !== 'partnerInvite') {
+        stageSetByUrlRef.current = true;
+        setStage('partnerInvite');
+      }
       return;
     }
 
@@ -142,6 +176,12 @@ export const useRouteSync = (stage, setStage, options = {}) => {
    * Sync Stage → URL (when stage changes via setStage)
    */
   useEffect(() => {
+    // If stage was just set by URL change, skip to prevent circular navigation
+    if (stageSetByUrlRef.current) {
+      stageSetByUrlRef.current = false; // Reset flag
+      return;
+    }
+
     const currentPath = location.pathname;
     let targetPath = ROUTES[stage] || '/';
 
@@ -150,6 +190,7 @@ export const useRouteSync = (stage, setStage, options = {}) => {
     const isDynamicRoute = (path) => {
       return (
         path.match(/^\/invite\/[^/]+$/) ||           // /invite/:code
+        path.match(/^\/partner-invite\/[^/]+$/) ||   // /partner-invite/:code
         path.match(/^\/roadmap\/[^/]+$/) ||          // /roadmap/:id
         path.match(/^\/dream\/[^/]+/) ||             // /dream/:id or /dream/:id/section
         path.match(/^\/assessment\/join\/[^/]+$/)   // /assessment/join/:code

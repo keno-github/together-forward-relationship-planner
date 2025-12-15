@@ -30,7 +30,10 @@ const NotificationItem = ({
   };
   const IconComponent = iconMap[icon] || Bell;
 
-  const handleClick = () => {
+  const handleClick = (e) => {
+    // Stop propagation to prevent dropdown from closing
+    e.stopPropagation();
+
     if (!notification.read && onMarkRead) {
       onMarkRead(notification.id);
     }
@@ -46,10 +49,16 @@ const NotificationItem = ({
     }
   };
 
+  // Prevent mousedown from triggering "click outside" handler
+  const handleMouseDown = (e) => {
+    e.stopPropagation();
+  };
+
   if (compact) {
     return (
       <div
         onClick={handleClick}
+        onMouseDown={handleMouseDown}
         className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all hover:bg-stone-50 ${
           !notification.read ? 'bg-amber-50/50' : ''
         }`}
@@ -75,6 +84,7 @@ const NotificationItem = ({
   return (
     <div
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       className={`group relative p-4 rounded-xl cursor-pointer transition-all hover:bg-stone-50 ${
         !notification.read ? 'bg-amber-50/30 border border-amber-100' : 'border border-transparent'
       }`}

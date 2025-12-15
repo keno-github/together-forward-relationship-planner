@@ -369,7 +369,9 @@ const PreScreeningForm = ({
   partnerNumber,
   onComplete,
   onBack,
-  initialAnswers = {}
+  initialAnswers = {},
+  isSubmitting = false,
+  submitError = null
 }) => {
   const [answers, setAnswers] = useState(initialAnswers || {});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -472,21 +474,65 @@ const PreScreeningForm = ({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', delay: 0.2 }}
+            style={isSubmitting ? { background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-dark))' } : {}}
           >
-            <Check size={36} />
+            {isSubmitting ? (
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              >
+                <Compass size={36} />
+              </motion.div>
+            ) : (
+              <Check size={36} />
+            )}
           </motion.div>
-          <h2 className="handoff-title">{partnerName}'s Context Complete</h2>
+          <h2 className="handoff-title">
+            {isSubmitting ? 'Preparing Your Assessment...' : `${partnerName}'s Context Complete`}
+          </h2>
           <p className="handoff-subtitle">
-            Great! Luna now has the context needed to personalize your assessment experience.
+            {isSubmitting
+              ? 'Luna is crafting personalized questions based on your priorities...'
+              : 'Great! Luna now has the context needed to personalize your assessment experience.'}
           </p>
+          {submitError && (
+            <div style={{
+              background: 'rgba(220, 38, 38, 0.1)',
+              color: '#dc2626',
+              padding: '0.75rem 1rem',
+              borderRadius: '10px',
+              fontSize: '0.875rem',
+              marginBottom: '1rem',
+              textAlign: 'center'
+            }}>
+              {submitError}
+            </div>
+          )}
           <motion.button
             className="handoff-btn"
             onClick={handleHandoff}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            disabled={isSubmitting}
+            whileHover={isSubmitting ? {} : { scale: 1.02 }}
+            whileTap={isSubmitting ? {} : { scale: 0.98 }}
+            style={isSubmitting ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
           >
-            Continue
-            <ArrowRight size={18} />
+            {isSubmitting ? (
+              <>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  style={{ display: 'flex', alignItems: 'center' }}
+                >
+                  <Target size={18} />
+                </motion.div>
+                Generating Questions...
+              </>
+            ) : (
+              <>
+                Continue
+                <ArrowRight size={18} />
+              </>
+            )}
           </motion.button>
         </motion.div>
       </div>

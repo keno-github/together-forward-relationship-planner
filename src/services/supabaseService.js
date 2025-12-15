@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabaseClient'
+import { activityService } from './activityService'
 
 // =====================================================
 // ROADMAP OPERATIONS
@@ -22,6 +23,12 @@ export const createRoadmap = async (roadmapData) => {
       .single()
 
     if (error) throw error
+
+    // Log activity (non-blocking)
+    if (data) {
+      activityService.logDreamCreated(data, user.id)
+    }
+
     return { data, error: null }
   } catch (error) {
     console.error('Create roadmap error:', error)
@@ -30,17 +37,25 @@ export const createRoadmap = async (roadmapData) => {
 }
 
 /**
- * Get all roadmaps for the current user
+ * Get all roadmaps accessible to the current user
+ *
+ * This includes:
+ * 1. User's own roadmaps (user_id = current user)
+ * 2. Roadmaps where user is per-dream partner (partner_id = current user)
+ * 3. Global partner's roadmaps (via partnerships table + visible_to_partner = TRUE)
+ *
+ * Access control is handled by RLS policies - we just query all and let RLS filter
  */
 export const getUserRoadmaps = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
+    // Query all roadmaps - RLS policies handle access control
+    // This allows global partners to see each other's dreams
     const { data, error } = await supabase
       .from('roadmaps')
       .select('*')
-      .or(`user_id.eq.${user.id},partner_id.eq.${user.id}`)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -117,6 +132,8 @@ export const deleteRoadmap = async (roadmapId) => {
  */
 export const createMilestone = async (milestoneData) => {
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data, error } = await supabase
       .from('milestones')
       .insert([milestoneData])
@@ -124,6 +141,12 @@ export const createMilestone = async (milestoneData) => {
       .single()
 
     if (error) throw error
+
+    // Log activity (non-blocking)
+    if (data && user && milestoneData.roadmap_id) {
+      activityService.logMilestoneCreated(milestoneData.roadmap_id, data, user.id)
+    }
+
     return { data, error: null }
   } catch (error) {
     console.error('Create milestone error:', error)
@@ -298,10 +321,15 @@ export const deleteMilestone = async (milestoneId) => {
 // =====================================================
 
 /**
- * Create a new task
+ * Create a task
+ * @param {object} taskData - Task data including milestone_id
+ * @param {object} [activityContext] - Optional context for activity logging
+ * @param {string} activityContext.roadmapId - The roadmap ID for activity logging
  */
-export const createTask = async (taskData) => {
+export const createTask = async (taskData, activityContext = null) => {
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data, error } = await supabase
       .from('tasks')
       .insert([taskData])
@@ -309,6 +337,12 @@ export const createTask = async (taskData) => {
       .single()
 
     if (error) throw error
+
+    // Log activity (non-blocking) if context provided
+    if (data && user && activityContext?.roadmapId) {
+      activityService.logTaskCreated(activityContext.roadmapId, data, user.id)
+    }
+
     return { data, error: null }
   } catch (error) {
     console.error('Create task error:', error)
@@ -341,8 +375,13 @@ export const getTasksByMilestone = async (milestoneId) => {
 
 /**
  * Update a task (typically for marking complete)
+ * @param {string} taskId - Task ID to update
+ * @param {object} updates - Fields to update
+ * @param {object} [activityContext] - Optional context for activity logging
+ * @param {string} activityContext.roadmapId - The roadmap ID
+ * @param {boolean} [activityContext.wasCompleted] - Previous completion state (for detecting completion changes)
  */
-export const updateTask = async (taskId, updates) => {
+export const updateTask = async (taskId, updates, activityContext = null) => {
   try {
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -360,6 +399,19 @@ export const updateTask = async (taskId, updates) => {
       .single()
 
     if (error) throw error
+
+    // Log activity (non-blocking) if context provided
+    if (data && user && activityContext?.roadmapId) {
+      // Detect completion state change
+      if (updates.completed === true && !activityContext.wasCompleted) {
+        activityService.logTaskCompleted(activityContext.roadmapId, data, user.id)
+      } else if (updates.completed === false && activityContext.wasCompleted) {
+        activityService.logTaskUncompleted(activityContext.roadmapId, data, user.id)
+      } else if (updates.assigned_to !== undefined) {
+        activityService.logTaskAssigned(activityContext.roadmapId, data, user.id, updates.assigned_to)
+      }
+    }
+
     return { data, error: null }
   } catch (error) {
     console.error('Update task error:', error)
@@ -369,15 +421,27 @@ export const updateTask = async (taskId, updates) => {
 
 /**
  * Delete a task
+ * @param {string} taskId - Task ID to delete
+ * @param {object} [activityContext] - Optional context for activity logging
+ * @param {string} activityContext.roadmapId - The roadmap ID
+ * @param {object} activityContext.task - The task object (for title in activity log)
  */
-export const deleteTask = async (taskId) => {
+export const deleteTask = async (taskId, activityContext = null) => {
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { error } = await supabase
       .from('tasks')
       .delete()
       .eq('id', taskId)
 
     if (error) throw error
+
+    // Log activity (non-blocking) if context provided
+    if (user && activityContext?.roadmapId && activityContext?.task) {
+      activityService.logTaskDeleted(activityContext.roadmapId, activityContext.task, user.id)
+    }
+
     return { error: null }
   } catch (error) {
     console.error('Delete task error:', error)
@@ -546,6 +610,12 @@ export const createExpense = async (expenseData) => {
       .single()
 
     if (error) throw error
+
+    // Log activity (non-blocking)
+    if (data && expenseData.roadmap_id) {
+      activityService.logExpenseAdded(expenseData.roadmap_id, data, user.id)
+    }
+
     return { data, error: null }
   } catch (error) {
     console.error('Create expense error:', error)
@@ -612,9 +682,14 @@ export const getExpenseById = async (expenseId) => {
 
 /**
  * Update an expense
+ * @param {string} expenseId - Expense ID
+ * @param {object} updates - Fields to update
+ * @param {string} [roadmapId] - Optional roadmap ID for activity logging
  */
-export const updateExpense = async (expenseId, updates) => {
+export const updateExpense = async (expenseId, updates, roadmapId = null) => {
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data, error } = await supabase
       .from('expenses')
       .update(updates)
@@ -623,6 +698,12 @@ export const updateExpense = async (expenseId, updates) => {
       .single()
 
     if (error) throw error
+
+    // Log activity (non-blocking)
+    if (data && user && roadmapId) {
+      activityService.logExpenseUpdated(roadmapId, data, user.id)
+    }
+
     return { data, error: null }
   } catch (error) {
     console.error('Update expense error:', error)
@@ -632,15 +713,27 @@ export const updateExpense = async (expenseId, updates) => {
 
 /**
  * Delete an expense
+ * @param {string} expenseId - Expense ID
+ * @param {object} [activityContext] - Optional context for activity logging
+ * @param {string} activityContext.roadmapId - The roadmap ID
+ * @param {object} activityContext.expense - The expense object (for logging)
  */
-export const deleteExpense = async (expenseId) => {
+export const deleteExpense = async (expenseId, activityContext = null) => {
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { error } = await supabase
       .from('expenses')
       .delete()
       .eq('id', expenseId)
 
     if (error) throw error
+
+    // Log activity (non-blocking) if context provided
+    if (user && activityContext?.roadmapId && activityContext?.expense) {
+      activityService.logExpenseDeleted(activityContext.roadmapId, activityContext.expense, user.id)
+    }
+
     return { error: null }
   } catch (error) {
     console.error('Delete expense error:', error)
@@ -1438,6 +1531,123 @@ export const getPartnerInfo = async (roadmapId) => {
 
 
 // =====================================================
+// GLOBAL PARTNERSHIP OPERATIONS
+// =====================================================
+
+/**
+ * Create or get existing partnership invite
+ * Returns an invite code that can be shared with a partner
+ */
+export const createPartnershipInvite = async () => {
+  try {
+    const { data, error } = await supabase.rpc('create_partnership_invite')
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Create partnership invite error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Accept a partnership invite using the invite code
+ * @param {string} inviteCode - The 8-character invite code
+ */
+export const acceptPartnershipInvite = async (inviteCode) => {
+  try {
+    const { data, error } = await supabase.rpc('accept_partnership_invite', {
+      p_invite_code: inviteCode
+    })
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Accept partnership invite error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get the current user's partnership (if any)
+ * Returns partner info and "Together Since" date
+ */
+export const getUserPartnership = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase.rpc('get_user_partnership', {
+      user_id: user.id
+    })
+    if (error) throw error
+
+    // RPC returns array, get first result
+    const partnership = data && data.length > 0 ? data[0] : null
+    return { data: partnership, error: null }
+  } catch (error) {
+    console.error('Get user partnership error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get pending partnership invite (if user has sent one)
+ */
+export const getPendingPartnershipInvite = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+      .from('partnerships')
+      .select('id, invite_code, created_at')
+      .eq('inviter_id', user.id)
+      .eq('status', 'pending')
+      .single()
+
+    // No error if not found, just return null
+    if (error && error.code !== 'PGRST116') throw error
+
+    return { data, error: null }
+  } catch (error) {
+    console.error('Get pending partnership invite error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Cancel the current partnership
+ */
+export const cancelPartnership = async () => {
+  try {
+    const { data, error } = await supabase.rpc('cancel_partnership')
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Cancel partnership error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Validate a partnership invite code (check if it exists and is valid)
+ * Uses RPC to avoid exposing partnership data via RLS
+ * @param {string} inviteCode - The invite code to validate
+ */
+export const validatePartnershipCode = async (inviteCode) => {
+  try {
+    const { data, error } = await supabase.rpc('validate_partnership_code', {
+      p_invite_code: inviteCode
+    })
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('Validate partnership code error:', error)
+    return { data: null, error }
+  }
+}
+
+
+// =====================================================
 // NOTIFICATION OPERATIONS
 // =====================================================
 
@@ -1562,7 +1772,21 @@ export const subscribeToNotifications = async (callback) => {
       }
     )
 
-  channel.subscribe()
+  // Wait for subscription to be ready before returning
+  // This ensures we don't miss early notifications
+  await new Promise((resolve, reject) => {
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        resolve()
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error('Notification subscription error:', status)
+        reject(new Error(`Subscription failed: ${status}`))
+      }
+    })
+  }).catch(err => {
+    console.warn('Notification subscription warning:', err.message)
+    // Still return the channel even on error - it may reconnect
+  })
 
   // Return the channel so .unsubscribe() can be called
   return channel
@@ -1978,6 +2202,22 @@ export const sendPartnerInviteEmail = async (email, inviteData) => {
     dream_title: inviteData.dreamTitle,
     message: inviteData.message,
     share_code: inviteData.shareCode,
+    invite_url: inviteUrl
+  })
+}
+
+/**
+ * Send assessment invite email
+ * @param {string} email - Partner's email address
+ * @param {object} inviteData - { inviterName, partnerName, sessionCode }
+ */
+export const sendAssessmentInviteEmail = async (email, inviteData) => {
+  const inviteUrl = `${window.location.origin}/assessment/join/${inviteData.sessionCode}`
+
+  return sendEmail(email, 'assessment_invite', {
+    inviter_name: inviteData.inviterName,
+    partner_name: inviteData.partnerName,
+    session_code: inviteData.sessionCode,
     invite_url: inviteUrl
   })
 }

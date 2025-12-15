@@ -24,6 +24,7 @@ import LunaOptimization from './Components/LunaOptimization';
 import LunaAssessment from './Components/LunaAssessment';
 import PortfolioOverview from './Components/PortfolioOverview';
 import AcceptInvitePage from './Components/Partner/AcceptInvitePage';
+import AcceptPartnerInvitePage from './Components/Partner/AcceptPartnerInvitePage';
 import ResetPasswordPage from './Components/ResetPasswordPage';
 import DevTools from './Components/DevTools';
 import { MobileBottomNav } from './Components/Mobile';
@@ -164,27 +165,48 @@ const AppContent = () => {
 
       // Check if we're on a special route that shouldn't be overridden
       // These routes are handled by useRouteSync and should not redirect to landing
-      const specialRoutes = ['/invite/', '/assessment/join/'];
+      const specialRoutes = ['/invite/', '/partner-invite/', '/assessment/join/'];
       const isOnSpecialRoute = specialRoutes.some(route =>
         window.location.pathname.startsWith(route)
       );
 
       if (isOnSpecialRoute) {
         console.log('🔗 Special route detected, skipping landing redirect:', window.location.pathname);
+
+        // Handle assessment join route - extract code and set it
+        const assessmentJoinMatch = window.location.pathname.match(/^\/assessment\/join\/([^/]+)$/);
+        if (assessmentJoinMatch) {
+          const joinCode = assessmentJoinMatch[1];
+          console.log('🔗 Assessment join code extracted:', joinCode);
+          setAssessmentJoinCode(joinCode);
+          setStage('compatibility');
+        }
+
         setCheckingRoadmaps(false);
         setInitialCheckDone(true);
         return; // Don't override stage - let useRouteSync handle it
       }
 
-      // CRITICAL: Check for pending invite BEFORE redirecting to landing
+      // CRITICAL: Check for pending invites BEFORE redirecting to landing
       // This handles the case where user just logged in after clicking invite link
       if (user) {
+        // Check for pending dream share invite
         const pendingCode = localStorage.getItem('pending_invite_code');
         if (pendingCode) {
-          console.log('🔗 Pending invite detected after login, redirecting to:', pendingCode);
+          console.log('🔗 Pending dream invite detected after login, redirecting to:', pendingCode);
           localStorage.removeItem('pending_invite_code');
           // Full page redirect to invite page
           window.location.href = `/invite/${pendingCode}`;
+          return; // Don't continue with initialization
+        }
+
+        // Check for pending global partner invite
+        const pendingPartnerCode = localStorage.getItem('pending_partner_invite_code');
+        if (pendingPartnerCode) {
+          console.log('🔗 Pending partner invite detected after login, redirecting to:', pendingPartnerCode);
+          // Don't remove yet - AcceptPartnerInvitePage will handle it
+          // Full page redirect to partner invite page
+          window.location.href = `/partner-invite/${pendingPartnerCode}`;
           return; // Don't continue with initialization
         }
       }
@@ -705,9 +727,8 @@ const AppContent = () => {
     if (user && milestones.length > 0) {
       console.log('📦 Creating separate roadmaps for each dream...');
 
-      for (const milestone of milestones) {
-        console.log(`  🏆 Creating dream: ${milestone.title}`);
-
+      // Parallelize dream creation for speed (was sequential, causing UI hang)
+      const createDreamPromises = milestones.map(async (milestone) => {
         try {
           // Create a roadmap for this dream
           const { data: newRoadmap, error: roadmapError } = await createRoadmap({
@@ -720,13 +741,11 @@ const AppContent = () => {
 
           if (roadmapError) {
             console.error('Error creating roadmap:', roadmapError);
-            continue;
+            return { success: false, title: milestone.title };
           }
 
-          console.log(`  ✅ Roadmap created: ${newRoadmap.id}`);
-
           // Create the milestone under this roadmap
-          const { data: newMilestone, error: milestoneError } = await createMilestone({
+          const { error: milestoneError } = await createMilestone({
             roadmap_id: newRoadmap.id,
             title: milestone.title,
             description: milestone.description,
@@ -743,15 +762,20 @@ const AppContent = () => {
 
           if (milestoneError) {
             console.error('Error creating milestone:', milestoneError);
-          } else {
-            console.log(`  ✅ Milestone created: ${newMilestone.id}`);
+            return { success: false, title: milestone.title };
           }
+
+          return { success: true, title: milestone.title };
         } catch (error) {
           console.error(`Error creating dream "${milestone.title}":`, error);
+          return { success: false, title: milestone.title };
         }
-      }
+      });
 
-      console.log('✅ All dreams created successfully!');
+      // Wait for all dreams to be created in parallel
+      const results = await Promise.all(createDreamPromises);
+      const successCount = results.filter(r => r.success).length;
+      console.log(`✅ Created ${successCount}/${milestones.length} dreams`);
 
       // Show success notification
       setSuccessNotification({
@@ -818,9 +842,8 @@ const AppContent = () => {
     if (user && milestones.length > 0) {
       console.log('📦 Creating separate roadmaps for each Luna-optimized dream...');
 
-      for (const milestone of milestones) {
-        console.log(`  🏆 Creating dream: ${milestone.title}`);
-
+      // Parallelize dream creation for speed (was sequential, causing 5-10s hang)
+      const createDreamPromises = milestones.map(async (milestone) => {
         try {
           // Create a roadmap for this dream
           const { data: newRoadmap, error: roadmapError } = await createRoadmap({
@@ -833,7 +856,7 @@ const AppContent = () => {
 
           if (roadmapError) {
             console.error('Error creating roadmap:', roadmapError);
-            continue;
+            return { success: false, title: milestone.title };
           }
 
           // Create the milestone under this roadmap
@@ -852,13 +875,17 @@ const AppContent = () => {
             order_index: 0
           });
 
-          console.log(`  ✅ Dream created: ${milestone.title}`);
+          return { success: true, title: milestone.title };
         } catch (error) {
           console.error(`Error creating dream "${milestone.title}":`, error);
+          return { success: false, title: milestone.title };
         }
-      }
+      });
 
-      console.log('✅ All Luna-optimized dreams created successfully!');
+      // Wait for all dreams to be created in parallel
+      const results = await Promise.all(createDreamPromises);
+      const successCount = results.filter(r => r.success).length;
+      console.log(`✅ Created ${successCount}/${milestones.length} Luna-optimized dreams`);
 
       // Show success notification
       setSuccessNotification({
@@ -1177,9 +1204,10 @@ const AppContent = () => {
             onUpdateMilestone={handleUpdateMilestoneFromDetail}
             roadmapId={userData?.roadmapId}
             userContext={{
-              partner1: userData?.partner1 || coupleData.partner1,
-              partner2: userData?.partner2 || coupleData.partner2,
-              location: userData?.location || 'Unknown'
+              partner1: userData?.partner1 || selectedRoadmap?.partner1_name || coupleData.partner1,
+              partner2: userData?.partner2 || selectedRoadmap?.partner2_name || coupleData.partner2,
+              location: userData?.location || 'Unknown',
+              userId: user?.id
             }}
           />
         )}
@@ -1197,9 +1225,10 @@ const AppContent = () => {
               isChatLoading: isDeepDiveChatLoading
             }}
             userContext={{
-              partner1: userData?.partner1 || coupleData.partner1,
-              partner2: userData?.partner2 || coupleData.partner2,
-              location: userData?.location || 'Unknown'
+              partner1: userData?.partner1 || selectedRoadmap?.partner1_name || coupleData.partner1,
+              partner2: userData?.partner2 || selectedRoadmap?.partner2_name || coupleData.partner2,
+              location: userData?.location || 'Unknown',
+              userId: user?.id
             }}
           />
         )}
@@ -1245,9 +1274,14 @@ const AppContent = () => {
           />
         )}
 
-        {/* STAGE 10: Partner Invite Acceptance */}
+        {/* STAGE 10: Dream Share Invite Acceptance */}
         {stage === 'invite' && (
           <AcceptInvitePage />
+        )}
+
+        {/* STAGE 11: Global Partnership Invite Acceptance */}
+        {stage === 'partnerInvite' && (
+          <AcceptPartnerInvitePage />
         )}
 
         {/* Mobile Bottom Navigation */}

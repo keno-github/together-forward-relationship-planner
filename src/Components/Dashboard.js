@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight, Sunrise, Bell, HeartHandshake, LayoutDashboard, UserCircle, Settings as SettingsIcon, MoreVertical, Crown } from 'lucide-react';
+import { Heart, Plus, ArrowRight, Users, Calendar, User, LogOut, Sparkles, Map, TrendingUp, Wallet, CheckCircle2, Clock, Home, Target, Trash2, ChevronRight, Sunrise, Bell, HeartHandshake, LayoutDashboard, UserCircle, Settings as SettingsIcon, MoreVertical, Crown, Info } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import faviconDark from '../assets/favicon-dark.png';
 import { getUserRoadmaps, getMilestonesByRoadmap, getTasksByMilestone, getExpensesByRoadmap, deleteRoadmap } from '../services/supabaseService';
@@ -34,9 +34,9 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [stats, setStats] = useState({
     totalXP: 0,
-    totalMilestones: 0,
-    completedMilestones: 0,
-    openMilestones: 0,
+    totalRoadmaps: 0,
+    completedRoadmaps: 0,
+    openRoadmaps: 0,
     activeDreams: 0,
     overallVelocity: 'On Track',
     budgetHealth: 0
@@ -80,39 +80,82 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
 
     if (rpcData && rpcData.dreams) {
       // Transform RPC response to component format
-      const transformedDreams = rpcData.dreams.map(dream => ({
-        ...dream,
-        progress: dream.progress_percentage || 0,
-        totalMilestones: dream.total_milestones || 0,
-        completedMilestones: dream.completed_milestones || 0,
-        totalTasks: dream.total_tasks || 0,
-        completedTasks: dream.completed_tasks || 0,
-        budgetProgress: dream.budget_amount > 0
-          ? Math.min((dream.budget_spent / dream.budget_amount) * 100, 200)
-          : 0,
-        milestones: [], // Will be loaded on click
-      }));
+      // NOTE: RPC returns milestone counts, but roadmaps = phases (deep_dive_data.roadmapPhases)
+      // For accurate phase-based metrics, use legacy loading (set USE_OPTIMIZED_LOADING = false)
+      // The RPC would need to be updated to return phase counts for full accuracy
+      const transformedDreams = rpcData.dreams.map(dream => {
+        // Calculate budget progress
+        const budgetProgress = dream.budget_amount > 0
+          ? Math.min((dream.budget_spent / dream.budget_amount) * 100, 100)
+          : 0;
+
+        // NOTE: Using milestone counts as proxy for roadmaps until RPC returns phase data
+        // Roadmaps should ideally be counted from deep_dive_data.roadmapPhases[]
+        const totalRoadmaps = dream.total_phases || dream.total_milestones || 0;
+        const completedRoadmaps = dream.completed_phases || dream.completed_milestones || 0;
+        const roadmapProgress = totalRoadmaps > 0 ? (completedRoadmaps / totalRoadmaps) * 100 : 0;
+
+        // Calculate time progress (how much time has elapsed toward target)
+        let timeProgress = 0;
+        if (dream.target_date && dream.created_at) {
+          const created = new Date(dream.created_at);
+          const target = new Date(dream.target_date);
+          const now = new Date();
+          const totalDays = Math.max(1, (target - created) / (1000 * 60 * 60 * 24));
+          const elapsedDays = Math.max(0, (now - created) / (1000 * 60 * 60 * 24));
+          timeProgress = Math.min(100, (elapsedDays / totalDays) * 100);
+        }
+
+        // Calculate dream velocity score
+        const progressDelta = roadmapProgress - timeProgress;
+        const budgetAlignment = roadmapProgress > 0
+          ? Math.min(100, (budgetProgress / roadmapProgress) * 100)
+          : (budgetProgress > 0 ? 100 : 50); // Neutral if no progress yet
+
+        // Weighted velocity: 70% progress vs time, 30% budget alignment
+        const velocityScore = dream.target_date
+          ? (progressDelta * 0.7) + ((budgetAlignment - 50) * 0.3)
+          : roadmapProgress - 50; // No target date: just use progress
+
+        return {
+          ...dream,
+          progress: roadmapProgress,
+          totalRoadmaps,
+          completedRoadmaps,
+          totalTasks: dream.total_tasks || 0,
+          completedTasks: dream.completed_tasks || 0,
+          budgetProgress,
+          timeProgress,
+          velocityScore,
+          milestones: [], // Will be loaded on click
+        };
+      });
 
       setDreams(transformedDreams);
 
-      // Set stats from RPC response
-      const totalMilestones = transformedDreams.reduce((sum, d) => sum + d.totalMilestones, 0);
-      const completedMilestones = transformedDreams.reduce((sum, d) => sum + d.completedMilestones, 0);
+      // Calculate overall stats
+      const totalRoadmaps = transformedDreams.reduce((sum, d) => sum + d.totalRoadmaps, 0);
+      const completedRoadmaps = transformedDreams.reduce((sum, d) => sum + d.completedRoadmaps, 0);
       const avgBudgetHealth = transformedDreams.length > 0
         ? transformedDreams.reduce((sum, d) => sum + (d.budgetProgress || 0), 0) / transformedDreams.length
         : 0;
 
-      const completionRate = totalMilestones > 0 ? (completedMilestones / totalMilestones) : 0;
+      // Calculate overall velocity from individual dream velocities
+      const avgVelocityScore = transformedDreams.length > 0
+        ? transformedDreams.reduce((sum, d) => sum + d.velocityScore, 0) / transformedDreams.length
+        : 0;
+
       let velocity = 'On Track';
-      if (completionRate >= 0.7) velocity = 'Excellent';
-      else if (completionRate >= 0.4) velocity = 'On Track';
-      else velocity = 'Needs Attention';
+      if (avgVelocityScore >= 10) velocity = 'Excellent';
+      else if (avgVelocityScore >= -10) velocity = 'On Track';
+      else if (avgVelocityScore >= -25) velocity = 'Needs Attention';
+      else velocity = 'At Risk';
 
       setStats({
         totalXP: rpcData.stats?.total_xp || 0,
-        totalMilestones,
-        completedMilestones,
-        openMilestones: totalMilestones - completedMilestones,
+        totalRoadmaps,
+        completedRoadmaps,
+        openRoadmaps: totalRoadmaps - completedRoadmaps,
         activeDreams: rpcData.stats?.active_dreams || transformedDreams.length,
         overallVelocity: velocity,
         budgetHealth: Math.round(avgBudgetHealth)
@@ -211,36 +254,47 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
               allTasks = tasksData;
             }
 
-            let totalMilestones = 0;
-            let completedMilestones = 0;
+            // Count roadmaps (phases) across all milestones
+            // IMPORTANT: Roadmaps = phases in deep_dive_data.roadmapPhases[], NOT milestones
+            let totalRoadmapsCount = 0;
+            let completedRoadmapsCount = 0;
 
             milestones?.forEach(milestone => {
-              if (milestone.deep_dive_data?.roadmapPhases && milestone.deep_dive_data.roadmapPhases.length > 0) {
-                const milestoneTasks = allTasks.find(t => t.milestoneId === milestone.id)?.tasks || [];
+              const phases = milestone.deep_dive_data?.roadmapPhases || [];
+              const milestoneTasks = allTasks.find(t => t.milestoneId === milestone.id)?.tasks || [];
 
-                milestone.deep_dive_data.roadmapPhases.forEach((phase, phaseIndex) => {
-                  totalMilestones++;
+              // Count each phase as a roadmap
+              phases.forEach((phase, phaseIndex) => {
+                totalRoadmapsCount++;
 
+                // Check if phase is manually marked complete
+                if (phase.completed) {
+                  completedRoadmapsCount++;
+                } else {
+                  // Check if all tasks for this phase are completed
                   const phaseTasks = milestoneTasks.filter(task => {
                     if (task.roadmap_phase_index === phaseIndex) {
                       return true;
                     }
                     if (task.roadmap_phase_index === null || task.roadmap_phase_index === undefined) {
-                      const phaseKeywords = phase.title.toLowerCase().split(' ');
+                      const phaseKeywords = phase.title?.toLowerCase().split(' ') || [];
                       const taskTitle = (task.title || task.description || '').toLowerCase();
                       return phaseKeywords.some(keyword => keyword.length > 3 && taskTitle.includes(keyword));
                     }
                     return false;
                   });
 
-                  const isPhaseCompleted = phaseTasks.length > 0 && phaseTasks.every(t => t.completed);
-
-                  if (isPhaseCompleted) {
-                    completedMilestones++;
+                  // Phase is complete if it has tasks and all are completed
+                  if (phaseTasks.length > 0 && phaseTasks.every(t => t.completed)) {
+                    completedRoadmapsCount++;
                   }
-                });
-              }
+                }
+              });
             });
+
+            // Keep these for backward compatibility but they represent phases now
+            const totalMilestones = totalRoadmapsCount;
+            const completedMilestones = completedRoadmapsCount;
 
             const milestoneProgress = totalMilestones > 0 ? (completedMilestones / totalMilestones) * 100 : 0;
 
@@ -346,20 +400,31 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
             const calculatedTargetDate = dream.target_date ||
               (milestoneDates.length > 0 ? new Date(Math.max(...milestoneDates)).toISOString() : null);
 
+            // Calculate velocity score for this dream
+            const progressDelta = milestoneProgress - timelineProgress;
+            const budgetAlignmentScore = milestoneProgress > 0
+              ? Math.min(100, (budgetProgress / milestoneProgress) * 100)
+              : (budgetProgress > 0 ? 100 : 50);
+            const velocityScore = calculatedTargetDate
+              ? (progressDelta * 0.7) + ((budgetAlignmentScore - 50) * 0.3)
+              : milestoneProgress - 50;
+
             return {
               ...dream,
               milestones: milestones || [],
-              totalMilestones,
-              completedMilestones,
+              totalRoadmaps: totalMilestones,
+              completedRoadmaps: completedMilestones,
               totalTasks,
               completedTasks,
-              progress,
+              progress: milestoneProgress, // Use roadmap progress as main progress
               budgetProgress,
+              timeProgress: timelineProgress,
+              velocityScore,
               // Use calculated values for display
               budget_amount: calculatedBudget,
               target_date: calculatedTargetDate,
               metrics: {
-                milestoneProgress: Math.round(milestoneProgress),
+                roadmapProgress: Math.round(milestoneProgress),
                 taskProgress: Math.round(taskProgress),
                 budgetProgress: Math.round(budgetProgress),
                 timelineProgress: Math.round(timelineProgress)
@@ -374,23 +439,30 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
         setDreams(dreamsWithProgress);
 
         const totalXP = dreamsWithProgress.reduce((sum, d) => sum + (d.xp_points || 0), 0);
-        const totalMilestones = dreamsWithProgress.reduce((sum, d) => sum + d.totalMilestones, 0);
-        const completedMilestones = dreamsWithProgress.reduce((sum, d) => sum + d.completedMilestones, 0);
-        const avgBudgetHealth = dreamsWithProgress.reduce((sum, d) => sum + (d.budgetProgress || 0), 0) / dreamsWithProgress.length;
+        const totalRoadmaps = dreamsWithProgress.reduce((sum, d) => sum + d.totalRoadmaps, 0);
+        const completedRoadmaps = dreamsWithProgress.reduce((sum, d) => sum + d.completedRoadmaps, 0);
+        const avgBudgetHealth = dreamsWithProgress.length > 0
+          ? dreamsWithProgress.reduce((sum, d) => sum + (d.budgetProgress || 0), 0) / dreamsWithProgress.length
+          : 0;
 
-        const completionRate = totalMilestones > 0 ? (completedMilestones / totalMilestones) : 0;
+        // Calculate overall velocity from individual dream velocities
+        const avgVelocityScore = dreamsWithProgress.length > 0
+          ? dreamsWithProgress.reduce((sum, d) => sum + d.velocityScore, 0) / dreamsWithProgress.length
+          : 0;
+
         let velocity = 'On Track';
-        if (completionRate >= 0.7) velocity = 'Excellent';
-        else if (completionRate >= 0.4) velocity = 'On Track';
-        else velocity = 'Needs Attention';
+        if (avgVelocityScore >= 10) velocity = 'Excellent';
+        else if (avgVelocityScore >= -10) velocity = 'On Track';
+        else if (avgVelocityScore >= -25) velocity = 'Needs Attention';
+        else velocity = 'At Risk';
 
-        const openMilestones = totalMilestones - completedMilestones;
+        const openRoadmaps = totalRoadmaps - completedRoadmaps;
 
         setStats({
           totalXP,
-          totalMilestones,
-          completedMilestones,
-          openMilestones,
+          totalRoadmaps,
+          completedRoadmaps,
+          openRoadmaps,
           activeDreams: dreamsWithProgress.length,
           overallVelocity: velocity,
           budgetHealth: Math.round(avgBudgetHealth)
@@ -813,17 +885,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                       </button>
                     )}
                     <div className="relative">
-                      <NotificationCenter
-                        onNotificationClick={(notification) => {
-                          setShowUserMenu(false);
-                          if (notification.data?.roadmap_id) {
-                            const dream = dreams.find(d => d.id === notification.data.roadmap_id);
-                            if (dream) {
-                              onContinueRoadmap(dream);
-                            }
-                          }
-                        }}
-                      />
+                      <NotificationCenter />
                     </div>
                     {onGoToProfile && (
                       <button onClick={() => { onGoToProfile(); setShowUserMenu(false); }}
@@ -930,15 +992,17 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
             iconColor="#2E7D32"
             label="Velocity"
             value={stats.overallVelocity}
-            sub={`${stats.completedMilestones}/${stats.totalMilestones} milestones`}
+            sub={`${stats.completedRoadmaps}/${stats.totalRoadmaps} roadmaps`}
+            tooltip="Are you on track to hit your target dates? Based on roadmap progress vs time elapsed."
           />
           <StatCard
             icon={<Map className="w-5 h-5" />}
             iconBg="#FEF7ED"
             iconColor="#C4785A"
-            label="Open Milestones"
-            value={stats.openMilestones}
+            label="Open Roadmaps"
+            value={stats.openRoadmaps}
             sub="Across all dreams"
+            tooltip="Total roadmap phases that are not yet completed across all your dreams."
           />
           <StatCard
             icon={<Wallet className="w-5 h-5" />}
@@ -951,6 +1015,7 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
               stats.budgetHealth >= 80 ? "Slightly behind" :
               stats.budgetHealth >= 50 ? "Need attention" : "Urgently behind"
             }
+            tooltip="Average budget allocation progress across all your dreams."
           />
         </motion.div>
 
@@ -1213,10 +1278,12 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                     >
                       {dream.title || 'Our Dream Together'}
                     </h3>
-                    <div className="flex items-center gap-1.5 text-xs" style={{ color: '#6B5E54' }}>
-                      <Users className="w-3.5 h-3.5" />
-                      <span>{dream.partner1_name || 'Partner 1'} & {dream.partner2_name || 'Partner 2'}</span>
-                    </div>
+                    {(dream.partner1_name || dream.partner2_name) && (
+                      <div className="flex items-center gap-1.5 text-xs" style={{ color: '#6B5E54' }}>
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{dream.partner1_name}{dream.partner1_name && dream.partner2_name && ' & '}{dream.partner2_name}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Progress Ring */}
@@ -1249,8 +1316,8 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
                 <div className="grid grid-cols-2 gap-3">
                   <MetricBox
                     icon={<Map className="w-3.5 h-3.5" />}
-                    label="Milestones"
-                    value={`${dream.completedMilestones}/${dream.totalMilestones}`}
+                    label="Roadmaps"
+                    value={`${dream.completedRoadmaps}/${dream.totalRoadmaps}`}
                   />
                   <MetricBox
                     icon={<CheckCircle2 className="w-3.5 h-3.5" />}
@@ -1389,40 +1456,74 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   );
 };
 
-const StatCard = ({ icon, iconBg, iconColor, label, value, sub }) => (
-  <div
-    className="p-4 rounded-xl flex items-start gap-3"
-    style={{
-      backgroundColor: 'white',
-      border: '1px solid #E8E2DA'
-    }}
-  >
+const StatCard = ({ icon, iconBg, iconColor, label, value, sub, tooltip }) => {
+  const [showTooltip, setShowTooltip] = React.useState(false);
+
+  return (
     <div
-      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-      style={{ backgroundColor: iconBg, color: iconColor }}
+      className="p-4 rounded-xl flex items-start gap-3 relative cursor-help"
+      style={{
+        backgroundColor: 'white',
+        border: '1px solid #E8E2DA'
+      }}
+      onMouseEnter={() => tooltip && setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+      onClick={() => tooltip && setShowTooltip(!showTooltip)}
     >
-      {icon}
-    </div>
-    <div className="min-w-0">
-      <p
-        className="text-[10px] uppercase tracking-wider font-medium mb-0.5"
-        style={{ color: '#8B8178' }}
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: iconBg, color: iconColor }}
       >
-        {label}
-      </p>
-      <p
-        className="text-xl font-semibold"
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          color: '#2D2926'
-        }}
-      >
-        {value}
-      </p>
-      <p className="text-xs" style={{ color: '#A09890' }}>{sub}</p>
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          <p
+            className="text-[10px] uppercase tracking-wider font-medium mb-0.5"
+            style={{ color: '#8B8178' }}
+          >
+            {label}
+          </p>
+          {tooltip && (
+            <Info className="w-3 h-3" style={{ color: '#A09890' }} />
+          )}
+        </div>
+        <p
+          className="text-xl font-semibold"
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            color: '#2D2926'
+          }}
+        >
+          {value}
+        </p>
+        <p className="text-xs" style={{ color: '#A09890' }}>{sub}</p>
+      </div>
+
+      {/* Tooltip - appears above the card */}
+      {tooltip && showTooltip && (
+        <div
+          className="absolute left-0 right-0 bottom-full mb-2 p-3 rounded-xl shadow-lg z-50"
+          style={{
+            backgroundColor: '#2D2926',
+            color: '#FAF7F2'
+          }}
+        >
+          <p className="text-xs leading-relaxed">{tooltip}</p>
+          {/* Small arrow pointing down */}
+          <div
+            className="absolute left-4 top-full w-0 h-0"
+            style={{
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #2D2926'
+            }}
+          />
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 const MetricBox = ({ icon, label, value, progress }) => (
   <div

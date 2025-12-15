@@ -110,7 +110,12 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
         order_index: tasks.length
       };
 
-      const { data, error } = await createTask(taskData);
+      // Pass activity context for logging
+      const activityContext = {
+        roadmapId: milestone?.roadmap_id,
+      };
+
+      const { data, error } = await createTask(taskData, activityContext);
       if (error) {
         console.error('Error adding task:', error);
         alert(`Failed to save task: ${error.message || 'Unknown error'}`);
@@ -129,7 +134,17 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
 
   const handleToggleComplete = async (task) => {
     try {
-      const { data, error } = await updateTask(task.id, { completed: !task.completed });
+      // Build activity context for logging
+      const activityContext = {
+        roadmapId: milestone?.roadmap_id,
+        wasCompleted: task.completed, // Current state before toggle
+      };
+
+      const { data, error } = await updateTask(
+        task.id,
+        { completed: !task.completed },
+        activityContext
+      );
       if (error) return;
       setTasks(tasks.map(t => t.id === task.id ? data : t));
       onProgressUpdate?.();
@@ -159,7 +174,12 @@ const TaskManager = ({ milestone, userContext, partnerInfo, currentUserId, onPro
         assigned_to_user_id: assignedUserId
       };
 
-      const { data, error } = await updateTask(taskId, updateData);
+      // Build activity context
+      const activityContext = {
+        roadmapId: milestone?.roadmap_id,
+      };
+
+      const { data, error } = await updateTask(taskId, updateData, activityContext);
       if (error) {
         console.error('Error saving task:', error);
         alert(`Failed to save task: ${error.message || 'Unknown error'}`);

@@ -185,11 +185,11 @@ const ExpenseTracker = ({
       };
 
       if (editingExpense) {
-        // Update existing expense
-        const { error } = await updateExpense(editingExpense.id, expenseData);
+        // Update existing expense (pass roadmapId for activity logging)
+        const { error } = await updateExpense(editingExpense.id, expenseData, roadmapId);
         if (error) throw error;
       } else {
-        // Create new expense
+        // Create new expense (roadmap_id in expenseData enables activity logging)
         const { error } = await createExpense(expenseData);
         if (error) throw error;
       }
@@ -212,7 +212,11 @@ const ExpenseTracker = ({
     }
 
     try {
-      const { error } = await deleteExpense(expenseId);
+      // Find the expense for activity logging
+      const expense = expenses.find(e => e.id === expenseId);
+      const activityContext = expense ? { roadmapId, expense } : null;
+
+      const { error } = await deleteExpense(expenseId, activityContext);
       if (error) throw error;
       await loadExpenses();
     } catch (error) {

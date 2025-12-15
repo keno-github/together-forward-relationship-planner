@@ -175,7 +175,6 @@ const MilestoneDetailPage = ({
   }
 
   const currentTab = visibleTabs.find(t => t.id === activeSection) || visibleTabs[0];
-  const progressPercent = metrics.progress_percentage || 0;
 
   return (
     <div className="min-h-screen bg-[#FDFCF8]">
@@ -264,44 +263,6 @@ const MilestoneDetailPage = ({
                 )}
               </div>
 
-              {/* Progress Ring */}
-              <div className="flex items-center gap-3">
-                <div className="relative w-11 h-11">
-                  <svg className="transform -rotate-90" width="44" height="44">
-                    <circle
-                      cx="22"
-                      cy="22"
-                      r="18"
-                      stroke="#E7E5E4"
-                      strokeWidth="3"
-                      fill="none"
-                    />
-                    <circle
-                      cx="22"
-                      cy="22"
-                      r="18"
-                      stroke="#F59E0B"
-                      strokeWidth="3"
-                      fill="none"
-                      strokeDasharray={2 * Math.PI * 18}
-                      strokeDashoffset={2 * Math.PI * 18 * (1 - progressPercent / 100)}
-                      strokeLinecap="round"
-                      className="transition-all duration-700"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs font-semibold text-stone-700">
-                      {progressPercent}%
-                    </span>
-                  </div>
-                </div>
-                <div className="hidden lg:block text-right">
-                  <p className="text-sm font-medium text-stone-700">Progress</p>
-                  <p className="text-xs text-stone-500">
-                    {metrics.tasks_completed || 0}/{metrics.tasks_total || 0} tasks
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -368,6 +329,15 @@ const MilestoneDetailPage = ({
                   handleSectionChange('tasks');
                 }}
                 onTasksUpdated={loadTasks}
+                onMilestoneUpdate={(updatedMilestone) => {
+                  // Update parent component with new milestone data
+                  if (onUpdateMilestone) {
+                    onUpdateMilestone(updatedMilestone);
+                  }
+                  // Recalculate metrics
+                  const newMetrics = calculateClientMetrics(updatedMilestone, tasks, expenses);
+                  setMetrics(newMetrics);
+                }}
               />
             )}
 
@@ -394,21 +364,31 @@ const MilestoneDetailPage = ({
 
             {activeSection === 'tasks' && (
               <div className="p-6">
-                <TaskManager
-                  milestone={milestone}
-                  userContext={userContext}
-                  currentUserId={userContext?.userId}
-                  partnerInfo={roadmap ? {
-                    user_id: roadmap.user_id,
-                    partner_id: roadmap.partner_id,
-                    partner1_name: roadmap.partner1_name,
-                    partner2_name: roadmap.partner2_name
-                  } : null}
-                  onProgressUpdate={() => {
-                    loadTasks();
-                  }}
-                  onNavigateToRoadmap={() => handleSectionChange('roadmap')}
-                />
+                {!roadmap ? (
+                  // Wait for roadmap to load to ensure partnerInfo is available for task assignment
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-center">
+                      <div className="w-10 h-10 border-2 border-[#c49a6c] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <p className="text-sm" style={{ color: '#6b635b' }}>Loading task settings...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <TaskManager
+                    milestone={milestone}
+                    userContext={userContext}
+                    currentUserId={userContext?.userId}
+                    partnerInfo={{
+                      user_id: roadmap.user_id,
+                      partner_id: roadmap.partner_id,
+                      partner1_name: roadmap.partner1_name,
+                      partner2_name: roadmap.partner2_name
+                    }}
+                    onProgressUpdate={() => {
+                      loadTasks();
+                    }}
+                    onNavigateToRoadmap={() => handleSectionChange('roadmap')}
+                  />
+                )}
               </div>
             )}
           </motion.div>

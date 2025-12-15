@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Trophy, Target, Calendar, ArrowRight, TrendingUp, CheckCircle, Circle, Clock, Edit, Trash2 } from 'lucide-react';
 import BackButton from './BackButton';
@@ -15,6 +15,13 @@ const RoadmapProfile = ({ roadmap, onContinueJourney, onBack, onEdit, onDelete }
     progressPercentage: 0
   });
 
+  // Prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
   useEffect(() => {
     loadMilestones();
   }, [roadmap.id]);
@@ -23,6 +30,9 @@ const RoadmapProfile = ({ roadmap, onContinueJourney, onBack, onEdit, onDelete }
     setLoading(true);
     try {
       const { data: milestonesData, error } = await getMilestonesByRoadmap(roadmap.id);
+
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
 
       if (error) throw error;
 
@@ -47,7 +57,9 @@ const RoadmapProfile = ({ roadmap, onContinueJourney, onBack, onEdit, onDelete }
     } catch (error) {
       console.error('Error loading milestones:', error);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -115,9 +127,11 @@ const RoadmapProfile = ({ roadmap, onContinueJourney, onBack, onEdit, onDelete }
                   <h1 className="text-3xl font-bold" style={{color: '#2B2B2B'}}>
                     {roadmap.title || 'Our Journey Together'}
                   </h1>
-                  <p className="text-lg" style={{color: '#2B2B2B', opacity: 0.7}}>
-                    {roadmap.partner1_name || 'Partner 1'} & {roadmap.partner2_name || 'Partner 2'}
-                  </p>
+                  {(roadmap.partner1_name || roadmap.partner2_name) && (
+                    <p className="text-lg" style={{color: '#2B2B2B', opacity: 0.7}}>
+                      {roadmap.partner1_name}{roadmap.partner1_name && roadmap.partner2_name && ' & '}{roadmap.partner2_name}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

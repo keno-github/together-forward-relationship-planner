@@ -25,6 +25,10 @@ const EMAIL_CONFIG: Record<string, { sender: keyof typeof EMAIL_SENDERS; subject
     sender: "team",
     subject: (data) => `${data.partner_name} joined your dream: ${data.dream_title}`,
   },
+  assessment_invite: {
+    sender: "team",
+    subject: (data) => `${data.inviter_name} wants to take a relationship alignment test with you`,
+  },
   welcome: {
     sender: "team",
     subject: () => "Welcome to TwogetherForward! Let's plan your future together",
@@ -145,6 +149,45 @@ function generateEmailHTML(type: string, data: any): string {
             </div>
             <div class="footer">
               <p>TwogetherForward – Plan your future, together</p>
+            </div>
+          </div>
+        </body></html>
+      `;
+
+    case "assessment_invite":
+      return `
+        <!DOCTYPE html>
+        <html><head><style>${baseStyles}</style></head>
+        <body>
+          <div class="container">
+            <div class="header" style="background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);">
+              <h1>Alignment Test Invite</h1>
+              <p>Discover where you align with your partner</p>
+            </div>
+            <div class="content">
+              <p>Hi ${data.partner_name},</p>
+              <p><strong>${data.inviter_name}</strong> wants to take a relationship alignment test with you on TwogetherForward!</p>
+
+              <div class="card">
+                <h2 style="margin: 0 0 8px; color: #2D2926;">What is the Alignment Test?</h2>
+                <p style="color: #6B5E54; margin: 0;">Luna, our AI guide, will ask you both thoughtful questions about your priorities, values, and dreams. You'll discover where you're strongly aligned and where you might need to have a conversation.</p>
+              </div>
+
+              <ul style="color: #6B5E54;">
+                <li>Takes about 15-20 minutes</li>
+                <li>Complete it on your own device</li>
+                <li>Get personalized insights together</li>
+              </ul>
+
+              <div style="text-align: center;">
+                <a href="${data.invite_url}" class="button" style="background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);">Start the Test</a>
+              </div>
+
+              <p style="font-size: 14px; color: #6B5E54; text-align: center;">Or enter this code: <strong>${data.session_code}</strong></p>
+            </div>
+            <div class="footer">
+              <p>TwogetherForward – Plan your future, together</p>
+              <p>This session expires in 7 days.</p>
             </div>
           </div>
         </body></html>
@@ -408,6 +451,28 @@ Accept the invitation: ${data.invite_url}
 Or use code: ${data.share_code}
 
 This invite expires in 7 days.
+
+--
+TwogetherForward - Plan your future, together
+      `.trim();
+
+    case "assessment_invite":
+      return `
+Hi ${data.partner_name},
+
+${data.inviter_name} wants to take a relationship alignment test with you on TwogetherForward!
+
+What is the Alignment Test?
+Luna, our AI guide, will ask you both thoughtful questions about your priorities, values, and dreams. You'll discover where you're strongly aligned and where you might need to have a conversation.
+
+• Takes about 15-20 minutes
+• Complete it on your own device
+• Get personalized insights together
+
+Start the test: ${data.invite_url}
+Or enter this code: ${data.session_code}
+
+This session expires in 7 days.
 
 --
 TwogetherForward - Plan your future, together

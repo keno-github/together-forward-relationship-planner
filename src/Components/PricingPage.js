@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Check, X, Sparkles, Heart, Target, Brain, Shield,
-  Zap, TrendingUp, Users, ArrowRight, Star, ArrowLeft
+  Check, X, Sparkles, Heart, Target, Shield,
+  Zap, TrendingUp, ArrowRight, Star, ArrowLeft
 } from 'lucide-react';
+import { SUBSCRIPTION } from '../utils/metricsAndTerminology';
 
 /**
  * PricingPage - World-class pricing page for TwogetherForward
  *
- * Designed to convert. Every element is intentional.
- * Brand: Warm, sophisticated, couples-focused
+ * 3-tier pricing: Monthly ($12), Quarterly ($10), Annual ($8)
  */
 const PricingPage = ({ onUpgrade, onClose }) => {
-  const [billingPeriod, setBillingPeriod] = useState('annual'); // 'monthly' or 'annual'
+  const [billingPeriod, setBillingPeriod] = useState('annual'); // 'monthly', 'quarterly', or 'annual'
   const [loading, setLoading] = useState(false);
 
   const handleUpgrade = async (tier) => {
@@ -22,6 +22,48 @@ const PricingPage = ({ onUpgrade, onClose }) => {
     }
     setLoading(false);
   };
+
+  // Get price based on billing period
+  const getPrice = () => {
+    switch (billingPeriod) {
+      case 'monthly':
+        return SUBSCRIPTION.PRICE_MONTHLY;
+      case 'quarterly':
+        return SUBSCRIPTION.PRICE_QUARTERLY;
+      case 'annual':
+        return SUBSCRIPTION.PRICE_ANNUAL;
+      default:
+        return SUBSCRIPTION.PRICE_ANNUAL;
+    }
+  };
+
+  // Get billing description
+  const getBillingDescription = () => {
+    switch (billingPeriod) {
+      case 'monthly':
+        return 'Billed monthly';
+      case 'quarterly':
+        return `Billed quarterly at $${SUBSCRIPTION.QUARTERLY_TOTAL}`;
+      case 'annual':
+        return `Billed annually at $${SUBSCRIPTION.ANNUAL_TOTAL}`;
+      default:
+        return '';
+    }
+  };
+
+  // Get savings badge
+  const getSavingsBadge = () => {
+    switch (billingPeriod) {
+      case 'quarterly':
+        return { text: 'Save 17%', show: true };
+      case 'annual':
+        return { text: '4 months free!', show: true };
+      default:
+        return { text: '', show: false };
+    }
+  };
+
+  const savingsBadge = getSavingsBadge();
 
   return (
     <div
@@ -112,48 +154,64 @@ const PricingPage = ({ onUpgrade, onClose }) => {
             From your first date night planning to buying your dream home—Luna helps you navigate every milestone with clarity, confidence, and joy.
           </motion.p>
 
-          {/* Billing Toggle */}
+          {/* Billing Period Selector - 3 options */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="flex items-center justify-center gap-4 mt-8"
+            className="flex items-center justify-center gap-2 mt-8"
           >
-            <span
-              className="text-sm font-medium"
-              style={{ color: billingPeriod === 'monthly' ? '#2D2926' : '#8B8178' }}
+            <div
+              className="inline-flex rounded-full p-1"
+              style={{ backgroundColor: '#F5F1EC', border: '1px solid #E8E2DA' }}
             >
-              Monthly
-            </span>
-            <button
-              onClick={() => setBillingPeriod(billingPeriod === 'monthly' ? 'annual' : 'monthly')}
-              className="relative w-14 h-7 rounded-full transition-colors"
-              style={{ backgroundColor: billingPeriod === 'annual' ? '#C4785A' : '#D4CEC6' }}
-            >
-              <div
-                className="absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform"
+              <button
+                onClick={() => setBillingPeriod('monthly')}
+                className="px-4 py-2 rounded-full text-sm font-medium transition-all"
                 style={{
-                  transform: billingPeriod === 'annual' ? 'translateX(30px)' : 'translateX(4px)'
+                  backgroundColor: billingPeriod === 'monthly' ? 'white' : 'transparent',
+                  color: billingPeriod === 'monthly' ? '#2D2926' : '#8B8178',
+                  boxShadow: billingPeriod === 'monthly' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
                 }}
-              />
-            </button>
-            <span
-              className="text-sm font-medium"
-              style={{ color: billingPeriod === 'annual' ? '#2D2926' : '#8B8178' }}
-            >
-              Annual
-            </span>
-            {billingPeriod === 'annual' && (
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingPeriod('quarterly')}
+                className="px-4 py-2 rounded-full text-sm font-medium transition-all"
+                style={{
+                  backgroundColor: billingPeriod === 'quarterly' ? 'white' : 'transparent',
+                  color: billingPeriod === 'quarterly' ? '#2D2926' : '#8B8178',
+                  boxShadow: billingPeriod === 'quarterly' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
+                }}
+              >
+                Quarterly
+              </button>
+              <button
+                onClick={() => setBillingPeriod('annual')}
+                className="px-4 py-2 rounded-full text-sm font-medium transition-all"
+                style={{
+                  backgroundColor: billingPeriod === 'annual' ? 'white' : 'transparent',
+                  color: billingPeriod === 'annual' ? '#2D2926' : '#8B8178',
+                  boxShadow: billingPeriod === 'annual' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
+                }}
+              >
+                Annual
+              </button>
+            </div>
+
+            {savingsBadge.show && (
               <motion.span
+                key={billingPeriod}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="px-3 py-1 rounded-full text-xs font-bold"
                 style={{
-                  backgroundColor: '#7d8c75',
+                  backgroundColor: billingPeriod === 'annual' ? '#C4785A' : '#7d8c75',
                   color: 'white'
                 }}
               >
-                Save $24
+                {savingsBadge.text}
               </motion.span>
             )}
           </motion.div>
@@ -200,13 +258,12 @@ const PricingPage = ({ onUpgrade, onClose }) => {
 
             <div className="space-y-3">
               <FeatureItem icon={Check} text="2 Active Dreams" included />
+              <FeatureItem icon={Check} text="Full Partner Collaboration" included />
+              <FeatureItem icon={Check} text="Unlimited Luna AI" included />
               <FeatureItem icon={Check} text="Unlimited Milestones & Tasks" included />
-              <FeatureItem icon={Check} text="Partner Collaboration" included />
-              <FeatureItem icon={Check} text="10 Luna AI Questions/Month" included />
+              <FeatureItem icon={Check} text="Unlimited Compatibility Assessments" included />
               <FeatureItem icon={Check} text="Basic Activity Tracking" included />
-              <FeatureItem icon={Check} text="Compatibility Assessment (Once)" included />
               <FeatureItem icon={X} text="Unlimited Dreams" />
-              <FeatureItem icon={X} text="Unlimited Luna Conversations" />
               <FeatureItem icon={X} text="AI-Powered PDF Reports" />
               <FeatureItem icon={X} text="Portfolio Intelligence" />
               <FeatureItem icon={X} text="Advanced Budget Tools" />
@@ -235,7 +292,7 @@ const PricingPage = ({ onUpgrade, onClose }) => {
                 boxShadow: '0 4px 12px rgba(196, 120, 90, 0.3)'
               }}
             >
-              MOST POPULAR
+              {billingPeriod === 'annual' ? 'BEST VALUE' : 'MOST POPULAR'}
             </div>
 
             <div className="mb-6 mt-2">
@@ -243,19 +300,22 @@ const PricingPage = ({ onUpgrade, onClose }) => {
                 Twogether Pro
               </h3>
               <p className="text-sm mb-4" style={{ color: '#6B5E54' }}>
-                For couples serious about building their future
+                For couples ready to dream without limits
               </p>
               <div className="flex items-baseline gap-2">
                 <span className="text-5xl font-bold" style={{ color: '#C4785A' }}>
-                  ${billingPeriod === 'annual' ? '10' : '12'}
+                  ${getPrice()}
                 </span>
                 <span className="text-sm" style={{ color: '#8B8178' }}>/month</span>
+                {billingPeriod === 'monthly' && (
+                  <span className="text-xs line-through ml-2" style={{ color: '#D4CEC6' }}>
+
+                  </span>
+                )}
               </div>
-              {billingPeriod === 'annual' && (
-                <p className="text-xs mt-1" style={{ color: '#7d8c75' }}>
-                  Billed annually at $120/year
-                </p>
-              )}
+              <p className="text-xs mt-1" style={{ color: '#7d8c75' }}>
+                {getBillingDescription()}
+              </p>
             </div>
 
             <motion.button
@@ -276,12 +336,10 @@ const PricingPage = ({ onUpgrade, onClose }) => {
 
             <div className="space-y-3">
               <FeatureItem icon={Check} text="Everything in Free, plus:" included bold />
-              <FeatureItem icon={Sparkles} text="Unlimited Dreams & Roadmaps" included premium />
-              <FeatureItem icon={Brain} text="Unlimited Luna AI Conversations" included premium />
+              <FeatureItem icon={Sparkles} text="Unlimited Dreams" included premium />
               <FeatureItem icon={Target} text="AI-Powered PDF Reports" included premium />
               <FeatureItem icon={TrendingUp} text="Portfolio Intelligence" included premium />
               <FeatureItem icon={Zap} text="Advanced Budget & Timeline Tools" included premium />
-              <FeatureItem icon={Heart} text="Unlimited Compatibility Assessments" included premium />
               <FeatureItem icon={Shield} text="Priority Support (24hr response)" included premium />
               <FeatureItem icon={Star} text="Early Access to New Features" included premium />
             </div>
@@ -303,6 +361,48 @@ const PricingPage = ({ onUpgrade, onClose }) => {
             </div>
           </motion.div>
         </div>
+
+        {/* Pricing Breakdown */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+          className="mb-20"
+        >
+          <h3 className="text-xl font-semibold text-center mb-6" style={{ color: '#2D2926' }}>
+            Choose Your Plan
+          </h3>
+          <div className="grid md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+            <PricingOption
+              title="Monthly"
+              price={`$${SUBSCRIPTION.PRICE_MONTHLY}`}
+              period="/month"
+              description="Flexible, no commitment"
+              selected={billingPeriod === 'monthly'}
+              onClick={() => setBillingPeriod('monthly')}
+            />
+            <PricingOption
+              title="Quarterly"
+              price={`$${SUBSCRIPTION.PRICE_QUARTERLY}`}
+              period="/month"
+              description={`$${SUBSCRIPTION.QUARTERLY_TOTAL} billed every 3 months`}
+              badge="Save 17%"
+              selected={billingPeriod === 'quarterly'}
+              onClick={() => setBillingPeriod('quarterly')}
+            />
+            <PricingOption
+              title="Annual"
+              price={`$${SUBSCRIPTION.PRICE_ANNUAL}`}
+              period="/month"
+              description={`$${SUBSCRIPTION.ANNUAL_TOTAL} billed yearly`}
+              badge="4 months free!"
+              badgeColor="#C4785A"
+              selected={billingPeriod === 'annual'}
+              onClick={() => setBillingPeriod('annual')}
+              recommended
+            />
+          </div>
+        </motion.div>
 
         {/* Social Proof */}
         <motion.div
@@ -368,8 +468,8 @@ const PricingPage = ({ onUpgrade, onClose }) => {
             />
             <ComparisonCard
               label="TwogetherForward"
-              price="$12/month"
-              description="All your dreams, one platform"
+              price={`$${SUBSCRIPTION.PRICE_ANNUAL}/month`}
+              description="Unlimited dreams, full features"
               highlighted
             />
           </div>
@@ -395,7 +495,11 @@ const PricingPage = ({ onUpgrade, onClose }) => {
           <div className="space-y-4">
             <FAQItem
               question="Can I cancel anytime?"
-              answer="Yes! Cancel anytime with one click. No questions asked. If you're on an annual plan, you'll have access until the end of your billing period."
+              answer="Yes! Cancel anytime with one click. No questions asked. You'll have access until the end of your billing period."
+            />
+            <FAQItem
+              question="What's the difference between billing options?"
+              answer={`Monthly is $${SUBSCRIPTION.PRICE_MONTHLY}/month with no commitment. Quarterly is $${SUBSCRIPTION.PRICE_QUARTERLY}/month ($${SUBSCRIPTION.QUARTERLY_TOTAL} every 3 months) saving you 17%. Annual is our best value at $${SUBSCRIPTION.PRICE_ANNUAL}/month ($${SUBSCRIPTION.ANNUAL_TOTAL}/year)—that's like getting 4 months free!`}
             />
             <FAQItem
               question="What if we're not ready for Twogether Pro yet?"
@@ -406,16 +510,12 @@ const PricingPage = ({ onUpgrade, onClose }) => {
               answer="Try Twogether Pro risk-free for 14 days. If you're not completely satisfied, email us and we'll refund you in full—no questions asked."
             />
             <FAQItem
-              question="Do we both need Twogether Pro accounts?"
-              answer="Nope! Only one partner needs Twogether Pro to unlock all features for both of you. Share one account or invite your partner—they get all Pro features too."
+              question="Can my partner and I use the free plan together?"
+              answer="Absolutely! Partner collaboration is completely free. Invite your partner and start planning together right away. Pro is only needed when you want unlimited dreams or advanced features like PDF reports."
             />
             <FAQItem
               question="What payment methods do you accept?"
               answer="We accept all major credit cards (Visa, Mastercard, Amex, Discover) through our secure Stripe integration. Your payment information is never stored on our servers."
-            />
-            <FAQItem
-              question="Will Luna really help us save money?"
-              answer="Luna's budget optimization tools help you make informed financial decisions by analyzing costs, suggesting alternatives, and creating realistic timelines. Many couples find that better planning leads to smarter spending on major life events."
             />
           </div>
         </motion.div>
@@ -497,6 +597,43 @@ const FeatureHighlight = ({ icon, title, description }) => (
     <p className="text-sm leading-relaxed" style={{ color: '#6B5E54' }}>
       {description}
     </p>
+  </div>
+);
+
+const PricingOption = ({ title, price, period, description, badge, badgeColor = '#7d8c75', selected, onClick, recommended }) => (
+  <div
+    onClick={onClick}
+    className="rounded-xl p-5 cursor-pointer transition-all relative"
+    style={{
+      backgroundColor: selected ? '#FEF7ED' : 'white',
+      border: selected ? '2px solid #C4785A' : '1px solid #E8E2DA',
+      boxShadow: selected ? '0 4px 16px rgba(196, 120, 90, 0.15)' : 'none'
+    }}
+  >
+    {recommended && (
+      <div
+        className="absolute -top-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+        style={{ backgroundColor: '#C4785A', color: 'white' }}
+      >
+        Recommended
+      </div>
+    )}
+    <div className="flex items-center justify-between mb-2">
+      <h4 className="font-semibold" style={{ color: '#2D2926' }}>{title}</h4>
+      {badge && (
+        <span
+          className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+          style={{ backgroundColor: badgeColor, color: 'white' }}
+        >
+          {badge}
+        </span>
+      )}
+    </div>
+    <div className="flex items-baseline gap-1">
+      <span className="text-2xl font-bold" style={{ color: selected ? '#C4785A' : '#2D2926' }}>{price}</span>
+      <span className="text-xs" style={{ color: '#8B8178' }}>{period}</span>
+    </div>
+    <p className="text-xs mt-1" style={{ color: '#6B5E54' }}>{description}</p>
   </div>
 );
 

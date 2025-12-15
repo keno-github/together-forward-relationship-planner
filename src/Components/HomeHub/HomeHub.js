@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X, ArrowRight } from 'lucide-react';
+import { X, ArrowRight, Sparkles } from 'lucide-react';
 import WelcomeHeader from './WelcomeHeader';
 import LunaDailyBrief from './LunaDailyBrief';
 import ContinueCard from './ContinueCard';
@@ -219,7 +219,7 @@ const EmptyState = ({ onCreateNew, onClose }) => {
                background: 'linear-gradient(135deg, #C4785A 0%, #E8997A 100%)',
                boxShadow: '0 12px 40px -12px rgba(196, 120, 90, 0.4)',
              }}>
-          <span className="text-4xl">✨</span>
+          <Sparkles className="w-10 h-10 text-white" />
         </div>
 
         <h3

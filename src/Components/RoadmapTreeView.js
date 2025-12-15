@@ -15,14 +15,15 @@ import {
   X,
   Sparkles
 } from 'lucide-react';
-import { createPhaseTask } from '../services/supabaseService';
+import { createPhaseTask, updateMilestone } from '../services/supabaseService';
 
 /**
  * RoadmapTreeView - Elegant journey phases accordion
  */
-const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTasksUpdated }) => {
+const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTasksUpdated, onMilestoneUpdate }) => {
   const [expandedPhases, setExpandedPhases] = useState([0]);
   const [addingTaskToPhase, setAddingTaskToPhase] = useState(null);
+  const [togglingPhase, setTogglingPhase] = useState(null); // Track which phase is being toggled
   const [newTaskForm, setNewTaskForm] = useState({
     title: '',
     description: '',
@@ -94,10 +95,96 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
     }
   };
 
-  const getPhaseStatus = (phase, phaseIndex) => {
-    const hasDependency = phaseIndex > 0;
-    const previousPhaseCompleted = !hasDependency || (phases[phaseIndex - 1]?.tasks?.every(t => t.completed));
+  // Toggle phase completion status (mark complete/incomplete)
+  const handleTogglePhaseComplete = async (phaseIndex) => {
+    if (togglingPhase !== null) return; // Prevent double-clicks
 
+    console.log('📍 handleTogglePhaseComplete called for phase:', phaseIndex);
+    console.log('📍 Milestone ID:', milestone?.id);
+
+    setTogglingPhase(phaseIndex);
+
+    try {
+      const deepDive = milestone.deepDiveData || milestone.deep_dive_data;
+      console.log('📍 Current deepDive:', deepDive);
+
+      if (!deepDive || !deepDive.roadmapPhases) {
+        console.error('❌ No roadmapPhases found in deep_dive_data');
+        setTogglingPhase(null);
+        return;
+      }
+
+      const roadmapPhases = [...deepDive.roadmapPhases];
+      const currentPhase = roadmapPhases[phaseIndex];
+      const newCompletedStatus = !currentPhase.completed;
+
+      console.log('📍 Toggling phase from', currentPhase.completed, 'to', newCompletedStatus);
+
+      roadmapPhases[phaseIndex] = {
+        ...currentPhase,
+        completed: newCompletedStatus,
+        completed_at: newCompletedStatus ? new Date().toISOString() : null
+      };
+
+      // Update the milestone's deep_dive_data
+      const updatedDeepDive = {
+        ...deepDive,
+        roadmapPhases
+      };
+
+      console.log('📍 Calling updateMilestone with:', { deep_dive_data: updatedDeepDive });
+
+      const result = await updateMilestone(milestone.id, {
+        deep_dive_data: updatedDeepDive
+      });
+
+      console.log('📍 updateMilestone result:', result);
+
+      if (result.error) {
+        console.error('❌ Error updating phase completion:', result.error);
+        alert('Failed to save. Please try again.');
+        return;
+      }
+
+      // Check for local-only update (demo mode)
+      if (result.isLocalOnly) {
+        console.log('ℹ️ Local-only update (demo mode)');
+      }
+
+      console.log('✅ Phase completion updated successfully');
+
+      // Notify parent to refresh milestone data
+      if (onMilestoneUpdate) {
+        onMilestoneUpdate({
+          ...milestone,
+          deep_dive_data: updatedDeepDive,
+          deepDiveData: updatedDeepDive // Also update camelCase version
+        });
+      }
+
+      // Also trigger tasks update to recalculate progress
+      if (onTasksUpdated) onTasksUpdated();
+    } catch (error) {
+      console.error('❌ Exception in handleTogglePhaseComplete:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setTogglingPhase(null);
+    }
+  };
+
+  const getPhaseStatus = (phase, phaseIndex) => {
+    // Check if phase is manually marked as complete first
+    if (phase.completed) {
+      return 'completed';
+    }
+
+    const hasDependency = phaseIndex > 0;
+    const prevPhase = phases[phaseIndex - 1];
+    const previousPhaseCompleted = !hasDependency ||
+      prevPhase?.completed ||
+      (prevPhase?.tasks?.length > 0 && prevPhase?.tasks?.every(t => t.completed));
+
+    // If no tasks, check if it can be marked pending (or is waiting on previous phase)
     if (!phase.tasks || phase.tasks.length === 0) {
       return previousPhaseCompleted ? 'pending' : 'waiting';
     }
@@ -212,16 +299,14 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
                 style={{ background: '#ffffff', border: '1px solid #e8e4de' }}
               >
                 {/* Phase Header */}
-                <button
-                  onClick={() => togglePhase(phaseIndex)}
-                  className="w-full p-5 flex items-start gap-4 text-left transition-colors hover:bg-[#faf8f5]"
-                >
-                  {/* Phase Number */}
+                <div className="w-full p-5 flex items-start gap-4 text-left">
+                  {/* Phase Number/Status Indicator */}
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-sm"
                     style={{
-                      background: status === 'completed' ? '#7d8c75' : '#f5f2ed',
-                      color: status === 'completed' ? '#ffffff' : '#2d2926'
+                      background: status === 'completed' ? '#7d8c75' : status === 'in-progress' ? '#c49a6c' : '#f5f2ed',
+                      color: status === 'completed' || status === 'in-progress' ? '#ffffff' : '#2d2926',
+                      border: status === 'completed' || status === 'in-progress' ? 'none' : '2px solid #d1cdc4'
                     }}
                   >
                     {status === 'completed' ? (
@@ -231,8 +316,11 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
                     )}
                   </div>
 
-                  {/* Phase Content */}
-                  <div className="flex-1 min-w-0">
+                  {/* Phase Content - Clickable to toggle accordion */}
+                  <button
+                    onClick={() => togglePhase(phaseIndex)}
+                    className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <h3
                         className="font-medium truncate"
@@ -275,10 +363,13 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
 
-                  {/* Right Side: Progress + Chevron */}
-                  <div className="flex items-center gap-4 flex-shrink-0">
+                  {/* Right Side: Progress + Chevron - Also clickable for accordion */}
+                  <button
+                    onClick={() => togglePhase(phaseIndex)}
+                    className="flex items-center gap-4 flex-shrink-0 hover:opacity-80 transition-opacity"
+                  >
                     {/* Mini Progress */}
                     <div className="w-16 hidden sm:block">
                       <div className="h-1.5 rounded-full" style={{ background: '#e8e4de' }}>
@@ -302,8 +393,8 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
                     >
                       <ChevronDown className="w-5 h-5" style={{ color: '#6b635b' }} />
                     </motion.div>
-                  </div>
-                </button>
+                  </button>
+                </div>
 
                 {/* Expanded Content */}
                 <AnimatePresence>
@@ -363,7 +454,7 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
 
                           {/* Tasks */}
                           {!isWaiting && (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                               {phase.tasks && phase.tasks.length > 0 && (
                                 <div className="space-y-2">
                                   {phase.tasks.map((task, taskIndex) => (
@@ -395,6 +486,37 @@ const RoadmapTreeView = ({ milestone, tasks = [], userContext, onTaskClick, onTa
                                   onCancel={handleCancelAddTask}
                                 />
                               )}
+
+                              {/* Mark Phase Complete Button */}
+                              <button
+                                onClick={() => handleTogglePhaseComplete(phaseIndex)}
+                                disabled={togglingPhase !== null}
+                                className={`w-full p-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 mt-4 ${
+                                  togglingPhase === phaseIndex ? 'opacity-70' : 'hover:-translate-y-0.5'
+                                }`}
+                                style={{
+                                  background: status === 'completed' ? 'rgba(125, 140, 117, 0.1)' : '#7d8c75',
+                                  color: status === 'completed' ? '#7d8c75' : '#ffffff',
+                                  border: status === 'completed' ? '2px solid #7d8c75' : 'none'
+                                }}
+                              >
+                                {togglingPhase === phaseIndex ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : status === 'completed' ? (
+                                  <>
+                                    <Check className="w-4 h-4" />
+                                    Phase Completed - Click to Undo
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-4 h-4" />
+                                    Mark Phase as Complete
+                                  </>
+                                )}
+                              </button>
                             </div>
                           )}
                         </div>
@@ -609,20 +731,34 @@ const AddTaskForm = ({ form, setForm, userContext, onSave, onCancel }) => {
 };
 
 function calculatePhaseProgress(phase) {
+  // If phase is manually marked complete, it's 100%
+  if (phase.completed) return 100;
+
+  // If no tasks, progress is 0 (can be marked complete manually)
   if (!phase.tasks || phase.tasks.length === 0) return 0;
+
   const completedTasks = phase.tasks.filter(t => t.completed).length;
   return Math.round((completedTasks / phase.tasks.length) * 100);
 }
 
 function calculateOverallProgress(phases) {
   if (!phases || phases.length === 0) return 0;
-  const totalTasks = phases.reduce((sum, phase) => sum + (phase.tasks?.length || 0), 0);
-  if (totalTasks === 0) return 0;
-  const completedTasks = phases.reduce(
-    (sum, phase) => sum + (phase.tasks?.filter(t => t.completed).length || 0),
-    0
-  );
-  return Math.round((completedTasks / totalTasks) * 100);
+
+  // Count phases as the primary metric (each phase is worth equal weight)
+  const totalPhases = phases.length;
+  let completedPhases = 0;
+
+  phases.forEach(phase => {
+    if (phase.completed) {
+      // Manually marked complete
+      completedPhases++;
+    } else if (phase.tasks && phase.tasks.length > 0 && phase.tasks.every(t => t.completed)) {
+      // All tasks completed
+      completedPhases++;
+    }
+  });
+
+  return Math.round((completedPhases / totalPhases) * 100);
 }
 
 export default RoadmapTreeView;

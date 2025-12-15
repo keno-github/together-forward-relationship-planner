@@ -5,39 +5,44 @@ import {
   getUnreadNotificationCount,
   markNotificationRead,
   markAllNotificationsRead,
-  dismissNotification,
-  subscribeToNotifications
+  dismissNotification
 } from '../services/supabaseService';
 
 /**
- * useNotifications - Hook for managing user notifications with Realtime updates
+ * useNotifications - Hook for managing user notifications
  *
  * Features:
  * - Fetches notifications on mount
- * - Subscribes to Realtime updates for new notifications
  * - Provides unread count for badge display
  * - Handles mark as read, mark all read, dismiss
  */
 export const useNotifications = (options = {}) => {
   const { user } = useAuth();
-  const {
-    limit = 20,
-    autoRefresh = true,
-    onNewNotification = null
-  } = options;
+  const { limit = 20 } = options;
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Track subscription cleanup
-  const subscriptionRef = useRef(null);
+  // Prevent duplicate fetches
+  const isFetchingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
 
   /**
    * Fetch notifications from database
    */
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (force = false) => {
+    // Prevent duplicate simultaneous fetches
+    if (isFetchingRef.current) {
+      return;
+    }
+
+    // Don't re-fetch if we already have data (unless forced)
+    if (!force && hasFetchedRef.current && notifications.length > 0) {
+      return;
+    }
+
     if (!user) {
       setNotifications([]);
       setUnreadCount(0);
@@ -45,181 +50,130 @@ export const useNotifications = (options = {}) => {
       return;
     }
 
+    isFetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
+      // Fetch notifications
+      const notifResult = await getNotifications(limit);
 
-      // Add timeout to prevent infinite spinning (5 seconds)
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout')), 5000)
-      );
+      if (notifResult.error) {
+        throw notifResult.error;
+      }
 
-      // Fetch notifications and unread count in parallel with timeout
-      const [notifResult, countResult] = await Promise.race([
-        Promise.all([
-          getNotifications(limit),
-          getUnreadNotificationCount()
-        ]),
-        timeoutPromise
-      ]);
-
-      if (notifResult.error) throw notifResult.error;
-      if (countResult.error) throw countResult.error;
-
-      // getNotifications returns { notifications: [], unreadCount } in data
       const notificationsData = notifResult.data?.notifications || notifResult.data || [];
       setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
+
+      // Fetch unread count
+      const countResult = await getUnreadNotificationCount();
       setUnreadCount(countResult.data || 0);
+
+      hasFetchedRef.current = true;
     } catch (err) {
       console.error('Error fetching notifications:', err);
       setError(err.message);
-      // Ensure we show "No notifications" instead of spinning forever
       setNotifications([]);
       setUnreadCount(0);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [user, limit]);
-
-  /**
-   * Handle new notification from Realtime
-   * Note: subscribeToNotifications passes the notification object directly (payload.new)
-   */
-  const handleNewNotification = useCallback((newNotification) => {
-    if (!newNotification) return;
-
-    // Add to top of list
-    setNotifications(prev => [newNotification, ...prev].slice(0, limit));
-
-    // Increment unread count
-    if (!newNotification.read) {
-      setUnreadCount(prev => prev + 1);
-    }
-
-    // Call external handler if provided
-    if (onNewNotification) {
-      onNewNotification(newNotification);
-    }
-
-    // Play notification sound (optional)
-    playNotificationSound();
-  }, [limit, onNewNotification]);
-
-  /**
-   * Play a subtle notification sound
-   */
-  const playNotificationSound = () => {
-    try {
-      // Create a simple beep using Web Audio API
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
-      gainNode.gain.value = 0.1;
-
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.1);
-    } catch (e) {
-      // Silently fail if audio not supported
-    }
-  };
+  }, [user, limit, notifications.length]);
 
   /**
    * Mark a single notification as read
    */
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      const { error } = await markNotificationRead(notificationId);
-      if (error) throw error;
-
-      // Update local state
+      // Optimistically update local state
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+
+      // Update in database
+      const { error } = await markNotificationRead(notificationId);
+      if (error) {
+        console.error('Error marking notification as read:', error);
+        // Revert on error - refetch
+        fetchNotifications(true);
+      }
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
-  }, []);
+  }, [fetchNotifications]);
 
   /**
    * Mark all notifications as read
    */
   const markAllAsRead = useCallback(async () => {
     try {
-      const { error } = await markAllNotificationsRead();
-      if (error) throw error;
-
-      // Update local state
+      // Optimistically update local state
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
+
+      // Update in database
+      const { error } = await markAllNotificationsRead();
+      if (error) {
+        console.error('Error marking all as read:', error);
+        // Revert on error - refetch
+        fetchNotifications(true);
+      }
     } catch (err) {
       console.error('Error marking all notifications as read:', err);
     }
-  }, []);
+  }, [fetchNotifications]);
 
   /**
    * Dismiss (delete) a notification
    */
   const dismiss = useCallback(async (notificationId) => {
     try {
-      // Optimistically remove from UI
+      // Get the notification before removing
       const notification = notifications.find(n => n.id === notificationId);
+
+      // Optimistically remove from UI
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       if (notification && !notification.read) {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
 
+      // Delete from database
       const { error } = await dismissNotification(notificationId);
-      if (error) throw error;
+      if (error) {
+        console.error('Error dismissing notification:', error);
+        // Revert on error - refetch
+        fetchNotifications(true);
+      }
     } catch (err) {
       console.error('Error dismissing notification:', err);
-      // Revert on error
-      fetchNotifications();
     }
   }, [notifications, fetchNotifications]);
 
   /**
-   * Refresh notifications
+   * Refresh notifications (force fetch)
    */
   const refresh = useCallback(() => {
-    fetchNotifications();
+    hasFetchedRef.current = false;
+    fetchNotifications(true);
   }, [fetchNotifications]);
 
-  // Initial fetch and Realtime subscription
+  // Initial fetch when user is available
   useEffect(() => {
     if (!user) {
       setNotifications([]);
       setUnreadCount(0);
       setLoading(false);
+      hasFetchedRef.current = false;
       return;
     }
 
-    // Fetch initial data
-    fetchNotifications();
-
-    // Subscribe to Realtime updates (async)
-    if (autoRefresh) {
-      const setupSubscription = async () => {
-        const channel = await subscribeToNotifications(handleNewNotification);
-        subscriptionRef.current = channel;
-      };
-      setupSubscription();
+    // Only fetch once on mount
+    if (!hasFetchedRef.current) {
+      fetchNotifications();
     }
-
-    // Cleanup subscription on unmount
-    return () => {
-      if (subscriptionRef.current && typeof subscriptionRef.current.unsubscribe === 'function') {
-        subscriptionRef.current.unsubscribe();
-        subscriptionRef.current = null;
-      }
-    };
-  }, [user, fetchNotifications, autoRefresh, handleNewNotification]);
+  }, [user]); // Only depend on user, not fetchNotifications
 
   return {
     notifications,

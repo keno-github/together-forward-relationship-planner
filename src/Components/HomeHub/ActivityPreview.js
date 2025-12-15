@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Activity, CheckCircle, Plus,
-  UserPlus, DollarSign, Trophy, MessageCircle, Bell, Target, Loader2
+  UserPlus, DollarSign, Trophy, MessageCircle, Bell, Target, Loader2, ClipboardList
 } from 'lucide-react';
 import { formatActivityTime, getActivityDescription } from '../../hooks/useActivityFeed';
 
@@ -83,7 +83,7 @@ const ActivityPreview = ({
           </div>
         ) : displayActivities.length === 0 ? (
           <div className="py-6 text-center">
-            <span className="text-2xl mb-2 block">📋</span>
+            <ClipboardList className="w-6 h-6 mx-auto mb-2" style={{ color: '#a09890' }} />
             <p className="text-xs" style={{ color: '#6b635b' }}>
               No recent activity yet
             </p>

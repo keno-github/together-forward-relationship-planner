@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart, Users, Link2, Copy, Check, ArrowLeft,
-  Loader2, Sparkles, MessageCircle, ChevronRight, ArrowRight
+  Loader2, Sparkles, MessageCircle, ChevronRight, ArrowRight, AlertCircle
 } from 'lucide-react';
 import PreScreeningForm from './PreScreeningForm';
 import LunaQuestions from './LunaQuestions';
@@ -24,6 +24,7 @@ import {
   checkAssessmentComplete,
   getFullAssessmentData
 } from '../../services/assessmentService';
+import { sendAssessmentInviteEmail } from '../../services/supabaseService';
 import {
   generateAssessmentQuestions,
   analyzeAssessmentResults
@@ -571,11 +572,63 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [realtimeChannel, setRealtimeChannel] = useState(null);
+  const [emailStatus, setEmailStatus] = useState(null); // 'sent', 'failed', or null
+
+  // Refs to track current values for realtime callbacks (avoids stale closures)
+  const stageRef = useRef(stage);
+  const currentPartnerRef = useRef(currentPartner);
+
+  // Keep refs in sync with state
+  useEffect(() => { stageRef.current = stage; }, [stage]);
+  useEffect(() => { currentPartnerRef.current = currentPartner; }, [currentPartner]);
 
   // Join existing session if code provided
   useEffect(() => {
     if (joinCode) {
-      handleJoinSession(joinCode);
+      // Inline join session logic to avoid stale closure issues
+      const joinSession = async () => {
+        setLoading(true);
+        setError(null);
+
+        try {
+          const { data, error: joinError } = await joinSessionByCode(joinCode);
+          if (joinError) throw joinError;
+
+          setSession(data);
+          setPartner1Name(data.partner1_name);
+          setPartner2Name(data.partner2_name);
+          setMode('separate');
+          setCurrentPartner(2);
+
+          if (data.isCompleted) {
+            // Load results for completed sessions
+            const { data: existingResults } = await getAssessmentResults(data.id);
+            if (existingResults) {
+              setResults(existingResults);
+            }
+            setStage(STAGES.RESULTS);
+          } else if (data.status === 'prescreening' || data.status === 'prescreening_p1_complete') {
+            setStage(STAGES.PRESCREENING_P2);
+          } else if (data.status === 'questions_ready' || data.status === 'partner1_answering' || data.status === 'partner2_answering') {
+            const { data: questionsData } = await getSessionQuestions(data.id);
+            setQuestions(questionsData || []);
+            setStage(STAGES.QUESTIONS_P2);
+          } else if (data.status === 'partner1_complete') {
+            const { data: questionsData } = await getSessionQuestions(data.id);
+            setQuestions(questionsData || []);
+            setStage(STAGES.QUESTIONS_P2);
+          } else if (data.status === 'partner2_complete') {
+            setStage(STAGES.WAITING_FOR_PARTNER);
+          }
+        } catch (err) {
+          setError(err.message || 'Failed to join session');
+          setStage(STAGES.MODE_SELECT);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      joinSession();
     }
   }, [joinCode]);
 
@@ -595,13 +648,38 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
     }
   }, [session?.id, mode]);
 
-  // Realtime handlers
-  const handleSessionUpdate = useCallback((updatedSession) => {
+  // Realtime handlers - use refs to avoid stale closures
+  const handleSessionUpdate = useCallback(async (updatedSession) => {
     setSession(updatedSession);
+    const currentStage = stageRef.current;
+    const partner = currentPartnerRef.current;
+
+    // Handle different status transitions
     if (updatedSession.status === 'completed') {
-      loadResults();
+      // Load results when assessment is complete
+      const { data: existingResults } = await getAssessmentResults(updatedSession.id);
+      if (existingResults) {
+        setResults(existingResults);
+      }
+      setStage(STAGES.RESULTS);
+    } else if (updatedSession.status === 'questions_ready' && currentStage === STAGES.WAITING_FOR_PARTNER) {
+      // Partner 2 was waiting for questions to be generated
+      const { data: questionsData } = await getSessionQuestions(updatedSession.id);
+      if (questionsData && questionsData.length > 0) {
+        setQuestions(questionsData);
+        setStage(STAGES.QUESTIONS_P2);
+      }
+    } else if (updatedSession.status === 'both_complete' ||
+               (updatedSession.status === 'partner2_complete' && partner === 1) ||
+               (updatedSession.status === 'partner1_complete' && partner === 2)) {
+      // Partner finished - check if both are done
+      const completion = await checkAssessmentComplete(updatedSession.id);
+      if (completion.bothComplete && currentStage === STAGES.WAITING_FOR_PARTNER) {
+        setStage(STAGES.ANALYZING);
+        // The other partner will trigger analysis
+      }
     }
-  }, []);
+  }, []); // Empty deps - uses refs for current values
 
   const handleNewAnswer = useCallback((response) => {
     console.log('Partner answered a question');
@@ -610,45 +688,6 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
   const handlePartnerProgress = useCallback((partnerNum, count) => {
     console.log(`Partner ${partnerNum} has answered ${count} questions`);
   }, []);
-
-  // Join an existing session
-  const handleJoinSession = async (code) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { data, error } = await joinSessionByCode(code);
-      if (error) throw error;
-
-      setSession(data);
-      setPartner1Name(data.partner1_name);
-      setPartner2Name(data.partner2_name);
-      setMode('separate');
-      setCurrentPartner(2);
-
-      if (data.isCompleted) {
-        await loadResults(data.id);
-        setStage(STAGES.RESULTS);
-      } else if (data.status === 'prescreening') {
-        setStage(STAGES.PRESCREENING_P2);
-      } else if (data.status === 'partner1_answering' || data.status === 'partner2_answering') {
-        const { data: questionsData } = await getSessionQuestions(data.id);
-        setQuestions(questionsData || []);
-        setStage(STAGES.QUESTIONS_P2);
-      } else if (data.status === 'partner1_complete') {
-        const { data: questionsData } = await getSessionQuestions(data.id);
-        setQuestions(questionsData || []);
-        setStage(STAGES.QUESTIONS_P2);
-      } else if (data.status === 'partner2_complete') {
-        setStage(STAGES.WAITING_FOR_PARTNER);
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to join session');
-      setStage(STAGES.MODE_SELECT);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Create new session
   const handleCreateSession = async () => {
@@ -672,6 +711,27 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
       if (error) throw error;
       setSession(data);
 
+      // Send email invite if partner email provided in separate mode
+      if (mode === 'separate' && partner2Email.trim()) {
+        try {
+          const { error: emailError } = await sendAssessmentInviteEmail(partner2Email.trim(), {
+            inviterName: partner1Name.trim(),
+            partnerName: partner2Name.trim(),
+            sessionCode: data.session_code
+          });
+
+          if (emailError) {
+            console.warn('Email send failed:', emailError);
+            setEmailStatus('failed');
+          } else {
+            setEmailStatus('sent');
+          }
+        } catch (emailErr) {
+          console.warn('Email send error:', emailErr);
+          setEmailStatus('failed');
+        }
+      }
+
       if (mode === 'separate') {
         setStage(STAGES.SESSION_SETUP);
       } else {
@@ -687,6 +747,7 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
   // Handle pre-screening completion
   const handlePrescreeningComplete = async (partnerNumber, answers) => {
     setLoading(true);
+    setError(null); // Clear any previous errors
 
     try {
       await savePrescreeningResponses(session.id, partnerNumber, answers);
@@ -1129,6 +1190,39 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
               </div>
             </div>
 
+            {/* Email status feedback */}
+            {emailStatus && partner2Email && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '10px',
+                  marginTop: '1rem',
+                  fontSize: '0.875rem',
+                  background: emailStatus === 'sent'
+                    ? 'rgba(34, 197, 94, 0.1)'
+                    : 'rgba(239, 68, 68, 0.1)',
+                  color: emailStatus === 'sent' ? '#16a34a' : '#dc2626',
+                }}
+              >
+                {emailStatus === 'sent' ? (
+                  <>
+                    <Check size={16} />
+                    <span>Email sent to {partner2Email}</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={16} />
+                    <span>Email couldn't be sent. Share the link manually.</span>
+                  </>
+                )}
+              </motion.div>
+            )}
+
             <motion.button
               className="btn-primary"
               onClick={() => {
@@ -1172,6 +1266,8 @@ const AssessmentHub = ({ onBack, onComplete, joinCode = null }) => {
               onComplete={(answers) => handlePrescreeningComplete(prescreeningPartner, answers)}
               onBack={handlePrescreeningBack}
               initialAnswers={prescreeningPartner === 1 ? prescreening.partner1 : prescreening.partner2}
+              isSubmitting={loading}
+              submitError={error}
             />
           </motion.div>
         );

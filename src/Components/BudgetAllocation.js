@@ -205,7 +205,9 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     if (!window.confirm('Remove this contribution?')) return;
 
     try {
-      const { error } = await deleteExpense(expense.id);
+      // Pass activity context for logging
+      const activityContext = { roadmapId, expense };
+      const { error } = await deleteExpense(expense.id, activityContext);
       if (error) throw error;
 
       const updatedContributions = { ...contributions };
@@ -285,7 +287,9 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     if (pocketContribution && pocketContribution.items) {
       for (const expense of pocketContribution.items) {
         try {
-          await deleteExpense(expense.id);
+          // Pass activity context for logging
+          const activityContext = { roadmapId, expense };
+          await deleteExpense(expense.id, activityContext);
         } catch (error) {
           console.error('Error deleting expense:', error);
         }

@@ -94,6 +94,10 @@ const GoalOverviewDashboard = ({
     const dbMetrics = milestone.milestone_metrics || {};
     const clientMetrics = calculateClientMetrics(milestone, tasks, expenses);
 
+    // Merge metrics with correct priority:
+    // 1. Start with defaults
+    // 2. Apply database metrics (may have some stored values)
+    // 3. Apply client-calculated metrics LAST for progress (fresh calculation from phases)
     const mergedMetrics = {
       tasks_completed: 0,
       tasks_total: 0,
@@ -103,8 +107,9 @@ const GoalOverviewDashboard = ({
       budget_amount: milestone.budget_amount || milestone.estimatedCost || 0,
       budget_used_percentage: 0,
       days_remaining: null,
-      ...clientMetrics,
-      ...dbMetrics
+      ...dbMetrics,
+      // Client metrics MUST override db metrics for progress (calculated from phases)
+      ...clientMetrics
     };
 
     setMetrics(mergedMetrics);

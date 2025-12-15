@@ -118,7 +118,8 @@ const MomentumCard = ({
                 exit={{ opacity: 0, scale: 0.5 }}
                 className="flex items-center gap-2"
               >
-                <span>✨ Amazing!</span>
+                <Sparkles className="w-4 h-4" />
+                <span>Amazing!</span>
               </motion.span>
             ) : (
               <motion.span
@@ -129,7 +130,7 @@ const MomentumCard = ({
                 className="flex items-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Celebrate Progress ✨</span>
+                <span>Celebrate Progress</span>
               </motion.span>
             )}
           </AnimatePresence>

@@ -342,9 +342,45 @@ export const calculateClientMetrics = (milestone, tasks = [], expenses = []) => 
 
   const completedTasks = tasks.filter(t => t.completed).length;
   const totalTasks = tasks.length;
-  const progressPercentage = totalTasks > 0
-    ? Math.round((completedTasks / totalTasks) * 100)
-    : 0;
+
+  // Progress calculation:
+  // 1. If milestone is manually marked complete, progress is 100%
+  // 2. If there are roadmap phases, calculate from phase completion
+  // 3. If there are tasks (without phases), calculate from task completion
+  // 4. If no tasks and no phases, progress is 0%
+  let progressPercentage;
+  if (milestone.completed) {
+    // Milestone manually marked as complete - show 100%
+    progressPercentage = 100;
+  } else {
+    // Check for phases in deep_dive_data
+    const deepDive = milestone.deepDiveData || milestone.deep_dive_data;
+    const roadmapPhases = deepDive?.roadmapPhases;
+
+    if (roadmapPhases && roadmapPhases.length > 0) {
+      // Calculate progress based on phases (each phase has equal weight)
+      let completedPhases = 0;
+      roadmapPhases.forEach((phase, phaseIndex) => {
+        if (phase.completed) {
+          // Phase manually marked complete
+          completedPhases++;
+        } else {
+          // Check if all tasks for this phase are completed
+          const phaseTasks = tasks.filter(t => t.roadmap_phase_index === phaseIndex);
+          if (phaseTasks.length > 0 && phaseTasks.every(t => t.completed)) {
+            completedPhases++;
+          }
+        }
+      });
+      progressPercentage = Math.round((completedPhases / roadmapPhases.length) * 100);
+    } else if (totalTasks > 0) {
+      // Fall back to task-based calculation when no phases
+      progressPercentage = Math.round((completedTasks / totalTasks) * 100);
+    } else {
+      // No tasks and no phases - show 0%
+      progressPercentage = 0;
+    }
+  }
 
   const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
   const budgetUsedPercentage = milestone.budget_amount > 0
