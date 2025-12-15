@@ -8,7 +8,10 @@ import {
 import {
   createExpense,
   getExpensesByMilestone,
-  deleteExpense
+  deleteExpense,
+  updateMilestoneBudgetPockets,
+  getMilestoneBudgetPockets,
+  getPocketStatus
 } from '../services/supabaseService';
 import { getCategoriesForMilestone, suggestCategoryBudgets } from '../data/budgetCategories';
 
@@ -73,6 +76,7 @@ const ICON_OPTIONS = [
 const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateToSection }) => {
   const [pockets, setPockets] = useState([]);
   const [contributions, setContributions] = useState({});
+  const [pocketStatus, setPocketStatus] = useState({}); // Server-side pocket status for overfunding prevention
   const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
   const [selectedPocket, setSelectedPocket] = useState(null);
   const [amountInput, setAmountInput] = useState('');
@@ -107,6 +111,23 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       categoryBudgets = suggestCategoryBudgets(targetBudget, suggestedCategories);
     }
 
+    // Load saved pocket definitions from database (if migration has been run)
+    let savedPockets = {};
+    if (isValidUUID(milestone.id)) {
+      const { data: dbPockets } = await getMilestoneBudgetPockets(milestone.id);
+      if (dbPockets && Object.keys(dbPockets).length > 0) {
+        savedPockets = dbPockets;
+        console.log('💰 Loaded pocket definitions from database:', savedPockets);
+      }
+
+      // Also load server-side pocket status for overfunding prevention
+      const { data: status } = await getPocketStatus(milestone.id);
+      if (status) {
+        setPocketStatus(status);
+        console.log('💰 Loaded pocket status from server:', status);
+      }
+    }
+
     if (milestone.id) {
       const { data: expenses } = await getExpensesByMilestone(milestone.id);
 
@@ -125,11 +146,28 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       }
     }
 
-    const pocketsWithTargets = suggestedCategories.map(cat => ({
-      ...cat,
-      iconName: cat.iconName || 'Wallet',
-      targetAmount: categoryBudgets[cat.name] || 0
-    }));
+    // Merge saved pockets with suggested categories
+    // Database pockets take precedence over suggestions
+    const pocketsWithTargets = suggestedCategories.map(cat => {
+      const savedTarget = savedPockets[cat.name]?.target;
+      return {
+        ...cat,
+        iconName: cat.iconName || 'Wallet',
+        targetAmount: savedTarget !== undefined ? savedTarget : (categoryBudgets[cat.name] || 0)
+      };
+    });
+
+    // Add any pockets from database that aren't in suggestions
+    Object.entries(savedPockets).forEach(([name, data]) => {
+      if (!pocketsWithTargets.find(p => p.name === name)) {
+        pocketsWithTargets.push({
+          name,
+          iconName: data.iconName || 'Wallet',
+          description: data.description || '',
+          targetAmount: data.target || 0
+        });
+      }
+    });
 
     setPockets(pocketsWithTargets);
     setLoading(false);
@@ -154,10 +192,28 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     setShowAddMoneyModal(true);
   };
 
+  // Check if milestone ID is a valid UUID (not a placeholder)
+  const isValidUUID = (str) => {
+    if (!str) return false;
+    // Reject placeholder IDs
+    if (str.startsWith('placeholder-')) return false;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  };
+
+  const [saveError, setSaveError] = useState(null);
+
   const handleSaveContribution = async () => {
     if (!amountInput || parseFloat(amountInput) <= 0) return;
 
+    // Validate milestone is saved to database
+    if (!isValidUUID(milestone?.id)) {
+      setSaveError('This goal needs to be saved first. Please go back and save your goal before adding contributions.');
+      return;
+    }
+
     setIsSaving(true);
+    setSaveError(null);
 
     try {
       const contributionData = {
@@ -172,7 +228,21 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       };
 
       const { data, error } = await createExpense(contributionData);
-      if (error) throw new Error(error.message);
+
+      // Handle pocket overfunding error (HARD BUSINESS RULE)
+      if (error?.code === 'POCKET_OVERFUNDING') {
+        const remaining = error.remaining;
+        if (remaining !== null && remaining !== undefined && remaining > 0) {
+          setSaveError(`This pocket can only accept ${formatCurrency(remaining)} more. Your contribution of ${formatCurrency(parseFloat(amountInput))} exceeds the limit.`);
+        } else if (remaining === 0) {
+          setSaveError('This pocket is fully funded! No more contributions can be added.');
+        } else {
+          setSaveError(error.message || 'This contribution would exceed the pocket target.');
+        }
+        return;
+      }
+
+      if (error) throw new Error(error.message || 'Failed to save contribution');
 
       const updatedContributions = { ...contributions };
       if (!updatedContributions[selectedPocket.name]) {
@@ -182,6 +252,14 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       updatedContributions[selectedPocket.name].items.push(data);
 
       setContributions(updatedContributions);
+
+      // Update pocket status after successful contribution
+      if (isValidUUID(milestone.id)) {
+        const { data: status } = await getPocketStatus(milestone.id);
+        if (status) {
+          setPocketStatus(status);
+        }
+      }
 
       if (onProgressUpdate) {
         const newTotals = {
@@ -196,6 +274,7 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
       setShowAddMoneyModal(false);
     } catch (error) {
       console.error('Error saving contribution:', error);
+      setSaveError(error.message || 'Failed to save contribution. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -240,13 +319,14 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     setShowPocketModal(true);
   };
 
-  const handleSavePocket = () => {
+  const handleSavePocket = async () => {
     if (!pocketName.trim()) return;
 
     const targetAmount = parseFloat(pocketTarget) || 0;
+    let updatedPockets;
 
     if (editingPocket) {
-      const updatedPockets = pockets.map(p =>
+      updatedPockets = pockets.map(p =>
         p.name === editingPocket.name
           ? { ...p, name: pocketName, iconName: pocketIconName, description: pocketDescription, targetAmount }
           : p
@@ -267,7 +347,29 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
         description: pocketDescription,
         targetAmount
       };
-      setPockets([...pockets, newPocket]);
+      updatedPockets = [...pockets, newPocket];
+      setPockets(updatedPockets);
+    }
+
+    // CRITICAL: Save pocket definitions to database for server-side overfunding enforcement
+    // This is required for the HARD BUSINESS RULE - pockets cannot exceed their target amounts
+    if (isValidUUID(milestone?.id)) {
+      const pocketDefinitions = {};
+      updatedPockets.forEach(p => {
+        pocketDefinitions[p.name] = {
+          target: p.targetAmount || 0,
+          iconName: p.iconName,
+          description: p.description
+        };
+      });
+
+      const { error } = await updateMilestoneBudgetPockets(milestone.id, pocketDefinitions);
+      if (error) {
+        console.error('Failed to save pocket definitions to database:', error);
+        // Don't block UI, but log the error
+      } else {
+        console.log('💰 Pocket definitions saved to database');
+      }
     }
 
     setShowPocketModal(false);
@@ -297,12 +399,30 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
     }
 
     // Remove pocket from state
-    setPockets(pockets.filter(p => p.name !== pocket.name));
+    const updatedPockets = pockets.filter(p => p.name !== pocket.name);
+    setPockets(updatedPockets);
 
     // Remove contributions for this pocket
     const updatedContributions = { ...contributions };
     delete updatedContributions[pocket.name];
     setContributions(updatedContributions);
+
+    // Sync pocket definitions to database
+    if (isValidUUID(milestone?.id)) {
+      const pocketDefinitions = {};
+      updatedPockets.forEach(p => {
+        pocketDefinitions[p.name] = {
+          target: p.targetAmount || 0,
+          iconName: p.iconName,
+          description: p.description
+        };
+      });
+
+      const { error } = await updateMilestoneBudgetPockets(milestone.id, pocketDefinitions);
+      if (error) {
+        console.error('Failed to sync pocket deletion to database:', error);
+      }
+    }
   };
 
   const formatCurrency = (amount) => {
@@ -549,7 +669,7 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
                 {isFullyFunded && (
                   <div className="mb-3 flex items-center gap-2 text-sm font-medium" style={{ color: '#7d8c75' }}>
                     <Check className="w-4 h-4" />
-                    Fully Funded
+                    Fully Funded - No more contributions needed
                   </div>
                 )}
 
@@ -577,14 +697,26 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
                   </div>
                 )}
 
-                <button
-                  onClick={() => handleAddMoney(pocket)}
-                  className="w-full py-2.5 rounded-xl font-medium text-white flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
-                  style={{ background: '#2d2926' }}
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Money
-                </button>
+                {/* HARD BUSINESS RULE: Disable Add Money for fully funded pockets */}
+                {isFullyFunded ? (
+                  <div
+                    className="w-full py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 cursor-not-allowed"
+                    style={{ background: '#e8e4de', color: '#6b635b' }}
+                    title="This pocket has reached its target amount"
+                  >
+                    <Check className="w-4 h-4" />
+                    Goal Reached
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleAddMoney(pocket)}
+                    className="w-full py-2.5 rounded-xl font-medium text-white flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
+                    style={{ background: '#2d2926' }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Money
+                  </button>
+                )}
               </div>
             );
           })}
@@ -624,6 +756,34 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
                 </button>
               </div>
 
+              {/* Show remaining budget for this pocket */}
+              {(() => {
+                const pocketContribution = contributions[selectedPocket.name];
+                const saved = pocketContribution?.saved || 0;
+                const targetAmount = selectedPocket.targetAmount || 0;
+                const remaining = Math.max(0, targetAmount - saved);
+                const hasTarget = targetAmount > 0;
+
+                return hasTarget ? (
+                  <div
+                    className="mb-4 p-3 rounded-xl"
+                    style={{ background: 'rgba(196, 154, 108, 0.08)' }}
+                  >
+                    <div className="flex justify-between items-center text-sm">
+                      <span style={{ color: '#6b635b' }}>Remaining to reach target:</span>
+                      <span className="font-semibold" style={{ color: '#c49a6c' }}>
+                        {formatCurrency(remaining)}
+                      </span>
+                    </div>
+                    {remaining === 0 && (
+                      <p className="text-xs mt-1" style={{ color: '#7d8c75' }}>
+                        This pocket is fully funded!
+                      </p>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: '#2d2926' }}>
@@ -644,6 +804,20 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
                       autoFocus
                     />
                   </div>
+                  {/* Warn if amount exceeds remaining */}
+                  {(() => {
+                    const pocketContribution = contributions[selectedPocket.name];
+                    const saved = pocketContribution?.saved || 0;
+                    const targetAmount = selectedPocket.targetAmount || 0;
+                    const remaining = Math.max(0, targetAmount - saved);
+                    const inputAmount = parseFloat(amountInput) || 0;
+
+                    return targetAmount > 0 && inputAmount > remaining ? (
+                      <p className="text-xs mt-1" style={{ color: '#c76b6b' }}>
+                        Amount exceeds remaining budget ({formatCurrency(remaining)})
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
 
                 <div>
@@ -661,9 +835,19 @@ const BudgetAllocation = ({ milestone, roadmapId, onProgressUpdate, onNavigateTo
                 </div>
               </div>
 
+              {/* Error message */}
+              {saveError && (
+                <div
+                  className="mt-4 p-3 rounded-xl text-sm"
+                  style={{ background: 'rgba(199, 107, 107, 0.1)', color: '#c76b6b' }}
+                >
+                  {saveError}
+                </div>
+              )}
+
               <div className="flex gap-3 mt-6">
                 <button
-                  onClick={() => setShowAddMoneyModal(false)}
+                  onClick={() => { setShowAddMoneyModal(false); setSaveError(null); }}
                   className="flex-1 py-3 rounded-xl font-medium transition-colors"
                   style={{ background: '#f5f2ed', color: '#6b635b' }}
                   disabled={isSaving}

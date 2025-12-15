@@ -8,12 +8,15 @@ import { useDashboardData, useDashboardCache } from '../hooks/useDashboardData';
 import DashboardSkeleton from './DashboardSkeleton';
 import { NotificationCenter } from './Notifications';
 import { HomeHub } from './HomeHub';
+import WelcomeLoader from './WelcomeLoader';
 import { useWelcomeBrief } from '../hooks/useWelcomeBrief';
 import { useNotifications } from '../hooks/useNotifications';
 
 // Feature flag: Set to true to use the new optimized RPC-based loading
 // Set to false to use legacy loading (for fallback)
-const USE_OPTIMIZED_LOADING = true;
+// NOTE: Disabled because RPC function references columns that don't exist in production DB
+// (t.deleted, budget_spent). Legacy loading calculates these values correctly.
+const USE_OPTIMIZED_LOADING = false;
 
 // Inline styles for custom fonts
 const fontStyles = `
@@ -322,8 +325,12 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
             }
             const taskProgress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
+            // Calculate budget from roadmap OR sum of milestone budgets (fallback)
+            // This is critical: users set budget on milestones, so we must check milestones too
+            const milestoneBudgetSum = milestones?.reduce((sum, m) => sum + (m.budget_amount || m.estimatedCost || 0), 0) || 0;
+            const dreamBudget = dream.budget_amount || milestoneBudgetSum;
+
             let budgetProgress = 0;
-            const dreamBudget = dream.budget_amount || 0;
             if (dreamBudget > 0 && dream.target_date) {
               const { data: expenses } = await getExpensesByRoadmap(dream.id);
               const totalContributions = expenses?.reduce((sum, exp) => sum + (exp.amount || 0), 0) || 0;
@@ -388,9 +395,8 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
               (timelineProgress * 0.20)
             );
 
-            // Calculate total budget from milestones if dream doesn't have one
-            const calculatedBudget = dream.budget_amount ||
-              (milestones?.reduce((sum, m) => sum + (m.budget_amount || m.estimatedCost || 0), 0) || 0);
+            // Use the budget we already calculated (roadmap budget or milestone sum)
+            const calculatedBudget = dreamBudget;
 
             // Calculate target date from milestones if dream doesn't have one
             const milestoneDates = milestones
@@ -668,15 +674,14 @@ const Dashboard = ({ onContinueRoadmap, onCreateNew, onBackToHome, onOpenAssessm
   const hasData = dreams && dreams.length > 0;
   const isDataReady = !loading && !rpcLoading && (hasData || (!rpcError && rpcData));
 
-  // Show loading while waiting for data
+  // Show warm welcome loading experience while data loads
+  // This creates a "welcome back" moment instead of a generic spinner
   if (showHomeHub && (loading || rpcLoading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FAF7F2' }}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: '#C4785A' }}></div>
-          <p className="text-sm" style={{ color: '#6B5E54' }}>Loading your Home Hub...</p>
-        </div>
-      </div>
+      <WelcomeLoader
+        userName={user?.email}
+        showLunaAvatar={true}
+      />
     );
   }
 

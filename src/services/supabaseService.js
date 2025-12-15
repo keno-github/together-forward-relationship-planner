@@ -147,6 +147,12 @@ export const createMilestone = async (milestoneData) => {
       activityService.logMilestoneCreated(milestoneData.roadmap_id, data, user.id)
     }
 
+    // If milestone was created with a budget, sync to roadmap
+    if (data?.budget_amount > 0 && data?.roadmap_id) {
+      console.log('💰 Milestone created with budget - syncing to roadmap...');
+      recalculateRoadmapBudgetAmount(data.roadmap_id);
+    }
+
     return { data, error: null }
   } catch (error) {
     console.error('Create milestone error:', error)
@@ -291,6 +297,13 @@ export const updateMilestone = async (milestoneId, updates) => {
     console.log('   - budget_amount:', updatedMilestone.budget_amount);
     console.log('   - target_date:', updatedMilestone.target_date);
 
+    // If budget_amount was updated, recalculate roadmap's total budget
+    // This is CRITICAL for Dashboard budget health to work correctly
+    if (updates.budget_amount !== undefined && updatedMilestone.roadmap_id) {
+      console.log('   💰 Budget changed - syncing to roadmap...');
+      recalculateRoadmapBudgetAmount(updatedMilestone.roadmap_id);
+    }
+
     return { data: updatedMilestone, error: null }
   } catch (error) {
     console.error('Update milestone error:', error)
@@ -303,12 +316,29 @@ export const updateMilestone = async (milestoneId, updates) => {
  */
 export const deleteMilestone = async (milestoneId) => {
   try {
+    // Get milestone first to capture roadmap_id for budget recalculation
+    const { data: milestone } = await supabase
+      .from('milestones')
+      .select('roadmap_id, budget_amount')
+      .eq('id', milestoneId)
+      .single()
+
+    const roadmapId = milestone?.roadmap_id
+    const hadBudget = milestone?.budget_amount > 0
+
     const { error } = await supabase
       .from('milestones')
       .delete()
       .eq('id', milestoneId)
 
     if (error) throw error
+
+    // If milestone had a budget, recalculate roadmap's total budget
+    if (roadmapId && hadBudget) {
+      console.log('💰 Milestone with budget deleted - recalculating roadmap budget...');
+      recalculateRoadmapBudgetAmount(roadmapId);
+    }
+
     return { error: null }
   } catch (error) {
     console.error('Delete milestone error:', error)
@@ -589,16 +619,199 @@ export const getAchievementsByRoadmap = async (roadmapId) => {
 }
 
 // =====================================================
+// BUDGET POCKET OPERATIONS
+// =====================================================
+
+/**
+ * Validate a contribution against pocket target limits
+ * Server-side validation using the database function
+ * @param {string} milestoneId - The milestone ID
+ * @param {string} category - The pocket/category name
+ * @param {number} amount - The contribution amount
+ * @returns {Promise<{allowed: boolean, remaining: number|null, message: string}>}
+ */
+export const validatePocketContribution = async (milestoneId, category, amount) => {
+  try {
+    const { data, error } = await supabase.rpc('validate_pocket_contribution', {
+      p_milestone_id: milestoneId,
+      p_category: category,
+      p_amount: amount
+    })
+
+    if (error) {
+      // If RPC doesn't exist yet (migration not run), allow contribution
+      if (error.code === '42883') { // function does not exist
+        console.log('⚠️ validate_pocket_contribution RPC not found - allowing contribution')
+        return { allowed: true, remaining: null, message: 'No server-side validation' }
+      }
+      throw error
+    }
+
+    return {
+      allowed: data.allowed,
+      remaining: data.remaining,
+      message: data.message
+    }
+  } catch (error) {
+    console.error('Validate pocket contribution error:', error)
+    // On error, allow contribution but log warning
+    return { allowed: true, remaining: null, message: 'Validation error - proceeding' }
+  }
+}
+
+/**
+ * Get current status of all budget pockets for a milestone
+ * @param {string} milestoneId - The milestone ID
+ * @returns {Promise<Object>} - Status for each pocket { pocketName: { target, contributed, remaining, isFunded, percentFunded } }
+ */
+export const getPocketStatus = async (milestoneId) => {
+  try {
+    const { data, error } = await supabase.rpc('get_pocket_status', {
+      p_milestone_id: milestoneId
+    })
+
+    if (error) {
+      // If RPC doesn't exist yet, return empty
+      if (error.code === '42883') {
+        console.log('⚠️ get_pocket_status RPC not found - returning empty')
+        return { data: {}, error: null }
+      }
+      throw error
+    }
+
+    return { data: data || {}, error: null }
+  } catch (error) {
+    console.error('Get pocket status error:', error)
+    return { data: {}, error }
+  }
+}
+
+/**
+ * Update budget pockets for a milestone
+ * @param {string} milestoneId - The milestone ID
+ * @param {Object} pockets - Pocket definitions { "Flights": { target: 600 }, "Hotel": { target: 800 } }
+ */
+export const updateMilestoneBudgetPockets = async (milestoneId, pockets) => {
+  try {
+    const { data, error } = await supabase
+      .from('milestones')
+      .update({ budget_pockets: pockets })
+      .eq('id', milestoneId)
+      .select('budget_pockets')
+      .single()
+
+    if (error) throw error
+    console.log('💰 Budget pockets saved for milestone:', milestoneId)
+    return { data, error: null }
+  } catch (error) {
+    console.error('Update budget pockets error:', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Get budget pockets for a milestone
+ * @param {string} milestoneId - The milestone ID
+ */
+export const getMilestoneBudgetPockets = async (milestoneId) => {
+  try {
+    const { data, error } = await supabase
+      .from('milestones')
+      .select('budget_pockets')
+      .eq('id', milestoneId)
+      .single()
+
+    if (error) throw error
+    return { data: data?.budget_pockets || {}, error: null }
+  } catch (error) {
+    console.error('Get budget pockets error:', error)
+    return { data: {}, error }
+  }
+}
+
+// =====================================================
 // EXPENSE OPERATIONS
 // =====================================================
 
 /**
- * Create a new expense
+ * Recalculate and update budget_amount on a roadmap from its milestones
+ * Called after any milestone budget_amount change to keep Dashboard budget health in sync
+ * This is CRITICAL: Dashboard uses roadmap.budget_amount, but users set budget on milestones
+ * @param {string} roadmapId - The roadmap to update
  */
-export const createExpense = async (expenseData) => {
+const recalculateRoadmapBudgetAmount = async (roadmapId) => {
+  if (!roadmapId) return { error: null }
+
+  try {
+    // Get all milestones for this roadmap
+    const { data: milestones, error: fetchError } = await supabase
+      .from('milestones')
+      .select('budget_amount')
+      .eq('roadmap_id', roadmapId)
+
+    if (fetchError) {
+      console.error('Error fetching milestones for budget recalc:', fetchError)
+      return { error: fetchError }
+    }
+
+    // Sum all milestone budget_amounts
+    const totalBudget = milestones?.reduce((sum, m) => sum + (m.budget_amount || 0), 0) || 0
+
+    // Update the roadmap's budget_amount
+    const { error: updateError } = await supabase
+      .from('roadmaps')
+      .update({ budget_amount: totalBudget })
+      .eq('id', roadmapId)
+
+    if (updateError) {
+      console.error('Error updating roadmap budget_amount:', updateError)
+      return { error: updateError }
+    }
+
+    console.log(`💰 Roadmap budget_amount recalculated for ${roadmapId}: $${totalBudget}`)
+    return { error: null, totalBudget }
+  } catch (error) {
+    console.error('Recalculate roadmap budget error:', error)
+    return { error }
+  }
+}
+
+// NOTE: budget_spent is calculated on-the-fly from expenses in the RPC/legacy loading
+// We do NOT store it on the roadmaps table - it's always derived from SUM(expenses.amount)
+
+/**
+ * Create a new expense (contribution to a budget pocket)
+ * Validates against pocket limits before creating
+ * @param {object} expenseData - Expense data including milestone_id, category, amount
+ * @param {object} options - Optional settings
+ * @param {boolean} options.skipValidation - Skip pocket validation (use carefully)
+ */
+export const createExpense = async (expenseData, options = {}) => {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
+
+    // CRITICAL: Validate pocket contribution before creating expense
+    // This is a HARD BUSINESS RULE - pockets cannot exceed their target amounts
+    if (!options.skipValidation && expenseData.milestone_id && expenseData.category && expenseData.amount) {
+      const validation = await validatePocketContribution(
+        expenseData.milestone_id,
+        expenseData.category,
+        expenseData.amount
+      )
+
+      if (!validation.allowed) {
+        console.warn('🚫 Pocket overfunding prevented:', validation.message)
+        return {
+          data: null,
+          error: {
+            code: 'POCKET_OVERFUNDING',
+            message: validation.message,
+            remaining: validation.remaining
+          }
+        }
+      }
+    }
 
     const { data, error } = await supabase
       .from('expenses')
@@ -609,12 +822,27 @@ export const createExpense = async (expenseData) => {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      // Check if this is a pocket limit violation from the database trigger
+      if (error.message && error.message.includes('Pocket overfunding prevented')) {
+        return {
+          data: null,
+          error: {
+            code: 'POCKET_OVERFUNDING',
+            message: error.message
+          }
+        }
+      }
+      throw error
+    }
 
     // Log activity (non-blocking)
     if (data && expenseData.roadmap_id) {
       activityService.logExpenseAdded(expenseData.roadmap_id, data, user.id)
     }
+
+    // NOTE: budget_spent is calculated on-the-fly from expenses, not stored on roadmaps
+    // Dashboard will fetch fresh data via RPC or legacy loading
 
     return { data, error: null }
   } catch (error) {
@@ -704,6 +932,8 @@ export const updateExpense = async (expenseId, updates, roadmapId = null) => {
       activityService.logExpenseUpdated(roadmapId, data, user.id)
     }
 
+    // NOTE: budget_spent is calculated on-the-fly from expenses, not stored on roadmaps
+
     return { data, error: null }
   } catch (error) {
     console.error('Update expense error:', error)
@@ -733,6 +963,8 @@ export const deleteExpense = async (expenseId, activityContext = null) => {
     if (user && activityContext?.roadmapId && activityContext?.expense) {
       activityService.logExpenseDeleted(activityContext.roadmapId, activityContext.expense, user.id)
     }
+
+    // NOTE: budget_spent is calculated on-the-fly from expenses, not stored on roadmaps
 
     return { error: null }
   } catch (error) {

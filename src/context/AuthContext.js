@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { supabase, isSupabaseConfigured } from '../config/supabaseClient'
 import { getOrCreateUserProfile } from '../services/supabaseService'
 import { unsubscribeAll } from '../utils/subscriptionManager'
@@ -13,63 +13,107 @@ export const useAuth = () => {
   return context
 }
 
+/**
+ * AuthProvider - Netflix-grade auth state management
+ *
+ * FIXES race conditions that caused infinite loading:
+ * 1. Single source of truth: onAuthStateChange is primary
+ * 2. getSession only runs once as initial check
+ * 3. Timeout protection prevents infinite hangs
+ * 4. Profile creation is non-blocking
+ */
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
+
+  // Prevent race conditions - track if we've processed initial auth
+  const initialAuthProcessed = useRef(false)
+  const profileCreationInProgress = useRef(false)
+  const loadingRef = useRef(true) // Track loading state for timeout closure
 
   useEffect(() => {
     // Check if Supabase is configured
     if (!isSupabaseConfigured()) {
       console.warn('⚠️ Supabase not configured. Add your credentials to .env file.')
       setLoading(false)
+      loadingRef.current = false
       return
     }
 
-    // Get initial session
+    // TIMEOUT PROTECTION: Don't let auth hang forever
+    // Uses ref to avoid stale closure issue
+    const authTimeout = setTimeout(() => {
+      if (loadingRef.current) {
+        console.warn('🔑 AuthContext: Auth timeout - proceeding without session')
+        setLoading(false)
+        loadingRef.current = false
+      }
+    }, 10000) // 10 second max wait for auth
+
+    // Get initial session (runs once)
     console.log('🔑 AuthContext: Getting initial session...')
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔑 AuthContext: Session retrieved, user:', session?.user?.email || 'none')
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      // Only process if onAuthStateChange hasn't already handled it
+      if (!initialAuthProcessed.current) {
+        console.log('🔑 AuthContext: Initial session retrieved, user:', initialSession?.user?.email || 'none')
+        setSession(initialSession)
+        setUser(initialSession?.user ?? null)
+        setLoading(false)
+        loadingRef.current = false
+        initialAuthProcessed.current = true
+      }
 
       // Clear URL hash after retrieving session to prevent stale token warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
         console.log('🔑 AuthContext: OAuth return detected (hash), setting sessionStorage flag')
-        // Store flag so components can detect OAuth return (hash will be cleared)
         sessionStorage.setItem('oauth_return', 'true')
-        // Replace the URL without the hash to clean up
-        window.history.replaceState(null, '', window.location.pathname)
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
       }
+    }).catch((error) => {
+      console.error('🔑 AuthContext: Error getting session:', error)
+      setLoading(false)
+      loadingRef.current = false
     })
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔑 AuthContext: onAuthStateChange -', event, 'user:', session?.user?.email || 'none')
-      setSession(session)
-      setUser(session?.user ?? null)
+    // Listen for auth changes (PRIMARY source of truth)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      console.log('🔑 AuthContext: onAuthStateChange -', event, 'user:', newSession?.user?.email || 'none')
+
+      // Update state immediately
+      setSession(newSession)
+      setUser(newSession?.user ?? null)
       setLoading(false)
+      loadingRef.current = false // Keep ref in sync to prevent unnecessary timeout firing
+      initialAuthProcessed.current = true
 
       // Clear URL hash after auth to prevent stale token warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
         console.log('🔑 AuthContext: OAuth return detected in onAuthStateChange, setting flag')
-        // Store flag so components can detect OAuth return (hash will be cleared)
         sessionStorage.setItem('oauth_return', 'true')
-        window.history.replaceState(null, '', window.location.pathname)
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
       }
 
-      // Auto-create profile for new users (on SIGNED_IN or SIGNED_UP)
-      if (session?.user && (event === 'SIGNED_IN' || event === 'SIGNED_UP')) {
-        const { user } = session
-        await getOrCreateUserProfile(user.id, {
-          email: user.email,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || null
-        })
+      // Auto-create profile for new users (NON-BLOCKING)
+      // Don't await this - let it run in background
+      if (newSession?.user && (event === 'SIGNED_IN' || event === 'SIGNED_UP')) {
+        if (!profileCreationInProgress.current) {
+          profileCreationInProgress.current = true
+          const { user: newUser } = newSession
+          getOrCreateUserProfile(newUser.id, {
+            email: newUser.email,
+            full_name: newUser.user_metadata?.full_name || newUser.user_metadata?.name || null
+          }).finally(() => {
+            profileCreationInProgress.current = false
+          })
+        }
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(authTimeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   // Sign up with email and password

@@ -17,14 +17,38 @@ if (storageResult.wasCleared) {
   console.log('📦 Fresh start - localStorage was cleared due to version change');
 }
 
-// Create React Query client with optimized defaults
+// Create React Query client with optimized caching
+// PHILOSOPHY: Show cached data INSTANTLY, refresh in background
+// This eliminates loading spinners on navigation
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,      // Data considered fresh for 5 minutes
-      gcTime: 30 * 60 * 1000,        // Cache kept for 30 minutes (formerly cacheTime)
-      retry: 1,                       // Retry failed requests once
-      refetchOnWindowFocus: false,    // Don't refetch on tab focus
+      // INSTANT RENDER: Cached data shown immediately
+      // 1 hour staleTime = data appears fresh for 1 hour, then background refresh
+      // Individual queries can override for faster/slower refresh needs
+      staleTime: 60 * 60 * 1000,        // 1 hour - balance between fresh and instant
+
+      // MEMORY SAFE: Keep unused data for 4 hours max
+      // Prevents memory bloat while maintaining good UX for active sessions
+      gcTime: 4 * 60 * 60 * 1000,       // 4 hours - reasonable for active session
+
+      // BACKGROUND REFRESH: Update silently without blocking UI
+      // 'always' = fetch fresh data on every mount, but show cache instantly
+      // This ensures users always see fresh data after mutations elsewhere
+      refetchOnMount: 'always',          // Always refresh in background on mount
+      refetchOnWindowFocus: false,       // Don't refetch on tab focus
+      refetchOnReconnect: 'always',      // Always refresh when network reconnects
+
+      // RESILIENT: Retry with exponential backoff (capped at 30s)
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+
+      // SMOOTH TRANSITIONS: Keep previous data during refetch
+      placeholderData: (previousData) => previousData,
+    },
+    mutations: {
+      retry: 1,
+      retryDelay: 1000,
     },
   },
 });
