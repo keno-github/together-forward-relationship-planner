@@ -151,8 +151,15 @@ export const formatActivityTime = (timestamp) => {
 
 /**
  * Get action verb and description for activity type
+ *
+ * @param {object} activity - The activity object from database
+ * @param {object} options - Optional configuration
+ * @param {string} options.currentUserId - Current user's ID to show "You" for own activities
+ * @param {string} options.currentUserName - Current user's display name (fallback)
  */
-export const getActivityDescription = (activity) => {
+export const getActivityDescription = (activity, options = {}) => {
+  const { currentUserId, currentUserName } = options;
+
   const descriptions = {
     task_created: {
       verb: 'created',
@@ -162,12 +169,28 @@ export const getActivityDescription = (activity) => {
       verb: 'completed',
       targetLabel: 'task'
     },
+    task_uncompleted: {
+      verb: 'reopened',
+      targetLabel: 'task'
+    },
     task_assigned: {
       verb: 'assigned',
       targetLabel: 'task'
     },
+    task_deleted: {
+      verb: 'deleted',
+      targetLabel: 'task'
+    },
     expense_added: {
       verb: 'added',
+      targetLabel: 'expense'
+    },
+    expense_updated: {
+      verb: 'updated',
+      targetLabel: 'expense'
+    },
+    expense_deleted: {
+      verb: 'deleted',
       targetLabel: 'expense'
     },
     expense_paid: {
@@ -182,6 +205,14 @@ export const getActivityDescription = (activity) => {
       verb: 'created',
       targetLabel: 'milestone'
     },
+    dream_created: {
+      verb: 'created',
+      targetLabel: 'dream'
+    },
+    dream_shared: {
+      verb: 'shared',
+      targetLabel: 'dream'
+    },
     partner_joined: {
       verb: 'joined',
       targetLabel: 'dream'
@@ -191,7 +222,7 @@ export const getActivityDescription = (activity) => {
       targetLabel: ''
     },
     nudge_sent: {
-      verb: 'nudged',
+      verb: 'sent a nudge about',
       targetLabel: ''
     }
   };
@@ -201,9 +232,25 @@ export const getActivityDescription = (activity) => {
     targetLabel: activity.target_type || 'item'
   };
 
+  // Determine actor display name
+  // Show "You" if this is the current user's activity
+  let actorName = activity.actor_name || 'Someone';
+  let isCurrentUser = false;
+
+  if (currentUserId && activity.actor_id === currentUserId) {
+    actorName = 'You';
+    isCurrentUser = true;
+  } else if (actorName === 'Someone' && activity.actor_id) {
+    // Still "Someone" but we have an actor_id - this shouldn't happen with fixed logging
+    // but provides context that we know WHO did it, just not their name
+    actorName = 'Your partner';
+  }
+
   return {
     ...desc,
-    actorName: activity.actor_name || 'Someone',
+    actorName,
+    actorId: activity.actor_id,
+    isCurrentUser,
     targetTitle: activity.target_title || ''
   };
 };

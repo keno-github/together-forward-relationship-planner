@@ -153,6 +153,7 @@ const HomeHub = ({
                   loading={activitiesLoading}
                   error={activitiesError}
                   maxItems={3}
+                  currentUserId={user?.id}
                 />
               )}
 

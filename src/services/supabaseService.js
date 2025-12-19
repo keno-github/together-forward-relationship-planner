@@ -155,7 +155,8 @@ export const createMilestone = async (milestoneData) => {
 
     return { data, error: null }
   } catch (error) {
-    console.error('Create milestone error:', error)
+    console.error('Create milestone error:', error?.message || error?.code || error)
+    console.error('Create milestone error details:', JSON.stringify(error, null, 2))
     return { data: null, error }
   }
 }
@@ -1174,15 +1175,24 @@ export const updateUserProfile = async (userId, updates) => {
 
 /**
  * Create user profile (called after signup)
+ *
+ * IMPORTANT: Always ensures a display_name is set for activity tracking.
+ * Fallback chain: full_name → email prefix → 'User'
  */
 export const createUserProfile = async (userId, profileData = {}) => {
   try {
+    // Derive display name with proper fallback chain
+    const displayName = profileData.full_name
+      || (profileData.email ? profileData.email.split('@')[0] : null)
+      || 'User'
+
     const { data, error } = await supabase
       .from('profiles')
       .insert([{
         id: userId,
         email: profileData.email || null,
         full_name: profileData.full_name || null,
+        display_name: displayName,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])
@@ -1199,6 +1209,9 @@ export const createUserProfile = async (userId, profileData = {}) => {
 
 /**
  * Get or create user profile (ensures profile exists)
+ *
+ * IMPORTANT: If profile exists but has no display_name, updates it.
+ * This ensures activity tracking always shows a real name.
  */
 export const getOrCreateUserProfile = async (userId, profileData = {}) => {
   try {
@@ -1209,6 +1222,43 @@ export const getOrCreateUserProfile = async (userId, profileData = {}) => {
       .single()
 
     if (existingProfile) {
+      // CRITICAL: Backfill display_name if missing (fixes "Someone" issue)
+      const needsNameUpdate =
+        !existingProfile.display_name &&
+        (profileData.full_name || profileData.email || existingProfile.full_name || existingProfile.email)
+
+      if (needsNameUpdate) {
+        const displayName =
+          profileData.full_name ||
+          existingProfile.full_name ||
+          (profileData.email ? profileData.email.split('@')[0] : null) ||
+          (existingProfile.email ? existingProfile.email.split('@')[0] : null) ||
+          'User'
+
+        // Update the profile with display_name (non-blocking, fire-and-forget)
+        supabase
+          .from('profiles')
+          .update({
+            display_name: displayName,
+            full_name: profileData.full_name || existingProfile.full_name,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+          .then(({ error: updateError }) => {
+            if (updateError) {
+              console.warn('Failed to backfill display_name:', updateError.message)
+            } else {
+              console.log('✅ Backfilled display_name for user:', userId)
+            }
+          })
+
+        // Return updated profile immediately (optimistic)
+        return {
+          data: { ...existingProfile, display_name: displayName },
+          error: null
+        }
+      }
+
       return { data: existingProfile, error: null }
     }
 

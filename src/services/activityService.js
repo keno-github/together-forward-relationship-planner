@@ -128,21 +128,37 @@ const executeLog = async (activityData, retryCount = 0) => {
     if (retryCount < CONFIG.maxRetries) {
       // Exponential backoff
       const delay = Math.pow(2, retryCount) * 100;
-      setTimeout(() => executeLog(activityData, retryCount + 1), delay);
+      setTimeout(() => {
+        executeLog(activityData, retryCount + 1).catch(() => {
+          // Silently swallow - activity logging should never break the app
+        });
+      }, delay);
     } else {
-      throw error;
+      // Don't throw - just log and fail silently
+      // Activity logging should never break the main app flow
+      if (CONFIG.debugMode) {
+        console.warn('[ActivityService] Failed after retries:', error?.message || error);
+      }
     }
   }
 };
 
 /**
  * Get actor name from cache or database
+ *
+ * IMPORTANT: This function resolves a user ID to a display name for activities.
+ * Uses a robust fallback chain to NEVER return "Someone" if we have any info:
+ *   1. display_name (preferred, user-set)
+ *   2. full_name (from OAuth or signup)
+ *   3. email prefix (extracted from email)
+ *   4. "Someone" (absolute last resort)
+ *
  * @private
  */
 const getActorName = async (userId) => {
   if (!userId) return 'Someone';
 
-  // Check cache
+  // Check cache first
   const cached = profileCache.get(userId);
   if (cached && Date.now() - cached.timestamp < PROFILE_CACHE_TTL) {
     return cached.name;
@@ -151,17 +167,31 @@ const getActorName = async (userId) => {
   try {
     const { data } = await supabase
       .from('profiles')
-      .select('display_name, full_name')
+      .select('display_name, full_name, email')
       .eq('id', userId)
       .single();
 
-    const name = data?.display_name || data?.full_name || 'Someone';
+    // Robust fallback chain - email prefix is last resort before "Someone"
+    let name = 'Someone';
+    if (data?.display_name) {
+      name = data.display_name;
+    } else if (data?.full_name) {
+      name = data.full_name;
+    } else if (data?.email) {
+      // Extract username from email (e.g., "john.doe@gmail.com" → "john.doe")
+      name = data.email.split('@')[0];
+      // Capitalize first letter for better display
+      name = name.charAt(0).toUpperCase() + name.slice(1);
+    }
 
     // Cache the result
     profileCache.set(userId, { name, timestamp: Date.now() });
 
     return name;
-  } catch {
+  } catch (error) {
+    if (CONFIG.debugMode) {
+      console.warn('[ActivityService] Failed to get actor name:', error?.message);
+    }
     return 'Someone';
   }
 };

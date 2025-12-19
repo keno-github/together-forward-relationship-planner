@@ -235,9 +235,12 @@ export const useWelcomeBrief = (dashboardData, activities = []) => {
     return {
       ...partnerActivity,
       timeAgo,
-      formattedMessage: formatActivityMessage(partnerActivity),
+      formattedMessage: formatActivityMessage(partnerActivity, {
+        partnerName: partnerNames.partner2,
+        currentUserId: userId,
+      }),
     };
-  }, [activities, userId, hasPartner]);
+  }, [activities, userId, hasPartner, partnerNames.partner2]);
 
   // Calculate streak from activities (MUST BE BEFORE lunaSuggestion)
   const streak = useMemo(() => {
@@ -724,9 +727,29 @@ export const useWelcomeBrief = (dashboardData, activities = []) => {
   };
 };
 
-// Helper function to format activity messages
-function formatActivityMessage(activity) {
-  const actor = activity.actor_name || 'Someone';
+/**
+ * Helper function to format activity messages
+ *
+ * @param {object} activity - Activity object with actor_name, action_type, etc.
+ * @param {object} options - Optional configuration
+ * @param {string} options.partnerName - Partner's name to use if actor_name is "Someone"
+ * @param {string} options.currentUserId - Current user ID to show "You" for own activities
+ */
+function formatActivityMessage(activity, options = {}) {
+  const { partnerName, currentUserId } = options;
+
+  // Determine actor name with smart fallbacks
+  let actor = activity.actor_name || 'Someone';
+
+  // If we know this is the current user's activity, show "You"
+  if (currentUserId && activity.actor_id === currentUserId) {
+    actor = 'You';
+  }
+  // If actor is still "Someone" but we have a partner name and this isn't the current user
+  else if (actor === 'Someone' && partnerName && activity.actor_id && activity.actor_id !== currentUserId) {
+    actor = partnerName;
+  }
+
   const target = activity.target_title || '';
 
   switch (activity.action_type) {
@@ -734,17 +757,29 @@ function formatActivityMessage(activity) {
       return `${actor} completed "${target}"`;
     case 'task_created':
       return `${actor} added a new task: "${target}"`;
+    case 'task_uncompleted':
+      return `${actor} reopened "${target}"`;
     case 'task_assigned':
       return `${actor} assigned "${target}"`;
+    case 'task_deleted':
+      return `${actor} deleted task "${target}"`;
     case 'expense_added':
       const amount = activity.metadata?.amount;
-      return amount ? `${actor} added expense: ${target} (+€${amount})` : `${actor} added expense: ${target}`;
+      return amount ? `${actor} added expense: ${target} (+$${amount})` : `${actor} added expense: ${target}`;
+    case 'expense_updated':
+      return `${actor} updated expense: ${target}`;
+    case 'expense_deleted':
+      return `${actor} deleted expense: ${target}`;
     case 'expense_paid':
       return `${actor} paid "${target}"`;
     case 'milestone_completed':
       return `${actor} completed milestone: ${target}`;
     case 'milestone_created':
       return `${actor} created milestone: ${target}`;
+    case 'dream_created':
+      return `${actor} created a new dream: ${target}`;
+    case 'dream_shared':
+      return `${actor} shared the dream: ${target}`;
     case 'partner_joined':
       return `${actor} joined the dream`;
     case 'nudge_sent':

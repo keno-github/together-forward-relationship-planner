@@ -10,22 +10,36 @@ import { formatActivityTime, getActivityDescription } from '../../hooks/useActiv
  * ActivityPreview - Timeline-style activity feed for Home Hub
  *
  * Design: Clean timeline with connecting lines and avatars
+ *
+ * Props:
+ * - activities: Array of activity objects
+ * - loading: Boolean loading state
+ * - error: Error message if fetch failed
+ * - maxItems: Max number of items to display
+ * - currentUserId: Current user's ID (to show "You" for own activities)
  */
 const ActivityPreview = ({
   activities = [],
   loading = false,
   error = null,
   maxItems = 3,
+  currentUserId = null,
 }) => {
   // Icon mapping for activity types
   const iconMap = {
     task_created: Plus,
     task_completed: CheckCircle,
+    task_uncompleted: CheckCircle,
     task_assigned: UserPlus,
+    task_deleted: Plus,
     expense_added: DollarSign,
+    expense_updated: DollarSign,
+    expense_deleted: DollarSign,
     expense_paid: DollarSign,
     milestone_completed: Trophy,
     milestone_created: Target,
+    dream_created: Target,
+    dream_shared: UserPlus,
     partner_joined: UserPlus,
     comment_added: MessageCircle,
     nudge_sent: Bell,
@@ -92,7 +106,7 @@ const ActivityPreview = ({
           <div>
             {displayActivities.map((activity, index) => {
               const IconComponent = iconMap[activity.action_type] || Activity;
-              const desc = getActivityDescription(activity);
+              const desc = getActivityDescription(activity, { currentUserId });
               const isLast = index === displayActivities.length - 1;
 
               return (
@@ -105,20 +119,28 @@ const ActivityPreview = ({
                     />
                   )}
 
-                  {/* Avatar */}
+                  {/* Avatar - different style for current user vs partner */}
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 relative z-10"
                     style={{
-                      backgroundColor: '#f5f2ed',
-                      border: '3px solid #FFFFFF',
+                      backgroundColor: desc.isCurrentUser ? '#e8f5e9' : '#f5f2ed',
+                      border: `3px solid ${desc.isCurrentUser ? '#c8e6c9' : '#FFFFFF'}`,
                     }}
                   >
-                    <IconComponent className="w-3.5 h-3.5" style={{ color: '#6b635b' }} />
+                    <IconComponent
+                      className="w-3.5 h-3.5"
+                      style={{ color: desc.isCurrentUser ? '#4caf50' : '#6b635b' }}
+                    />
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0 pt-0.5">
-                    <h4 className="text-sm font-semibold mb-0.5" style={{ color: '#2d2926' }}>
+                    <h4
+                      className="text-sm font-semibold mb-0.5"
+                      style={{
+                        color: desc.isCurrentUser ? '#2e7d32' : '#2d2926'
+                      }}
+                    >
                       {desc.actorName}
                     </h4>
                     <p className="text-xs leading-relaxed" style={{ color: '#6b635b' }}>

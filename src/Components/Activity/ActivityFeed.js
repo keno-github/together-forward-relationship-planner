@@ -3,14 +3,17 @@ import {
   CheckCircle, Plus, UserPlus, DollarSign, Trophy,
   MessageCircle, Bell, Target, Loader2, Activity
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useActivityFeed, groupActivitiesByDate, formatActivityTime, getActivityDescription } from '../../hooks/useActivityFeed';
 
 /**
  * ActivityFeed - Timeline of partner actions on a dream
  *
- * Shows real-time updates of what partners are doing
+ * Shows real-time updates of what partners are doing.
+ * Displays "You" for the current user's activities and partner names for others.
  */
 const ActivityFeed = ({ roadmapId, compact = false, maxItems = null }) => {
+  const { user } = useAuth();
   const { activities, loading, error } = useActivityFeed(roadmapId, {
     limit: maxItems || 50
   });
@@ -18,15 +21,24 @@ const ActivityFeed = ({ roadmapId, compact = false, maxItems = null }) => {
   // Group activities by date
   const groupedActivities = groupActivitiesByDate(activities);
 
+  // Current user ID for "You" display
+  const currentUserId = user?.id;
+
   // Icon mapping for activity types
   const iconMap = {
     task_created: Plus,
     task_completed: CheckCircle,
+    task_uncompleted: CheckCircle,
     task_assigned: UserPlus,
+    task_deleted: Plus,
     expense_added: DollarSign,
+    expense_updated: DollarSign,
+    expense_deleted: DollarSign,
     expense_paid: DollarSign,
     milestone_completed: Trophy,
     milestone_created: Target,
+    dream_created: Target,
+    dream_shared: UserPlus,
     partner_joined: UserPlus,
     comment_added: MessageCircle,
     nudge_sent: Bell
@@ -86,19 +98,19 @@ const ActivityFeed = ({ roadmapId, compact = false, maxItems = null }) => {
         {displayActivities.map((activity) => {
           const IconComponent = iconMap[activity.action_type] || Activity;
           const colors = colorMap[activity.action_type] || 'text-stone-500 bg-stone-50';
-          const desc = getActivityDescription(activity);
+          const desc = getActivityDescription(activity, { currentUserId });
 
           return (
             <div
               key={activity.id}
               className="flex items-center gap-3 p-2 rounded-lg hover:bg-stone-50 transition-colors"
             >
-              <div className={`w-8 h-8 rounded-lg ${colors.split(' ')[1]} flex items-center justify-center flex-shrink-0`}>
-                <IconComponent className={`w-4 h-4 ${colors.split(' ')[0]}`} />
+              <div className={`w-8 h-8 rounded-lg ${desc.isCurrentUser ? 'bg-green-50' : colors.split(' ')[1]} flex items-center justify-center flex-shrink-0`}>
+                <IconComponent className={`w-4 h-4 ${desc.isCurrentUser ? 'text-green-500' : colors.split(' ')[0]}`} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-stone-700 truncate">
-                  <span className="font-medium">{desc.actorName}</span>
+                  <span className={`font-medium ${desc.isCurrentUser ? 'text-green-700' : ''}`}>{desc.actorName}</span>
                   {' '}{desc.verb}{' '}
                   {desc.targetTitle && (
                     <span className="font-medium">{desc.targetTitle}</span>
@@ -131,7 +143,7 @@ const ActivityFeed = ({ roadmapId, compact = false, maxItems = null }) => {
             {group.items.map((activity) => {
               const IconComponent = iconMap[activity.action_type] || Activity;
               const colors = colorMap[activity.action_type] || 'text-stone-500 bg-stone-50';
-              const desc = getActivityDescription(activity);
+              const desc = getActivityDescription(activity, { currentUserId });
 
               return (
                 <div
@@ -139,20 +151,20 @@ const ActivityFeed = ({ roadmapId, compact = false, maxItems = null }) => {
                   className="relative flex items-start gap-3 py-3 pl-4 -ml-[9px]"
                 >
                   {/* Timeline dot */}
-                  <div className={`w-4 h-4 rounded-full ${colors.split(' ')[1]} border-2 border-white shadow-sm flex items-center justify-center flex-shrink-0`}>
-                    <div className={`w-2 h-2 rounded-full ${colors.split(' ')[0].replace('text-', 'bg-')}`} />
+                  <div className={`w-4 h-4 rounded-full ${desc.isCurrentUser ? 'bg-green-50' : colors.split(' ')[1]} border-2 border-white shadow-sm flex items-center justify-center flex-shrink-0`}>
+                    <div className={`w-2 h-2 rounded-full ${desc.isCurrentUser ? 'bg-green-500' : colors.split(' ')[0].replace('text-', 'bg-')}`} />
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0 pt-0.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg ${colors.split(' ')[1]} flex items-center justify-center`}>
-                          <IconComponent className={`w-4 h-4 ${colors.split(' ')[0]}`} />
+                        <div className={`w-8 h-8 rounded-lg ${desc.isCurrentUser ? 'bg-green-50' : colors.split(' ')[1]} flex items-center justify-center`}>
+                          <IconComponent className={`w-4 h-4 ${desc.isCurrentUser ? 'text-green-500' : colors.split(' ')[0]}`} />
                         </div>
                         <div>
                           <p className="text-sm text-stone-800">
-                            <span className="font-semibold">{desc.actorName}</span>
+                            <span className={`font-semibold ${desc.isCurrentUser ? 'text-green-700' : ''}`}>{desc.actorName}</span>
                             {' '}{desc.verb}{' '}
                             {desc.targetLabel && (
                               <span className="text-stone-500">{desc.targetLabel}</span>
