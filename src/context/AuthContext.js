@@ -27,6 +27,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUTH EVENT TRACKING - State-of-the-art approach
+  //
+  // Instead of just exposing `user`, we expose `authEvent` which tells
+  // consumers WHAT happened. This allows proper handling of:
+  // - SIGNED_IN: User logged in → navigate to dashboard
+  // - SIGNED_OUT: User logged out → navigate to landing
+  // - TOKEN_REFRESHED: Session token refreshed → DO NOTHING (preserve state!)
+  // - INITIAL_SESSION: First load → check roadmaps, navigate appropriately
+  //
+  // This prevents the bug where switching browser tabs causes Supabase to
+  // refresh the token, triggering a navigation that wipes the user's progress.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [authEvent, setAuthEvent] = useState(null) // 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'INITIAL_SESSION' | null
+
   // Prevent race conditions - track if we've processed initial auth
   const initialAuthProcessed = useRef(false)
   const profileCreationInProgress = useRef(false)
@@ -59,6 +74,7 @@ export const AuthProvider = ({ children }) => {
         console.log('🔑 AuthContext: Initial session retrieved, user:', initialSession?.user?.email || 'none')
         setSession(initialSession)
         setUser(initialSession?.user ?? null)
+        setAuthEvent('INITIAL_SESSION') // Set event type for App.js to handle
         setLoading(false)
         loadingRef.current = false
         initialAuthProcessed.current = true
@@ -72,6 +88,7 @@ export const AuthProvider = ({ children }) => {
       }
     }).catch((error) => {
       console.error('🔑 AuthContext: Error getting session:', error)
+      setAuthEvent('INITIAL_SESSION') // Still set event so App.js can proceed
       setLoading(false)
       loadingRef.current = false
     })
@@ -86,6 +103,23 @@ export const AuthProvider = ({ children }) => {
       setLoading(false)
       loadingRef.current = false // Keep ref in sync to prevent unnecessary timeout firing
       initialAuthProcessed.current = true
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SET AUTH EVENT - This is the key to proper navigation handling
+      //
+      // Supabase events:
+      // - SIGNED_IN: User logged in (email/password or OAuth return)
+      // - SIGNED_OUT: User logged out
+      // - TOKEN_REFRESHED: Session token was refreshed (happens automatically!)
+      // - USER_UPDATED: User profile was updated
+      // - PASSWORD_RECOVERY: User is resetting password
+      //
+      // We expose this to App.js so it can decide:
+      // - SIGNED_IN/SIGNED_OUT: Should navigate
+      // - TOKEN_REFRESHED: Should NOT navigate (preserve user's current state!)
+      // ═══════════════════════════════════════════════════════════════════════════
+      setAuthEvent(event)
+      console.log('🔑 AuthContext: Setting authEvent to:', event)
 
       // Clear URL hash after auth to prevent stale token warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
@@ -210,10 +244,18 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Clear auth event after it's been processed by App.js
+  // This prevents the same event from triggering multiple times
+  const clearAuthEvent = () => {
+    setAuthEvent(null)
+  }
+
   const value = {
     user,
     session,
     loading,
+    authEvent,        // NEW: Expose the auth event type
+    clearAuthEvent,   // NEW: Allow consumers to clear after processing
     signUp,
     signIn,
     signInWithGoogle,

@@ -501,6 +501,18 @@ export function generateDeepDive(params) {
   const warningFlags = generateWarningFlags(goal_type);
   const hiddenCosts = generateHiddenCosts(goal_type);
 
+  // Convert actionSteps to roadmapPhases format for RoadmapTreeView
+  // This provides a fallback when Claude's personalized content fails
+  const roadmapPhases = actionSteps.map((step, idx) => ({
+    title: step.title,
+    description: `Phase ${idx + 1}: ${step.title}`,
+    month: step.month,
+    completed: false,
+    completed_at: null,
+    // Include tasks as suggestions (actual tasks are created separately)
+    suggestedTasks: step.tasks || []
+  }));
+
   // Build deep dive object with correct property names for DeepDiveModal
   const deepDive = {
     milestoneId: milestone_id,
@@ -513,6 +525,10 @@ export function generateDeepDive(params) {
     totalCostBreakdown: costBreakdown,  // Was: costBreakdown
     detailedSteps: actionSteps,         // Was: actionSteps
     expertTips: tips,                   // Was: tips
+
+    // CRITICAL: roadmapPhases for RoadmapTreeView tab
+    // This is the primary structure used by the Roadmap tab
+    roadmapPhases,
 
     // Existing with proper structure
     challenges: challenges.map(c => ({
@@ -539,6 +555,7 @@ export function generateDeepDive(params) {
     costCategories: costBreakdown.length,
     challenges: challenges.length,
     actionPhases: actionSteps.length,
+    roadmapPhases: roadmapPhases.length,
     tips: tips.length,
     commonMistakes: commonMistakes.length,
     warningFlags: warningFlags.length,

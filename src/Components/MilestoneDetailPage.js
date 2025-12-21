@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Calendar, Check, X, Target, TrendingUp, Share2, Users } from 'lucide-react';
 import { getVisibleNavigationTabs, calculateClientMetrics } from '../utils/navigationHelpers';
@@ -10,6 +10,19 @@ import LunaAssessment from './LunaAssessment';
 import GoalOverviewDashboard from './GoalOverviewDashboard';
 import ShareDreamModal from './Sharing/ShareDreamModal';
 import { ActivityFeed } from './Activity';
+import { useAuth } from '../context/AuthContext';
+import Auth from './Auth';
+
+// Guest onboarding components (ownership-first flow)
+import { SaveDreamBanner, SaveDreamModal } from './Guest';
+import {
+  hasValidGuestDream,
+  getGuestDreamMeta,
+  getGuestDreamTitle,
+  getGuestDreamPartners,
+  loadGuestDream,
+  startViewTracking
+} from '../services/guestDreamService';
 
 /**
  * MilestoneDetailPage - Dream Detail View
@@ -26,6 +39,7 @@ const MilestoneDetailPage = ({
   roadmapId,
   userContext
 }) => {
+  // Core state
   const [activeSection, setActiveSection] = useState(section);
   const [visibleTabs, setVisibleTabs] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -36,6 +50,101 @@ const MilestoneDetailPage = ({
   const [targetDate, setTargetDate] = useState(milestone.target_date || '');
   const [showShareModal, setShowShareModal] = useState(false);
   const [roadmap, setRoadmap] = useState(null);
+
+  // Auth context
+  const { user } = useAuth();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GUEST ONBOARDING STATE (Ownership-First Flow)
+  //
+  // These states manage the premium sign-up experience for guest users who
+  // have created dreams without authenticating.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [showSaveBanner, setShowSaveBanner] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Check if this is a guest user with an unsaved dream
+  const isGuestWithDream = !user && hasValidGuestDream();
+  const guestDream = isGuestWithDream ? loadGuestDream() : null;
+  const guestDreamTitle = getGuestDreamTitle();
+  const guestPartners = getGuestDreamPartners();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GUEST BANNER TIMER
+  // Show the soft sign-up prompt after 5 seconds of viewing the dream
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (isGuestWithDream) {
+      // Start tracking view duration
+      startViewTracking();
+
+      // Check if banner was already shown
+      const meta = getGuestDreamMeta();
+      if (meta.signUpPromptShown) {
+        // Already shown before - show it again but immediately (they've seen it)
+        const timer = setTimeout(() => setShowSaveBanner(true), 1000);
+        return () => clearTimeout(timer);
+      }
+
+      // First time - wait 5 seconds for psychological ownership to build
+      const timer = setTimeout(() => {
+        setShowSaveBanner(true);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isGuestWithDream]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GUEST HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  const handleGuestCreateAccount = useCallback(() => {
+    setShowSaveBanner(false);
+    setShowExitModal(false);
+    setShowAuthModal(true);
+  }, []);
+
+  const handleGuestDismissBanner = useCallback(() => {
+    setShowSaveBanner(false);
+  }, []);
+
+  const handleGuestExitModalLeave = useCallback(() => {
+    setShowExitModal(false);
+    // Actually navigate away
+    if (onBack) {
+      onBack();
+    }
+  }, [onBack]);
+
+  const handleGuestExitModalClose = useCallback(() => {
+    setShowExitModal(false);
+  }, []);
+
+  const handleAuthSuccess = useCallback(() => {
+    setShowAuthModal(false);
+    // The App.js will handle attaching the dream and navigating
+    // We just need to close the modal - the auth flow will take over
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BACK BUTTON HANDLER
+  // Intercept back navigation for guests to show exit modal
+  // ═══════════════════════════════════════════════════════════════════════════
+  const handleBack = useCallback(() => {
+    if (isGuestWithDream) {
+      const meta = getGuestDreamMeta();
+      // Only show exit modal once per session
+      if (!meta.exitModalShown) {
+        setShowExitModal(true);
+        return; // Don't navigate yet
+      }
+    }
+    // Either not a guest or already shown modal - proceed with navigation
+    if (onBack) {
+      onBack();
+    }
+  }, [isGuestWithDream, onBack]);
 
   // Update visible tabs when milestone changes
   useEffect(() => {
@@ -185,7 +294,7 @@ const MilestoneDetailPage = ({
             {/* Left: Back & Title */}
             <div className="flex items-center gap-5">
               <button
-                onClick={onBack}
+                onClick={handleBack}
                 className="flex items-center gap-2 text-stone-500 hover:text-stone-800 transition-colors group"
               >
                 <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
@@ -404,6 +513,67 @@ const MilestoneDetailPage = ({
           title: milestone?.title
         }}
       />
+
+      {/* ═══════════════════════════════════════════════════════════════════════════ */}
+      {/* GUEST ONBOARDING COMPONENTS (Ownership-First Flow) */}
+      {/* ═══════════════════════════════════════════════════════════════════════════ */}
+
+      {/* Soft Sign-Up Banner - appears 5 seconds after viewing dream */}
+      {isGuestWithDream && (
+        <SaveDreamBanner
+          isVisible={showSaveBanner}
+          onCreateAccount={handleGuestCreateAccount}
+          onDismiss={handleGuestDismissBanner}
+          dreamTitle={guestDreamTitle || milestone?.title}
+          partner1={guestPartners?.partner1}
+          partner2={guestPartners?.partner2}
+        />
+      )}
+
+      {/* Exit Intent Modal - appears when guest tries to leave */}
+      {isGuestWithDream && (
+        <SaveDreamModal
+          isOpen={showExitModal}
+          onSave={handleGuestCreateAccount}
+          onLeave={handleGuestExitModalLeave}
+          onClose={handleGuestExitModalClose}
+          dreamData={{
+            title: guestDreamTitle || milestone?.title,
+            partner1: guestPartners?.partner1 || 'You',
+            partner2: guestPartners?.partner2 || 'Your Partner',
+            duration: milestone?.duration || '12 months',
+            location: guestDream?.dream?.location,
+            icon: milestone?.icon,
+            color: milestone?.color
+          }}
+        />
+      )}
+
+      {/* Auth Modal - for sign-up/sign-in flow */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm"
+            onClick={() => setShowAuthModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Auth
+                onSuccess={handleAuthSuccess}
+                initialMode="signup"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import {
   getMilestoneConversation,
   saveMilestoneConversation,
@@ -15,6 +15,12 @@ import { callLunaOverviewStreaming, processToolCall, buildSystemPrompt } from '.
  *
  * Provides global state for Luna chat across the entire app.
  * Manages conversations, pending changes, and panel visibility.
+ *
+ * FIX: Added visibility change handler to preserve conversation state
+ * when the user switches tabs. This prevents data loss during:
+ * - Supabase token refresh (triggered by tab focus)
+ * - Browser background throttling
+ * - Any unexpected component remounts
  */
 const LunaContext = createContext(null);
 
@@ -52,6 +58,143 @@ export const LunaProvider = ({ children }) => {
     onTasksUpdate: null,
     onRefreshMilestone: null
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VISIBILITY CHANGE HANDLER - Preserve conversation on tab switch
+  //
+  // This is CRITICAL for preventing conversation loss when:
+  // 1. User switches to another app/tab
+  // 2. Supabase refreshes the auth token on tab focus
+  // 3. Browser throttles the tab in background
+  //
+  // Strategy:
+  // - Save messages to database when tab becomes hidden (proactive save)
+  // - Use refs to track state across potential remounts
+  // - Restore from database if state is lost
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Refs to preserve state across potential remounts
+  const messagesRef = useRef(messages);
+  const currentMilestoneRef = useRef(currentMilestone);
+  const pendingChangesRef = useRef(pendingChanges);
+  const lastSavedRef = useRef(null); // Track when we last saved
+  const isHiddenRef = useRef(false); // Track if tab is hidden
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    currentMilestoneRef.current = currentMilestone;
+  }, [currentMilestone]);
+
+  useEffect(() => {
+    pendingChangesRef.current = pendingChanges;
+  }, [pendingChanges]);
+
+  // Visibility change handler
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        // Tab is becoming hidden - save conversation state proactively
+        isHiddenRef.current = true;
+
+        if (currentMilestoneRef.current?.id && messagesRef.current.length > 0) {
+          // Only save if we have unsaved changes (messages changed since last save)
+          const messagesJson = JSON.stringify(messagesRef.current);
+          if (lastSavedRef.current !== messagesJson) {
+            console.log('🔒 Tab hidden - saving Luna conversation to database');
+            try {
+              const messagesToSave = messagesRef.current.slice(-50);
+              await saveMilestoneConversation(currentMilestoneRef.current.id, messagesToSave);
+              lastSavedRef.current = messagesJson;
+              console.log('✅ Luna conversation saved before tab switch');
+            } catch (err) {
+              console.error('❌ Failed to save Luna conversation on tab switch:', err);
+            }
+          }
+        }
+      } else {
+        // Tab is becoming visible again
+        const wasHidden = isHiddenRef.current;
+        isHiddenRef.current = false;
+
+        if (wasHidden && currentMilestoneRef.current?.id) {
+          console.log('👁️ Tab visible again - verifying Luna conversation state');
+
+          // Check if state might have been lost (messages array empty but we had messages before)
+          // This can happen if Supabase token refresh caused a remount
+          if (messagesRef.current.length === 0 && lastSavedRef.current) {
+            console.log('⚠️ Potential state loss detected - reloading conversation from database');
+            try {
+              const { data, error } = await getMilestoneConversation(currentMilestoneRef.current.id);
+              if (data?.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+                const validMessages = data.messages
+                  .filter(m => m.content && m.content.trim() !== '')
+                  .slice(-50);
+                setMessages(validMessages);
+                console.log('✅ Luna conversation restored from database');
+              }
+            } catch (err) {
+              console.error('❌ Failed to restore Luna conversation:', err);
+            }
+          }
+        }
+      }
+    };
+
+    // Add visibility change listener
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also handle page unload/beforeunload for additional safety
+    const handleBeforeUnload = () => {
+      if (currentMilestoneRef.current?.id && messagesRef.current.length > 0) {
+        // Use sendBeacon for reliable async save during unload
+        // Note: This is a best-effort save, may not always succeed
+        const messagesToSave = messagesRef.current.slice(-50);
+        console.log('🚪 Page unloading - attempting to save Luna conversation');
+        // We can't use async functions in beforeunload, so we just log
+        // The visibility change handler should have already saved
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []); // Empty deps - we use refs to access current state
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERIODIC AUTO-SAVE - Save conversation every 30 seconds during active chat
+  //
+  // This provides additional protection for long conversations.
+  // Only saves if there are unsaved changes (messages changed since last save).
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const autoSaveInterval = setInterval(async () => {
+      // Only auto-save if we have messages and a milestone
+      if (currentMilestoneRef.current?.id && messagesRef.current.length > 0) {
+        const messagesJson = JSON.stringify(messagesRef.current);
+        // Only save if messages have changed since last save
+        if (lastSavedRef.current !== messagesJson) {
+          console.log('💾 Auto-saving Luna conversation...');
+          try {
+            const messagesToSave = messagesRef.current.slice(-50);
+            await saveMilestoneConversation(currentMilestoneRef.current.id, messagesToSave);
+            lastSavedRef.current = messagesJson;
+            console.log('✅ Luna conversation auto-saved');
+          } catch (err) {
+            console.error('❌ Auto-save failed:', err);
+          }
+        }
+      }
+    }, 30000); // Every 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, []);
 
   // Open Luna panel
   const openPanel = useCallback(() => {
@@ -110,6 +253,7 @@ export const LunaProvider = ({ children }) => {
     setCurrentTasks([]);
     setMessages([]);
     setPendingChanges([]);
+    lastSavedRef.current = null; // Reset last saved tracking
     return true;
   }, [pendingChanges]);
 
@@ -122,12 +266,16 @@ export const LunaProvider = ({ children }) => {
           .filter(m => m.content && m.content.trim() !== '')
           .slice(-50);
         setMessages(validMessages);
+        // Set lastSavedRef to the loaded messages so we don't immediately try to save
+        lastSavedRef.current = JSON.stringify(validMessages);
       } else {
         setMessages([]);
+        lastSavedRef.current = null;
       }
     } catch (err) {
       console.error('Failed to load Luna conversation:', err);
       setMessages([]);
+      lastSavedRef.current = null;
     }
   };
 
@@ -137,6 +285,8 @@ export const LunaProvider = ({ children }) => {
     try {
       const messagesToSave = newMessages.slice(-50);
       await saveMilestoneConversation(currentMilestone.id, messagesToSave);
+      // Update lastSavedRef to track that we saved these messages
+      lastSavedRef.current = JSON.stringify(messagesToSave);
     } catch (err) {
       console.error('Failed to save Luna conversation:', err);
     }
@@ -149,6 +299,7 @@ export const LunaProvider = ({ children }) => {
       await clearMilestoneConversation(currentMilestone.id);
       setMessages([]);
       setPendingChanges([]);
+      lastSavedRef.current = null; // Reset last saved tracking
     } catch (err) {
       console.error('Failed to clear Luna conversation:', err);
     }

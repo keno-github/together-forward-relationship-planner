@@ -7,7 +7,11 @@
  * - Tool/function calling
  * - Context management
  * - Roadmap generation coordination
+ * - Real-time progress events for live preview
  */
+
+import { emitProgressEvent, CreationEvent } from '../context/CreationProgressContext';
+import { saveGuestDream } from './guestDreamService';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001'; // Use env var in production, localhost in dev
 
@@ -15,7 +19,30 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001'
  * System prompt that defines Luna's role and behavior
  * Keep it concise - Claude is smart enough to understand
  */
-const LUNA_SYSTEM_PROMPT = `You are Luna, an AI planning assistant for couples planning their future together.
+// Dynamic system prompt with current date
+const getLunaSystemPrompt = () => {
+  const now = new Date();
+  const currentDate = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const currentMonth = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  return `You are Luna, an AI planning assistant for couples planning their future together.
+
+TODAY'S DATE: ${currentDate}
+CURRENT MONTH: ${currentMonth}
+
+CRITICAL - TIME AWARENESS:
+You MUST use today's date for ALL timeline calculations. When a user says:
+- "by May 2026" → Calculate months from ${currentMonth} to May 2026
+- "next summer" → That means summer ${now.getFullYear() + (now.getMonth() >= 6 ? 1 : 0)}
+- "in 2 years" → That means ${now.getFullYear() + 2}
+- "next month" → That means ${new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+
+ALWAYS state the calculated timeline clearly: "That's X months from now" (calculate accurately!)
 
 YOUR MISSION:
 Help couples create realistic, actionable roadmaps for ANY goal they have together.
@@ -135,12 +162,81 @@ TOOL USAGE:
 - THEN call generate_deep_dive() for that milestone
   → This adds the roadmap steps/tasks INSIDE the milestone
   → Tasks appear when user clicks the milestone card
+  → CRITICAL: Include personalized roadmapPhases based on the conversation!
 - Call finalize_roadmap() ONCE when all milestones are ready
   → This saves everything to database and triggers UI transition
 - Call track_expense() when user mentions spending money
 - Call analyze_savings_progress() when user asks about financial progress
 
 IMPORTANT: Each user goal = ONE milestone card. The steps to achieve it = tasks inside that milestone.
+
+═══════════════════════════════════════════════════════════════════════════
+🎯 PERSONALIZED ROADMAP PHASES - CRITICAL INSTRUCTION
+═══════════════════════════════════════════════════════════════════════════
+
+When calling generate_deep_dive(), you MUST include personalized roadmapPhases.
+
+❌ NEVER use generic phases like:
+   - "Planning", "Booking", "Preparation"
+   - "Phase 1", "Phase 2", "Phase 3"
+   - "Research", "Execute", "Complete"
+
+✅ ALWAYS use phases that reflect the USER'S ACTUAL GOAL:
+
+Example 1 - Trip to Japan:
+roadmapPhases: [
+  { title: "Research Tokyo & Kyoto", description: "Explore neighborhoods, attractions, best times to visit", month: 1, tasks: ["Research Tokyo districts", "Find best ryokans in Kyoto", "Check cherry blossom dates"] },
+  { title: "Book Flights & Accommodation", description: "Secure travel and stays", month: 2, tasks: ["Compare flight options", "Book ryokan in Kyoto", "Reserve Tokyo hotel"] },
+  { title: "Plan Daily Itineraries", description: "Map out each day's activities", month: 3, tasks: ["Create Tokyo 3-day plan", "Plan Kyoto temple route", "Book restaurant reservations"] },
+  { title: "Final Preparations", description: "Get ready for departure", month: 4, tasks: ["Get JR Pass", "Exchange currency", "Pack essentials"] }
+]
+
+Example 2 - Buy Apartment in Berlin:
+roadmapPhases: [
+  { title: "Assess Berlin Neighborhoods", description: "Research areas that fit your lifestyle", month: 1, tasks: ["Visit Prenzlauer Berg", "Explore Kreuzberg", "Check Charlottenburg prices"] },
+  { title: "Secure Financing", description: "Get mortgage pre-approval", month: 2, tasks: ["Compare German banks", "Gather income documents", "Get pre-approval letter"] },
+  { title: "Active Apartment Search", description: "Find and view properties", month: 3, tasks: ["Set up ImmoScout alerts", "Schedule viewings", "Evaluate 5+ apartments"] },
+  { title: "Purchase & Close", description: "Complete the transaction", month: 4, tasks: ["Make offer", "Sign at Notar", "Register at Grundbuchamt"] }
+]
+
+The phases should feel like they were written specifically for THIS couple's dream.
+
+═══════════════════════════════════════════════════════════════════════════
+⚡ SPEED IS CRITICAL - USERS EXPECT INSTANT RESULTS ⚡
+═══════════════════════════════════════════════════════════════════════════
+
+Users have SHORT attention spans. Dream creation should feel INSTANT.
+
+SPEED RULES:
+1. Keep conversations SHORT - 2-3 exchanges max before creating the dream
+2. Don't ask too many questions - make smart assumptions
+3. When ready to create, call ALL tools in rapid succession
+4. Keep your text responses BRIEF between tool calls
+
+═══════════════════════════════════════════════════════════════════════════
+⚠️ MANDATORY TOOL SEQUENCE - DO NOT SKIP OR REORDER ⚠️
+═══════════════════════════════════════════════════════════════════════════
+
+You MUST follow this EXACT sequence when creating a dream:
+
+1. generate_milestone() - Creates the goal card
+2. generate_deep_dive() - Adds roadmap phases (this is FAST now, no extra processing)
+3. finalize_roadmap() - Saves to database
+
+Call these tools in QUICK succession. Don't write long explanations between them.
+Users are waiting. Be fast.
+
+❌ NEVER:
+- Call finalize_roadmap() before generate_milestone() (WILL FAIL)
+- Write paragraphs between tool calls (WASTES TIME)
+- Ask more than 2-3 clarifying questions (USERS GET BORED)
+
+✅ ALWAYS:
+- generate_milestone() → generate_deep_dive() → finalize_roadmap()
+- Keep it fast: gather info → create dream → done
+- Make smart assumptions for missing details
+
+═══════════════════════════════════════════════════════════════════════════
 
 INTELLIGENT FEATURES:
 - Extract budget/timeline hints from casual conversation ("We're saving $500/month", "by next summer")
@@ -151,6 +247,10 @@ INTELLIGENT FEATURES:
 - Make smart assumptions for missing "nice-to-have" information (e.g., assume 20% down payment if not specified)
 
 Be conversational between tool calls - explain what you're creating and discovering!`;
+};
+
+// Generate the prompt with current date
+const LUNA_SYSTEM_PROMPT = getLunaSystemPrompt();
 
 /**
  * Tool definitions for Claude function calling
@@ -219,7 +319,7 @@ const LUNA_TOOLS = [
   },
   {
     name: "generate_deep_dive",
-    description: "Generate detailed deep dive data for a milestone: cost breakdown, challenges, action steps, tips. Call right after creating a milestone.",
+    description: "Generate detailed deep dive data for a milestone. CRITICAL: Provide personalized roadmapPhases based on the ACTUAL conversation - use the user's specific goal, location, and details. Do NOT use generic phases like 'Planning', 'Booking', 'Preparation'.",
     input_schema: {
       type: "object",
       properties: {
@@ -246,6 +346,19 @@ const LUNA_TOOLS = [
         preferences: {
           type: "object",
           description: "User preferences"
+        },
+        roadmapPhases: {
+          type: "array",
+          description: "Personalized phases reflecting the user's ACTUAL goal. Example for 'Trip to Japan': ['Research Tokyo areas', 'Book flights & hotels', 'Plan daily activities', 'Final preparations']. NOT generic ['Planning', 'Booking', 'Preparation'].",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Specific phase title using user's words" },
+              description: { type: "string", description: "What this phase involves" },
+              month: { type: "number", description: "Target month (1-based)" },
+              tasks: { type: "array", items: { type: "string" }, description: "3-5 specific tasks" }
+            }
+          }
         }
       },
       required: ["milestone_id", "goal_type", "budget", "timeline_months"]
@@ -531,6 +644,12 @@ async function executeToolCall(toolName, input, context) {
  */
 
 async function handleExtractUserData(input, context) {
+  // Emit progress event - user data extraction starting
+  emitProgressEvent(CreationEvent.EXTRACTING_DATA, {
+    partner1: input.partner1,
+    partner2: input.partner2,
+  });
+
   // Import Goal Discovery Agent
   const { analyzeMessage, determineNextQuestions } = await import('./agents/goalDiscoveryAgent');
 
@@ -792,6 +911,15 @@ async function handleGenerateIntelligentRoadmap(input, context) {
 }
 
 async function handleGenerateMilestone(input, context) {
+  // ═══════════════════════════════════════════════════════════════════════
+  // EMIT PROGRESS EVENT: Milestone generation starting
+  // This triggers immediate navigation to live preview page
+  // ═══════════════════════════════════════════════════════════════════════
+  emitProgressEvent(CreationEvent.MILESTONE_GENERATING, {
+    title: input.title || input.goal_type || 'Your Dream',
+    goalType: input.goal_type,
+  });
+
   // CRITICAL: Check if we already created a milestone for this goal
   const existingMilestones = context.milestones || [];
   const alreadyCreated = existingMilestones.some(m =>
@@ -857,6 +985,22 @@ async function handleGenerateMilestone(input, context) {
     milestone.description = input.description.trim();
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // EMIT PROGRESS EVENT: Milestone generated successfully
+  // Live preview page will animate this milestone into view
+  // ═══════════════════════════════════════════════════════════════════════
+  emitProgressEvent(CreationEvent.MILESTONE_GENERATED, {
+    milestone: {
+      id: milestone.id,
+      title: milestone.title,
+      description: milestone.description,
+      icon: milestone.icon,
+      color: milestone.color,
+      estimatedCost: milestone.estimatedCost,
+      duration: milestone.duration,
+    },
+  });
+
   return {
     success: true,
     milestone,
@@ -875,6 +1019,14 @@ async function handleGenerateMilestone(input, context) {
 }
 
 async function handleGenerateDeepDive(input, context) {
+  // ═══════════════════════════════════════════════════════════════════════
+  // EMIT PROGRESS EVENT: Deep dive generation starting
+  // ═══════════════════════════════════════════════════════════════════════
+  emitProgressEvent(CreationEvent.DEEP_DIVE_GENERATING, {
+    milestoneId: input.milestone_id,
+    goalType: input.goal_type,
+  });
+
   console.log('🧠 Generating intelligent deep dive with Claude...');
   console.log('📥 Input:', input);
   console.log('📥 Context:', context);
@@ -890,84 +1042,82 @@ async function handleGenerateDeepDive(input, context) {
 
   console.log('📦 Base deep dive generated:', Object.keys(baseDeepDive));
 
-  try {
-    // STEP 2: Call Claude to generate personalized, intelligent content
-    console.log('🚀 Calling generatePersonalizedContent...');
-    const personalizedContent = await generatePersonalizedContent(input, context);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERSONALIZED PHASES: Use Claude's phases if provided, templates as fallback
+  //
+  // Claude now provides personalized roadmapPhases in the tool call based on
+  // the actual conversation. This gives us personalization WITHOUT a second
+  // API call (same speed as templates).
+  //
+  // Priority:
+  // 1. Claude's personalized phases (if provided in input.roadmapPhases)
+  // 2. Template-based phases (fallback for safety)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-    console.log('✅ Personalized content received:', Object.keys(personalizedContent));
+  // Check if Claude provided personalized phases
+  let finalRoadmapPhases = baseDeepDive.roadmapPhases; // Default to templates
 
-    // Merge base structure with personalized content
-    const enhancedDeepDive = {
-      ...baseDeepDive,
-      // Override with Claude's personalized content
-      personalizedInsights: personalizedContent.insights,
-      intelligentTips: personalizedContent.tips,
-      riskAnalysis: personalizedContent.risks,
-      smartSavings: personalizedContent.savings,
-      coupleAdvice: personalizedContent.coupleAdvice,
-      roadmapPhases: personalizedContent.roadmapPhases, // NEW: Luna-generated roadmap tree
-      aiGenerated: true,
-      generatedAt: new Date().toISOString()
-    };
-
-    const phaseCount = enhancedDeepDive.roadmapPhases?.length || 0;
-    console.log('✨ Enhanced deep dive with Claude intelligence:', {
-      hasPersonalizedInsights: !!enhancedDeepDive.personalizedInsights,
-      hasIntelligentTips: !!enhancedDeepDive.intelligentTips,
-      hasRiskAnalysis: !!enhancedDeepDive.riskAnalysis,
-      hasSmartSavings: !!enhancedDeepDive.smartSavings,
-      hasCoupleAdvice: !!enhancedDeepDive.coupleAdvice,
-      hasRoadmapPhases: !!enhancedDeepDive.roadmapPhases,
-      phaseCount: phaseCount,
-      aiGenerated: enhancedDeepDive.aiGenerated
-    });
-
-    // Warn only if no phases were generated (likely a parsing/truncation issue)
-    if (phaseCount === 0) {
-      console.warn('⚠️ No roadmap phases received. Response may have been truncated.');
-    }
-
-    // CRITICAL: Attach deep dive directly to the milestone in context
-    // This eliminates the need for complex linking logic
-    const milestoneId = input.milestone_id;
-    if (milestoneId && context.milestones) {
-      const milestone = context.milestones.find(m => m.id === milestoneId);
-      if (milestone) {
-        milestone.deep_dive_data = enhancedDeepDive;
-        console.log('✅ Attached deep dive to milestone:', milestone.title);
-        console.log('   Roadmap phases:', enhancedDeepDive.roadmapPhases?.length || 0);
-      } else {
-        console.warn('⚠️ Milestone not found for deep dive attachment:', milestoneId);
-      }
-    }
-
-    return {
-      success: true,
-      deep_dive: enhancedDeepDive,
-      milestone_id: milestoneId // Return for reference
-    };
-  } catch (error) {
-    console.error('⚠️ Failed to generate personalized content, using base deep dive:', error);
-    console.error('Error stack:', error.stack);
-
-    // Fallback to base deep dive if Claude call fails
-    // Also attach to milestone for consistency
-    const milestoneId = input.milestone_id;
-    if (milestoneId && context.milestones) {
-      const milestone = context.milestones.find(m => m.id === milestoneId);
-      if (milestone) {
-        milestone.deep_dive_data = baseDeepDive;
-        console.log('✅ Attached base deep dive to milestone (fallback):', milestone.title);
-      }
-    }
-
-    return {
-      success: true,
-      deep_dive: baseDeepDive,
-      milestone_id: milestoneId
-    };
+  if (input.roadmapPhases && Array.isArray(input.roadmapPhases) && input.roadmapPhases.length > 0) {
+    // Use Claude's personalized phases - convert to our format
+    finalRoadmapPhases = input.roadmapPhases.map((phase, idx) => ({
+      title: phase.title,
+      description: phase.description || `Phase ${idx + 1}: ${phase.title}`,
+      month: phase.month || idx + 1,
+      completed: false,
+      completed_at: null,
+      suggestedTasks: phase.tasks || []
+    }));
+    console.log('✨ Using Claude\'s personalized phases:', finalRoadmapPhases.map(p => p.title));
+  } else {
+    console.log('📋 Using template-based phases (Claude did not provide custom phases)');
   }
+
+  // Use base deep dive with potentially personalized roadmapPhases
+  const enhancedDeepDive = {
+    ...baseDeepDive,
+    roadmapPhases: finalRoadmapPhases,
+    aiGenerated: true,
+    generatedAt: new Date().toISOString()
+  };
+
+  const phaseCount = enhancedDeepDive.roadmapPhases?.length || 0;
+  console.log('⚡ Fast deep dive generated (no nested API call):', {
+    phaseCount,
+    hasExpertTips: !!enhancedDeepDive.expertTips,
+    hasChallenges: !!enhancedDeepDive.challenges,
+    hasCostBreakdown: !!enhancedDeepDive.totalCostBreakdown
+  });
+
+  // CRITICAL: Attach deep dive directly to the milestone in context
+  const milestoneId = input.milestone_id;
+  if (milestoneId && context.milestones) {
+    const milestone = context.milestones.find(m => m.id === milestoneId);
+    if (milestone) {
+      milestone.deep_dive_data = enhancedDeepDive;
+      console.log('✅ Attached deep dive to milestone:', milestone.title);
+      console.log('   Roadmap phases:', phaseCount);
+    } else {
+      console.warn('⚠️ Milestone not found for deep dive attachment:', milestoneId);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // EMIT PROGRESS EVENT: Deep dive generated successfully
+  // ═══════════════════════════════════════════════════════════════════════
+  emitProgressEvent(CreationEvent.DEEP_DIVE_GENERATED, {
+    milestoneId,
+    deepDive: {
+      phaseCount,
+      hasInsights: false,
+      hasTips: !!enhancedDeepDive.expertTips,
+    },
+  });
+
+  return {
+    success: true,
+    deep_dive: enhancedDeepDive,
+    milestone_id: milestoneId
+  };
 }
 
 /**
@@ -1112,7 +1262,7 @@ Make it conversational, reference their specific numbers, and feel like a friend
   const data = await response.json();
   console.log('📦 Received data from backend:', { hasContent: !!data.content, contentLength: data.content?.length });
 
-  // Parse Claude's JSON response
+  // Parse Claude's JSON response with robust error handling
   try {
     let jsonContent = data.content;
 
@@ -1140,19 +1290,107 @@ Make it conversational, reference their specific numbers, and feel like a friend
       console.log('📦 Extracted JSON object, length:', jsonContent.length);
     }
 
-    const content = JSON.parse(jsonContent.trim());
-    console.log('✅ Successfully parsed Claude-generated content:', Object.keys(content));
-    return content;
+    // Try to parse the JSON
+    try {
+      const content = JSON.parse(jsonContent.trim());
+      console.log('✅ Successfully parsed Claude-generated content:', Object.keys(content));
+      return content;
+    } catch (firstParseError) {
+      // JSON may be truncated - try to repair it
+      console.warn('⚠️ First parse failed, attempting JSON repair...');
+      console.warn('Parse error:', firstParseError.message);
+
+      // Attempt to repair truncated JSON by closing open brackets
+      let repairedJson = jsonContent.trim();
+
+      // Count open brackets/braces
+      let openBraces = 0;
+      let openBrackets = 0;
+      let inString = false;
+      let escapeNext = false;
+
+      for (let i = 0; i < repairedJson.length; i++) {
+        const char = repairedJson[i];
+        if (escapeNext) {
+          escapeNext = false;
+          continue;
+        }
+        if (char === '\\') {
+          escapeNext = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === '{') openBraces++;
+          else if (char === '}') openBraces--;
+          else if (char === '[') openBrackets++;
+          else if (char === ']') openBrackets--;
+        }
+      }
+
+      // Close any remaining open strings, brackets, and braces
+      if (inString) repairedJson += '"';
+
+      // Remove trailing comma if present
+      repairedJson = repairedJson.replace(/,\s*$/, '');
+
+      // Close remaining brackets and braces
+      for (let i = 0; i < openBrackets; i++) repairedJson += ']';
+      for (let i = 0; i < openBraces; i++) repairedJson += '}';
+
+      console.log('🔧 Attempting to parse repaired JSON...');
+
+      try {
+        const content = JSON.parse(repairedJson);
+        console.log('✅ Successfully parsed REPAIRED JSON:', Object.keys(content));
+        console.warn('⚠️ Note: Response was truncated and repaired - some data may be incomplete');
+        return content;
+      } catch (repairError) {
+        console.error('❌ JSON repair failed:', repairError.message);
+        throw firstParseError; // Throw original error
+      }
+    }
   } catch (parseError) {
     console.error('❌ Failed to parse Claude response');
     console.error('Parse error:', parseError.message);
-    console.error('Content that failed to parse:', data.content);
+    console.error('Content that failed to parse (first 500 chars):', data.content?.substring(0, 500));
     throw new Error(`Invalid response format: ${parseError.message}`);
   }
 }
 
 async function handleFinalizeRoadmap(input, context) {
   try {
+    // ═══════════════════════════════════════════════════════════════════
+    // VALIDATION GATE: A dream without milestones is worthless
+    // Luna MUST call generate_milestone() before finalize_roadmap()
+    // ═══════════════════════════════════════════════════════════════════
+    const milestonesToCheck = context.milestones || context.generatedMilestones || [];
+
+    if (milestonesToCheck.length === 0) {
+      console.error('❌ VALIDATION FAILED: Cannot finalize roadmap without milestones!');
+      console.error('   Luna must call generate_milestone() before finalize_roadmap()');
+      console.error('   Returning error to Luna so she can correct her approach.');
+
+      return {
+        success: false,
+        error: 'MISSING_MILESTONES',
+        message: 'ERROR: Cannot create a dream without any goals. You MUST call generate_milestone() first to create at least one goal card.',
+        instructions: 'REQUIRED SEQUENCE: 1) generate_milestone() to create goal card, 2) generate_deep_dive() to add roadmap phases, 3) THEN finalize_roadmap(). Please start by calling generate_milestone() now.',
+        retry_required: true
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // EMIT PROGRESS EVENT: Finalizing/saving to database
+    // ═══════════════════════════════════════════════════════════════════════
+    emitProgressEvent(CreationEvent.FINALIZING, {
+      milestonesCount: milestonesToCheck.length,
+      roadmapTitle: input.roadmap_title,
+    });
+
     // Import supabase services and auth
     const { createRoadmap, createMilestone, createTask } = await import('./supabaseService');
     const { supabase } = await import('../config/supabaseClient');
@@ -1163,7 +1401,7 @@ async function handleFinalizeRoadmap(input, context) {
       partner2: context.partner2,
       location: context.location,
       goalType: context.goalType,
-      milestonesCount: context.generatedMilestones?.length || 0
+      milestonesCount: milestonesToCheck.length
     });
     console.log('🔍 DEBUG: context.generatedMilestones:', context.generatedMilestones);
 
@@ -1171,9 +1409,10 @@ async function handleFinalizeRoadmap(input, context) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      console.log('⚠️ No authenticated user - storing roadmap in context for UI display only');
+      console.log('👤 Guest user detected - using ownership-first flow');
       console.log('🔍 DEBUG: context.generatedMilestones exists?', !!context.generatedMilestones);
       console.log('🔍 DEBUG: context.generatedMilestones length:', context.generatedMilestones?.length);
+
       // GUEST USER MODE: Populate context.milestones for UI transition without database save
       if (context.generatedMilestones && context.generatedMilestones.length > 0) {
         context.milestones = context.generatedMilestones;
@@ -1184,7 +1423,48 @@ async function handleFinalizeRoadmap(input, context) {
         context.totalTimeline = input.total_timeline_months;
 
         console.log('✅ Copied generatedMilestones to context.milestones for UI transition (guest mode):', context.milestones.length);
-        console.log('🔍 DEBUG: context.milestones after copy:', context.milestones);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PREMIUM ONBOARDING: Persist guest dream to localStorage
+        //
+        // This enables the "ownership-first" flow where guests create dreams
+        // BEFORE signing up. The dream survives page refreshes, browser restarts,
+        // and can be automatically attached to their account when they sign up.
+        //
+        // Key data preserved:
+        // - Full milestone with deep_dive_data (roadmap phases, tips, challenges)
+        // - Partner names and location
+        // - Conversation history for context
+        // ═══════════════════════════════════════════════════════════════════════
+        const firstMilestone = context.generatedMilestones[0];
+        const guestDreamSaved = saveGuestDream({
+          title: input.roadmap_title,
+          description: input.summary || firstMilestone?.description || '',
+          partner1: context.partner1,
+          partner2: context.partner2,
+          location: context.location,
+          milestone: firstMilestone,
+          conversationHistory: context.conversationMessages || []
+        });
+
+        if (guestDreamSaved) {
+          console.log('💾 Guest dream persisted to localStorage for ownership-first flow');
+        } else {
+          console.warn('⚠️ Could not persist guest dream to localStorage - will only exist in memory');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // EMIT PROGRESS EVENT: Creation complete (guest mode)
+        // ═══════════════════════════════════════════════════════════════════════
+        emitProgressEvent(CreationEvent.CREATION_COMPLETE, {
+          guestMode: true,
+          roadmapTitle: input.roadmap_title,
+          milestonesCount: context.generatedMilestones?.length || 0,
+          roadmapData: {
+            title: input.roadmap_title,
+            milestones: context.milestones,
+          },
+        });
 
         return {
           success: true,
@@ -1195,7 +1475,7 @@ async function handleFinalizeRoadmap(input, context) {
           total_cost: input.total_cost,
           total_timeline_months: input.total_timeline_months,
           milestones_count: context.generatedMilestones?.length || 0,
-          message: `Roadmap "${input.roadmap_title}" created with ${context.generatedMilestones?.length || 0} milestones! (Sign in to save permanently)`
+          message: `Your dream "${input.roadmap_title}" is ready! Create a free account to keep it forever.`
         };
       }
     }
@@ -1242,6 +1522,17 @@ async function handleFinalizeRoadmap(input, context) {
       for (let i = 0; i < milestonesToSave.length; i++) {
         const milestone = milestonesToSave[i];
 
+        // Safely prepare deep_dive_data - ensure it's valid JSON-serializable
+        let deepDiveData = {};
+        try {
+          const rawDeepDive = milestone.deep_dive_data || milestone.deepDiveData || {};
+          // Validate it's JSON-serializable by round-tripping
+          deepDiveData = JSON.parse(JSON.stringify(rawDeepDive));
+        } catch (e) {
+          console.warn('⚠️ deep_dive_data not JSON-serializable, using empty object');
+          deepDiveData = {};
+        }
+
         const milestoneData = {
           roadmap_id: savedRoadmap.id,
           title: milestone.title || `Milestone ${i + 1}`,
@@ -1249,10 +1540,10 @@ async function handleFinalizeRoadmap(input, context) {
           icon: milestone.icon || '🎯',
           color: milestone.color || '#4F46E5',
           category: milestone.category || context.goalType || 'custom',
-          estimated_cost: milestone.estimated_cost || milestone.estimatedCost || 0,
+          estimated_cost: Number(milestone.estimated_cost || milestone.estimatedCost || 0),
           duration: milestone.estimated_duration || milestone.duration || '1-2 weeks',
           ai_generated: true,
-          deep_dive_data: milestone.deep_dive_data || milestone.deepDiveData || {},
+          deep_dive_data: deepDiveData,
           order_index: i,
           status: 'not_started'
         };
@@ -1317,6 +1608,23 @@ async function handleFinalizeRoadmap(input, context) {
     // Store roadmap ID in context for future use
     context.savedRoadmapId = savedRoadmap.id;
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // EMIT PROGRESS EVENT: Creation complete (authenticated)
+    // Live preview page will transition to full dream view
+    // ═══════════════════════════════════════════════════════════════════════
+    emitProgressEvent(CreationEvent.CREATION_COMPLETE, {
+      guestMode: false,
+      roadmapId: savedRoadmap.id,
+      roadmapTitle: input.roadmap_title,
+      milestonesCount: milestonesToSave.length,
+      tasksCount: totalTasksSaved,
+      roadmapData: {
+        id: savedRoadmap.id,
+        title: input.roadmap_title,
+        milestones: context.milestones || context.generatedMilestones,
+      },
+    });
+
     return {
       success: true,
       ready: true,
@@ -1332,6 +1640,16 @@ async function handleFinalizeRoadmap(input, context) {
 
   } catch (error) {
     console.error('❌ Error in handleFinalizeRoadmap:', error);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // EMIT PROGRESS EVENT: Creation failed
+    // Live preview page will show error with retry option
+    // ═══════════════════════════════════════════════════════════════════════
+    emitProgressEvent(CreationEvent.CREATION_FAILED, {
+      error: error.message,
+      roadmapTitle: input.roadmap_title,
+      recoverable: true,
+    });
 
     // Return error but don't crash the conversation
     return {
@@ -1486,6 +1804,8 @@ export function getRoadmapData(context) {
     milestones: milestonesWithDeepDives,  // Return linked milestones
     summary: context.summary,
     totalCost: context.totalCost,
-    totalTimeline: context.totalTimeline
+    totalTimeline: context.totalTimeline,
+    // CRITICAL: Pass saved IDs to prevent duplicate creation in App.js
+    savedRoadmapId: context.savedRoadmapId || null
   };
 }

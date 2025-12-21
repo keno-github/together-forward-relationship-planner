@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProfileProvider } from './context/ProfileContext';
 import { LunaProvider } from './context/LunaContext';
+import { CreationProgressProvider } from './context/CreationProgressContext';
 import ErrorBoundary from './Components/ErrorBoundary';
 import { LunaFloatingButton, LunaChatPanel, LunaPendingBanner } from './Components/Luna';
 import LunaErrorBoundary from './Components/Luna/LunaErrorBoundary';
@@ -34,10 +35,16 @@ import { coupleData, roadmap, deepDiveData } from './SampleData';
 import { calculateCompatibilityScore, generateDiscussionGuide } from './utils/compatibilityScoring';
 import { getUserRoadmaps, getMilestonesByRoadmap, createRoadmap, createMilestone } from './services/supabaseService';
 import { initGA, trackPageView } from './utils/analytics';
+import {
+  hasValidGuestDream,
+  loadGuestDream,
+  attachGuestDreamToAccount,
+  clearGuestDream
+} from './services/guestDreamService';
 
 // Inner component that uses auth context
 const AppContent = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authEvent, clearAuthEvent } = useAuth();
   const { isMobile } = useResponsive();
 
   // Track app stage: landing, dashboard, roadmapProfile, profile, settings, compatibility, results, transition, main, deepDive, milestoneDetail, authTest, goalBuilder, lunaOptimization, assessment, portfolioOverview, invite
@@ -158,10 +165,51 @@ const AppContent = () => {
     }
   };
 
-  // Initialize app - handle special routes and pending invites
+  // ═══════════════════════════════════════════════════════════════════════════
+  // APP INITIALIZATION - State-of-the-art auth event handling
+  //
+  // This effect handles navigation based on auth events. The key insight is that
+  // we DON'T want to navigate on every `user` change - we only want to navigate
+  // on meaningful auth events:
+  //
+  // - INITIAL_SESSION: First page load → check roadmaps, navigate appropriately
+  // - SIGNED_IN: User logged in → check roadmaps, navigate to dashboard
+  // - SIGNED_OUT: User logged out → navigate to landing
+  // - TOKEN_REFRESHED: ⚠️ IGNORE! This happens when switching browser tabs
+  //   and should NOT cause any navigation (preserves Luna chat, etc.)
+  //
+  // This fixes the bug where switching browser tabs would wipe the user's
+  // Luna conversation because Supabase refreshes the token on tab focus.
+  // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     const initializeApp = async () => {
       if (authLoading) return; // Wait for auth to load
+      if (!authEvent) return; // No event to process
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // CRITICAL: Ignore TOKEN_REFRESHED events
+      //
+      // TOKEN_REFRESHED happens when:
+      // 1. User switches browser tabs and returns
+      // 2. Session token is about to expire
+      // 3. Any background session refresh
+      //
+      // We MUST NOT navigate on these events - user should stay where they are!
+      // ═══════════════════════════════════════════════════════════════════════
+      if (authEvent === 'TOKEN_REFRESHED') {
+        console.log('🔄 TOKEN_REFRESHED event - preserving current state, no navigation');
+        clearAuthEvent(); // Clear the event so we don't process it again
+        return;
+      }
+
+      // Also ignore USER_UPDATED events (profile changes shouldn't navigate)
+      if (authEvent === 'USER_UPDATED') {
+        console.log('👤 USER_UPDATED event - preserving current state, no navigation');
+        clearAuthEvent();
+        return;
+      }
+
+      console.log('🚀 Processing auth event:', authEvent, 'user:', user?.email || 'none');
 
       // Check if we're on a special route that shouldn't be overridden
       // These routes are handled by useRouteSync and should not redirect to landing
@@ -184,6 +232,7 @@ const AppContent = () => {
 
         setCheckingRoadmaps(false);
         setInitialCheckDone(true);
+        clearAuthEvent();
         return; // Don't override stage - let useRouteSync handle it
       }
 
@@ -195,6 +244,7 @@ const AppContent = () => {
         if (pendingCode) {
           console.log('🔗 Pending dream invite detected after login, redirecting to:', pendingCode);
           localStorage.removeItem('pending_invite_code');
+          clearAuthEvent();
           // Full page redirect to invite page
           window.location.href = `/invite/${pendingCode}`;
           return; // Don't continue with initialization
@@ -204,37 +254,89 @@ const AppContent = () => {
         const pendingPartnerCode = localStorage.getItem('pending_partner_invite_code');
         if (pendingPartnerCode) {
           console.log('🔗 Pending partner invite detected after login, redirecting to:', pendingPartnerCode);
+          clearAuthEvent();
           // Don't remove yet - AcceptPartnerInvitePage will handle it
           // Full page redirect to partner invite page
           window.location.href = `/partner-invite/${pendingPartnerCode}`;
           return; // Don't continue with initialization
         }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PREMIUM ONBOARDING: Attach guest dream to new account
+        //
+        // This is the critical step in the "ownership-first" flow where a guest
+        // who created a dream before signing up gets their dream automatically
+        // saved to their new account. No data loss, seamless experience.
+        // ═══════════════════════════════════════════════════════════════════════
+        if (hasValidGuestDream()) {
+          console.log('🎁 Guest dream detected! Attaching to new account...');
+
+          try {
+            const guestDream = loadGuestDream();
+            const result = await attachGuestDreamToAccount();
+
+            if (result.success) {
+              console.log('✅ Guest dream attached successfully!');
+              console.log('   - Roadmap ID:', result.savedRoadmap?.id);
+              console.log('   - Milestone ID:', result.savedMilestone?.id);
+              console.log('   - Tasks created:', result.tasksCreated);
+
+              // Show success notification
+              setSuccessNotification({
+                type: 'success',
+                message: `Welcome! Your dream "${guestDream?.dream?.title || 'dream'}" is now saved to your account.`,
+                dreamCount: 1
+              });
+
+              // Navigate to the newly saved dream
+              if (result.savedMilestone) {
+                setMilestoneDetailState({
+                  milestone: result.savedMilestone,
+                  section: 'overview'
+                });
+                setStage('milestoneDetail');
+                setCheckingRoadmaps(false);
+                setInitialCheckDone(true);
+                clearAuthEvent();
+                return; // Don't continue - we're showing the dream
+              }
+            } else {
+              console.warn('⚠️ Guest dream attachment failed:', result.error);
+              // Continue with normal flow - dream is still in localStorage
+              // User can try again later
+            }
+          } catch (error) {
+            console.error('❌ Error attaching guest dream:', error);
+            // Continue with normal flow
+          }
+        }
       }
 
-      // CRITICAL FIX: If user is null (logged out), redirect to landing
-      // EXCEPT: Allow access to pricing page (public page)
-      // This handles sign out from any page (Settings, Dashboard, etc.)
-      if (!user) {
+      // Handle SIGNED_OUT event
+      if (authEvent === 'SIGNED_OUT' || !user) {
         // Allow pricing page for everyone (public access)
         if (stage === 'pricing') {
           console.log('💰 No user, but allowing public pricing page access');
           setCheckingRoadmaps(false);
           setInitialCheckDone(true);
+          clearAuthEvent();
           return;
         }
 
-        console.log('🚫 No user logged in → redirecting to landing page');
+        console.log('🚫 User signed out → redirecting to landing page');
         setStage('landing');
         setCheckingRoadmaps(false);
         setInitialCheckDone(true);
+        clearAuthEvent();
         return;
       }
 
-      // CRITICAL FIX: Don't redirect if user is already navigating
-      // BUT: Allow roadmap check to run when user logs in (even if initialCheckDone)
-      const isUserNavigating = stage !== 'loading' && stage !== 'landing' && initialCheckDone;
-      if (isUserNavigating) {
-        return; // User is actively using the app (in roadmapProfile, main, etc.), don't redirect
+      // For INITIAL_SESSION or SIGNED_IN: Check if we should redirect
+      // Don't redirect if user is already in the middle of something (not on landing/loading)
+      if (initialCheckDone && stage !== 'loading' && stage !== 'landing') {
+        console.log('📍 User already navigating (stage:', stage, '), preserving state');
+        clearAuthEvent();
+        return;
       }
 
       // UX: Returning users with existing roadmaps go directly to Dashboard (HomeHub)
@@ -250,6 +352,7 @@ const AppContent = () => {
           setStage('dashboard');
           setCheckingRoadmaps(false);
           setInitialCheckDone(true);
+          clearAuthEvent();
           return;
         } else {
           console.log('📝 New user or no roadmaps → showing landing page');
@@ -261,11 +364,13 @@ const AppContent = () => {
       // New users or users without roadmaps see landing page
       setStage('landing');
       setCheckingRoadmaps(false);
-      setInitialCheckDone(true); // Mark initial check as done
+      setInitialCheckDone(true);
+      clearAuthEvent();
     };
 
     initializeApp();
-  }, [user, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authEvent, authLoading]); // Intentionally react ONLY to authEvent, not user/stage changes
 
   // Handle reset password route (from email link)
   if (window.location.pathname === '/reset-password') {
@@ -285,21 +390,161 @@ const AppContent = () => {
   }
 
   // Handle landing page completion
-  const handleLandingComplete = (data) => {
+  const handleLandingComplete = async (data) => {
     if (data.chosenPath === 'compatibility') {
       // User chose compatibility path
       setStage('compatibility');
     } else if (data.chosenPath === 'luna') {
-      // User chose Luna AI path - go to main app with Luna generated data
-      // Luna returns: milestones, deepDives, partner1, partner2, location, etc.
+      // ═══════════════════════════════════════════════════════════════════════════
+      // LUNA PATH: Navigate to MilestoneDetailPage
+      // Luna's handleFinalizeRoadmap already saved to database - use those IDs
+      // ═══════════════════════════════════════════════════════════════════════════
+      console.log('🎯 Luna path complete - preparing navigation');
+
+      const milestones = data.milestones || [];
+      const partner1Name = data.partner1 || '';
+      const partner2Name = data.partner2 || '';
+      const location = data.location || '';
+
+      // Validate milestones exist (three-layer defense - UI safeguard)
+      if (milestones.length === 0) {
+        console.error('❌ UI SAFEGUARD: No milestones in Luna data, cannot proceed');
+        // Stay on landing/conversation - don't navigate to broken state
+        return;
+      }
+
+      let savedMilestone = null;
+      let savedRoadmap = null;
+
+      // Check if Luna already saved to database (prevents duplicate creation)
+      if (data.savedRoadmapId) {
+        console.log('✅ Luna already saved to DB - using existing roadmap:', data.savedRoadmapId);
+        savedRoadmap = { id: data.savedRoadmapId };
+        // First milestone should have its ID from Luna's save
+        const firstMilestone = milestones[0];
+        if (firstMilestone.id) {
+          savedMilestone = { id: firstMilestone.id };
+          console.log('✅ Using existing milestone:', firstMilestone.id);
+        }
+      } else if (user) {
+        // Fallback: Luna didn't save (guest mode or error) - save now
+        console.log('⚠️ No savedRoadmapId from Luna - saving to database now');
+        try {
+          // Create roadmap (dream container)
+          const firstMilestone = milestones[0];
+          const { data: newRoadmap, error: roadmapError } = await createRoadmap({
+            title: firstMilestone.title,
+            partner1_name: partner1Name,
+            partner2_name: partner2Name,
+            location: location,
+            xp_points: 0
+          });
+
+          if (roadmapError) {
+            console.error('Error creating roadmap:', roadmapError);
+          } else {
+            savedRoadmap = newRoadmap;
+            console.log('✅ Created roadmap:', newRoadmap.id);
+
+            // Create milestone under this roadmap
+            const { data: newMilestone, error: milestoneError } = await createMilestone({
+              roadmap_id: newRoadmap.id,
+              title: firstMilestone.title,
+              description: firstMilestone.description || '',
+              icon: firstMilestone.icon || 'Target',
+              color: firstMilestone.color || 'bg-gradient-to-br from-amber-500 to-orange-500',
+              category: firstMilestone.category || 'relationship',
+              estimated_cost: firstMilestone.estimatedCost || firstMilestone.budget || 0,
+              budget_amount: firstMilestone.budget_amount || firstMilestone.budget || firstMilestone.estimatedCost || 0,
+              duration: firstMilestone.duration || '3-6 months',
+              ai_generated: true,
+              deep_dive_data: firstMilestone.deepDiveData || firstMilestone.deep_dive_data || {
+                roadmapPhases: firstMilestone.roadmapPhases || [],
+                detailedSteps: [],
+                expertTips: [],
+                challenges: [],
+                successMetrics: []
+              },
+              order_index: 0
+            });
+
+            if (milestoneError) {
+              console.error('Error creating milestone:', milestoneError);
+            } else {
+              savedMilestone = newMilestone;
+              console.log('✅ Created milestone:', newMilestone.id);
+            }
+          }
+        } catch (err) {
+          console.error('Error saving Luna dream to database:', err);
+        }
+      }
+
+      // Format milestone for MilestoneDetailPage
+      const firstMilestone = milestones[0];
+      const formattedMilestone = {
+        id: savedMilestone?.id || `temp-${Date.now()}`,
+        roadmap_id: savedRoadmap?.id || null,
+        title: firstMilestone.title || 'Your Dream',
+        description: firstMilestone.description || '',
+        icon: firstMilestone.icon || 'Target',
+        color: firstMilestone.color || 'bg-gradient-to-br from-amber-500 to-orange-500',
+        category: firstMilestone.category || 'relationship',
+        estimatedCost: firstMilestone.estimatedCost || firstMilestone.budget || 0,
+        budget_amount: firstMilestone.budget_amount || firstMilestone.budget || firstMilestone.estimatedCost || 0,
+        target_date: firstMilestone.target_date || null,
+        milestone_metrics: {
+          tasks_completed: 0,
+          tasks_total: 0,
+          progress_percentage: 0,
+          health_score: 50,
+          on_track: true
+        },
+        duration: firstMilestone.duration || '3-6 months',
+        aiGenerated: true,
+        completed: false,
+        deepDiveData: firstMilestone.deepDiveData || firstMilestone.deep_dive_data || {
+          roadmapPhases: firstMilestone.roadmapPhases || [],
+          detailedSteps: [],
+          expertTips: [],
+          challenges: [],
+          successMetrics: []
+        },
+        tasks: [],
+        _savedToDb: !!savedMilestone
+      };
+
+      // Update userData with roadmap info
       setUserData({
         ...data,
-        // Convert Luna milestones to existingMilestones format for TogetherForward
-        existingMilestones: data.milestones || [],
-        lunaDeepDives: data.deepDives || [], // Store deep dives separately
-        openLunaOnStart: true // Flag to open Luna immediately
+        roadmapId: savedRoadmap?.id,
+        existingMilestones: [formattedMilestone],
+        partner1: partner1Name,
+        partner2: partner2Name,
+        location: location
       });
-      setStage('main');
+
+      // Set selected roadmap for context
+      if (savedRoadmap) {
+        setSelectedRoadmap(savedRoadmap);
+      }
+
+      // Show success notification
+      setSuccessNotification({
+        type: 'success',
+        message: `Your dream "${firstMilestone.title}" has been created!`,
+        dreamCount: 1
+      });
+      setTimeout(() => setSuccessNotification(null), 5000);
+
+      // Force dashboard refresh for when user goes back
+      setDashboardRefreshKey(prev => prev + 1);
+
+      // Navigate DIRECTLY to MilestoneDetailPage (consistent with Dashboard flow)
+      console.log('🚀 Navigating to MilestoneDetailPage:', formattedMilestone.title);
+      setMilestoneDetailState({ milestone: formattedMilestone, section: 'overview' });
+      setStage('milestoneDetail');
+
     } else if (data.chosenPath === 'ready') {
       // User chose "ready" path - check if they want templates or custom goal creator
       if (data.showTemplates || data.showCustomCreator) {
@@ -1302,18 +1547,20 @@ const App = () => {
     <AuthProvider>
       <ProfileProvider>
         <LunaProvider>
-          <AppContent />
-          {/* Luna Floating Chat System */}
-          <LunaErrorBoundary variant="compact" maxRetries={3}>
-            <LunaPendingBanner />
-          </LunaErrorBoundary>
-          <LunaErrorBoundary variant="compact" maxRetries={3}>
-            <LunaFloatingButton />
-          </LunaErrorBoundary>
-          <LunaErrorBoundary variant="panel" maxRetries={3}>
-            <LunaChatPanel />
-          </LunaErrorBoundary>
-          <DevTools />
+          <CreationProgressProvider>
+            <AppContent />
+            {/* Luna Floating Chat System */}
+            <LunaErrorBoundary variant="compact" maxRetries={3}>
+              <LunaPendingBanner />
+            </LunaErrorBoundary>
+            <LunaErrorBoundary variant="compact" maxRetries={3}>
+              <LunaFloatingButton />
+            </LunaErrorBoundary>
+            <LunaErrorBoundary variant="panel" maxRetries={3}>
+              <LunaChatPanel />
+            </LunaErrorBoundary>
+            <DevTools />
+          </CreationProgressProvider>
         </LunaProvider>
       </ProfileProvider>
     </AuthProvider>

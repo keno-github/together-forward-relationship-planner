@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle, Bell, Home, Sunrise, Crown } from 'lucide-react';
 import { getUserRoadmaps } from '../services/supabaseService';
@@ -10,6 +10,8 @@ import Auth from './Auth';
 import GoalSelectionHub from './GoalSelectionHub';
 import MarkdownMessage from './MarkdownMessage';
 import DreamCreationOverlay from './DreamCreationOverlay';
+import DreamCreationLive from './DreamCreationLive';
+import { useCreationProgress, CreationEvent, setGlobalProgressUpdater } from '../context/CreationProgressContext';
 
 const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onGoToProfile = null, onGoToSettings = null, onGoToPricing = null, onOpenHomeHub = null, onOpenAssessment = null, onOpenPortfolioOverview = null, hasMultipleDreams = false, notificationCount = 0, isReturningUser = false }) => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -34,6 +36,85 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
   const [showCreationOverlay, setShowCreationOverlay] = useState(false);
   const [pendingRoadmapData, setPendingRoadmapData] = useState(null);
   const [pendingConversation, setPendingConversation] = useState(null);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LIVE CREATION PROGRESS - Staff Engineer Pattern
+  // Subscribe to progress events for immediate navigation to live preview
+  // ═══════════════════════════════════════════════════════════════════════════
+  const creationProgress = useCreationProgress();
+  const hasNavigatedToLiveRef = useRef(false);
+
+  // Wire up global progress updater so lunaService can emit events
+  useEffect(() => {
+    setGlobalProgressUpdater(creationProgress.updateProgress);
+    return () => setGlobalProgressUpdater(null);
+  }, [creationProgress.updateProgress]);
+
+  // Subscribe to creation events for immediate navigation
+  useEffect(() => {
+    const unsubscribe = creationProgress.subscribe((event) => {
+      // Navigate to live preview IMMEDIATELY when milestone generation starts
+      if (event.type === CreationEvent.MILESTONE_GENERATING && !hasNavigatedToLiveRef.current) {
+        console.log('🚀 MILESTONE_GENERATING detected - navigating to live preview!');
+        hasNavigatedToLiveRef.current = true;
+        setStage('creatingLive');
+        setIsLunaTyping(false); // Hide typing indicator immediately
+      }
+    });
+
+    return unsubscribe;
+  }, [creationProgress.subscribe]);
+
+  // Reset navigation ref when stage changes away from creatingLive
+  useEffect(() => {
+    if (stage !== 'creatingLive') {
+      hasNavigatedToLiveRef.current = false;
+    }
+  }, [stage]);
+
+  // Handle live creation completion
+  const handleLiveCreationComplete = useCallback((roadmapData) => {
+    console.log('✅ Live creation complete, transitioning to MilestoneDetailPage');
+    creationProgress.reset();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // UI SAFEGUARD: Verify milestones exist before transitioning
+    // A dream without milestones should never reach the user
+    // ═══════════════════════════════════════════════════════════════════════
+    const dataToUse = roadmapData || pendingRoadmapData;
+    const milestones = dataToUse?.milestones || [];
+
+    if (milestones.length === 0) {
+      console.error('❌ UI SAFEGUARD: Cannot complete - no milestones in roadmap data');
+      console.error('   This should not happen. Staying on creation page for retry.');
+      // Don't navigate - let user retry
+      return;
+    }
+
+    console.log(`✅ UI SAFEGUARD PASSED: ${milestones.length} milestone(s) found`);
+    console.log('📦 Milestone data:', milestones[0]);
+
+    // Pass to App.js handleLandingComplete - include savedRoadmapId to prevent duplicates
+    const completeData = {
+      chosenPath: 'luna',
+      milestones: milestones,
+      partner1: dataToUse?.partner1 || partner1Name || '',
+      partner2: dataToUse?.partner2 || partner2Name || '',
+      location: dataToUse?.location || '',
+      conversationHistory: conversation,
+      // CRITICAL: Pass saved roadmap ID - Luna already saved to DB
+      savedRoadmapId: dataToUse?.savedRoadmapId || null
+    };
+
+    console.log('🚀 Calling onComplete with:', completeData);
+    onComplete(completeData);
+  }, [creationProgress, onComplete, conversation, pendingRoadmapData, partner1Name, partner2Name]);
+
+  // Handle live creation error
+  const handleLiveCreationError = useCallback((error) => {
+    console.error('❌ Live creation error:', error);
+    // Stay on live page - it will show retry option
+  }, []);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -170,10 +251,10 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
 
       if (isRoadmapComplete(result.context)) {
         const roadmapData = getRoadmapData(result.context);
-        // Store data and show creation overlay instead of immediate redirect
+        // Store data for DreamCreationLive's completion handler
         setPendingRoadmapData(roadmapData);
         setPendingConversation([...newConversation, { role: 'assistant', content: result.message }]);
-        setShowCreationOverlay(true);
+        // DreamCreationLive handles progress UI - don't show redundant overlay
       }
     } catch (error) {
       console.error('❌ Error in Luna conversation:', error);
@@ -186,13 +267,25 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
     setIsLunaTyping(false);
   };
 
-  // Handle overlay completion - navigate to dashboard
+  // Handle overlay completion - navigate to MilestoneDetailPage
   const handleCreationComplete = () => {
     if (pendingRoadmapData) {
+      const milestones = pendingRoadmapData.milestones || [];
+
+      if (milestones.length === 0) {
+        console.error('❌ UI SAFEGUARD: Cannot complete - no milestones');
+        return;
+      }
+
+      // Pass to App.js handleLandingComplete - include savedRoadmapId to prevent duplicates
       onComplete({
         chosenPath: 'luna',
-        ...pendingRoadmapData,
-        conversationHistory: pendingConversation
+        milestones: milestones,
+        partner1: pendingRoadmapData.partner1 || partner1Name || '',
+        partner2: pendingRoadmapData.partner2 || partner2Name || '',
+        location: pendingRoadmapData.location || '',
+        conversationHistory: pendingConversation,
+        savedRoadmapId: pendingRoadmapData.savedRoadmapId || null
       });
     }
   };
@@ -934,6 +1027,22 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                 </div>
               </motion.div>
             </div>
+          </motion.div>
+        )}
+
+        {/* LIVE CREATION STAGE - Shows real-time progress (0-100%) */}
+        {stage === 'creatingLive' && (
+          <motion.div
+            key="creatingLive"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50"
+          >
+            <DreamCreationLive
+              onComplete={handleLiveCreationComplete}
+              onError={handleLiveCreationError}
+            />
           </motion.div>
         )}
 

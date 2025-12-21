@@ -24,8 +24,13 @@ const GoogleIcon = () => (
   </svg>
 )
 
-const Auth = ({ onSuccess, googleRedirectTo = null, embedded = false }) => {
-  const [isLogin, setIsLogin] = useState(true)
+const Auth = ({
+  onSuccess,
+  googleRedirectTo = null,
+  embedded = false,
+  initialMode = 'login' // 'login' or 'signup' - controls initial view
+}) => {
+  const [isLogin, setIsLogin] = useState(initialMode !== 'signup')
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
