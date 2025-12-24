@@ -15,6 +15,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCreationProgress, CreationEvent } from '../context/CreationProgressContext';
+import { forceCompleteCreation } from '../services/lunaService';
 
 // Conceptual progress phases - human language, not technical
 const CONCEPTUAL_PHASES = [
@@ -42,7 +43,7 @@ const LUNA_MOMENTS = {
   shaping: "Every great journey needs a thoughtful beginning.",
 };
 
-const DreamCreationLive = ({ onComplete, onError }) => {
+const DreamCreationLive = ({ onComplete, onError, onRetry }) => {
   const {
     progress,
     currentPhase,
@@ -54,6 +55,7 @@ const DreamCreationLive = ({ onComplete, onError }) => {
     canRetry,
     retry,
     subscribe,
+    userContext,
   } = useCreationProgress();
 
   // UI state for the living preview
@@ -68,6 +70,11 @@ const DreamCreationLive = ({ onComplete, onError }) => {
   const [showLunaMoment, setShowLunaMoment] = useState(null);
   const [particles, setParticles] = useState([]);
 
+  // Stall detection - if progress doesn't change for 30s, something went wrong
+  const [isStalled, setIsStalled] = useState(false);
+  const lastProgressRef = React.useRef(progress);
+  const stallTimerRef = React.useRef(null);
+
   // Generate ambient particles on mount
   useEffect(() => {
     const newParticles = Array.from({ length: 12 }, (_, i) => ({
@@ -80,6 +87,53 @@ const DreamCreationLive = ({ onComplete, onError }) => {
     }));
     setParticles(newParticles);
   }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STALL DETECTION - Safeguard against incomplete creation flow
+  //
+  // If progress hasn't changed for 90 seconds and we're not complete,
+  // something went wrong (Luna didn't finish the tool sequence).
+  // Show error state with retry option.
+  //
+  // 90 seconds is generous to avoid false positives during slow AI operations.
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    // Don't check if already complete, errored, or stalled
+    if (isComplete || isError || isStalled) {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Clear existing timer
+    if (stallTimerRef.current) {
+      clearTimeout(stallTimerRef.current);
+    }
+
+    // Update last progress reference
+    lastProgressRef.current = progress;
+
+    // Set new timer - 90 seconds without progress = stalled
+    // This is generous because:
+    // - AI tool calls (generate_milestone, generate_deep_dive) can take 15-30+ seconds each
+    // - Network latency and database operations add time
+    // - Under load, Claude API can be slower
+    // 90 seconds catches true stalls without false positives during slow operations
+    stallTimerRef.current = setTimeout(() => {
+      console.warn('⚠️ Dream creation stalled - no progress for 90 seconds');
+      console.warn('   Last progress:', progress, 'Phase:', currentPhase);
+      setIsStalled(true);
+    }, 90000);
+
+    // Cleanup
+    return () => {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+      }
+    };
+  }, [progress, isComplete, isError, isStalled, currentPhase]);
 
   // Determine current conceptual phase
   const conceptualPhaseIndex = useMemo(() => {
@@ -143,34 +197,130 @@ const DreamCreationLive = ({ onComplete, onError }) => {
     }
   }, [onComplete, roadmapData]);
 
-  const handleRetry = useCallback(() => {
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = useCallback(async () => {
+    // Reset UI state
     setRevealedSections({ title: false, timeline: false, interpretation: false, priorities: 0 });
     setShowLunaMoment(null);
     setIsReadyToEnter(false);
-    retry();
-  }, [retry]);
+    setIsStalled(false);
+    lastProgressRef.current = 0;
+    setIsRetrying(true);
 
-  // Extract preview data from milestone
+    // If we have milestone data, try to force-complete the creation
+    if (currentMilestone && currentMilestone.id) {
+      console.log('🔄 Attempting force-complete with existing milestone:', currentMilestone.title);
+
+      try {
+        const result = await forceCompleteCreation(currentMilestone, userContext || {});
+
+        if (result.success) {
+          console.log('✅ Force-complete succeeded!');
+          // onComplete will be called via CREATION_COMPLETE event
+        }
+      } catch (error) {
+        console.error('❌ Force-complete failed:', error);
+        // If force-complete fails, fall back to onRetry (back to chat)
+        if (onRetry) {
+          onRetry();
+        }
+      } finally {
+        setIsRetrying(false);
+      }
+    } else {
+      // No milestone data - must go back to chat
+      console.log('⚠️ No milestone data for force-complete, navigating back to chat');
+      setIsRetrying(false);
+      if (onRetry) {
+        onRetry();
+      } else {
+        retry();
+      }
+    }
+  }, [currentMilestone, userContext, onRetry, retry]);
+
+  // Extract preview data from milestone and user context
   const previewData = useMemo(() => {
     const milestone = currentMilestone || roadmapData?.milestones?.[0] || {};
+
+    // Determine if a real timeline was specified by the user
+    const wasTimelineSpecified =
+      milestone.timeline_specified === true ||
+      userContext?.timelineSpecified === true ||
+      (milestone.total_timeline_months && milestone.total_timeline_months > 0) ||
+      (userContext?.timelineMonths && userContext.timelineMonths > 0);
+
+    // Get timeline only if it was actually specified
+    const getTimeline = () => {
+      if (!wasTimelineSpecified) {
+        return null; // Don't show fake timeline
+      }
+
+      // 1. Check milestone's total_timeline_months (from roadmap architect)
+      if (milestone.total_timeline_months) {
+        return `${milestone.total_timeline_months} months`;
+      }
+      // 2. Check userContext.timelineMonths (from Luna's input)
+      if (userContext?.timelineMonths) {
+        return `${userContext.timelineMonths} months`;
+      }
+      // 3. Check milestone.timelineMonths (from generating phase)
+      if (milestone.timelineMonths) {
+        return `${milestone.timelineMonths} months`;
+      }
+      // 4. Check milestone.duration (string format like "18 months")
+      if (milestone.duration && typeof milestone.duration === 'string') {
+        return milestone.duration;
+      }
+      return null;
+    };
+
+    const timeline = getTimeline();
+
+    // Build dynamic context based on what we know
+    const buildContextItems = () => {
+      const items = [];
+
+      // Partner names if available
+      if (userContext?.partner1 && userContext?.partner2) {
+        items.push(`A journey for ${userContext.partner1} & ${userContext.partner2}`);
+      }
+
+      // Location if available
+      if (userContext?.location || milestone.location) {
+        items.push(`Based in ${userContext?.location || milestone.location}`);
+      }
+
+      // Budget context if available
+      if (userContext?.budget || milestone.estimatedCost) {
+        const budget = userContext?.budget || milestone.estimatedCost;
+        if (typeof budget === 'number' && budget > 0) {
+          items.push(`Budget: $${budget.toLocaleString()}`);
+        }
+      }
+
+      // Fallback items if we don't have specific context
+      if (items.length === 0) {
+        items.push('Building your roadmap');
+        items.push('Personalizing your journey');
+      }
+
+      return items;
+    };
+
     return {
       title: typeof milestone.title === 'string' ? milestone.title : 'Your Dream',
-      timeline: milestone.duration || milestone.timeline_months
-        ? `${milestone.timeline_months || 12} months`
-        : '12 months',
+      timeline,
       interpretation: milestone.description || 'A shared vision taking shape',
-      priorities: [
-        'Building together',
-        'Aligning on what matters',
-        'Creating your path forward',
-      ],
+      contextItems: buildContextItems(),
     };
-  }, [currentMilestone, roadmapData]);
+  }, [currentMilestone, roadmapData, userContext]);
 
-  // Error state
-  if (isError) {
+  // Error or Stalled state
+  if (isError || isStalled) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#FDFCF9] via-[#FBF9F4] to-[#F9F6F0] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-gradient-to-br from-[#FDFCF9] via-[#FBF9F4] to-[#F9F6F0] flex items-center justify-center px-4 py-8 sm:p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -178,20 +328,36 @@ const DreamCreationLive = ({ onComplete, onError }) => {
           className="max-w-md w-full text-center"
         >
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-stone-100 flex items-center justify-center">
-            <span className="text-2xl">✧</span>
+            <span className="text-2xl">{isStalled ? '◇' : '✧'}</span>
           </div>
           <p className="text-stone-400 text-sm tracking-wide uppercase mb-4">
-            Something didn't go as planned
+            {isStalled ? 'Creation paused' : 'Something didn\'t go as planned'}
           </p>
           <p className="text-stone-600 text-lg mb-8 leading-relaxed">
-            We couldn't finish shaping your dream. This happens sometimes.
+            {isStalled
+              ? 'The dream creation process stopped unexpectedly. Let\'s try that again.'
+              : 'We couldn\'t finish shaping your dream. This happens sometimes.'}
           </p>
-          {canRetry && (
+          {(canRetry || isStalled) && (
             <button
               onClick={handleRetry}
-              className="px-8 py-4 bg-stone-900 text-white rounded-full text-base font-medium hover:bg-stone-800 transition-all duration-300 shadow-lg shadow-stone-900/10"
+              disabled={isRetrying}
+              className="px-8 py-4 bg-stone-900 text-white rounded-full text-base font-medium hover:bg-stone-800 transition-all duration-300 shadow-lg shadow-stone-900/10 disabled:opacity-70 disabled:cursor-wait flex items-center gap-2 mx-auto"
             >
-              Try again
+              {isRetrying ? (
+                <>
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    className="inline-block"
+                  >
+                    ◇
+                  </motion.span>
+                  Retrying...
+                </>
+              ) : (
+                'Try again'
+              )}
             </button>
           )}
         </motion.div>
@@ -200,10 +366,17 @@ const DreamCreationLive = ({ onComplete, onError }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FDFCF9] via-[#FBF9F4] to-[#F9F6F0] flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#FDFCF9] via-[#FBF9F4] to-[#F9F6F0] flex flex-col items-center py-8 px-4 sm:px-6 sm:py-12 md:justify-center relative overflow-x-hidden overflow-y-auto">
+      {/*
+        Mobile-first layout:
+        - overflow-y-auto: Allow vertical scrolling
+        - overflow-x-hidden: Prevent horizontal scroll from decorative elements
+        - py-8 on mobile, py-12 on sm+: Safe padding top/bottom
+        - md:justify-center: Only center vertically on desktop
+      */}
 
-      {/* Ambient floating particles */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* Ambient floating particles - contained within fixed bounds */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         {particles.map((particle) => (
           <motion.div
             key={particle.id}
@@ -229,9 +402,9 @@ const DreamCreationLive = ({ onComplete, onError }) => {
         ))}
       </div>
 
-      {/* Warm gradient orbs */}
+      {/* Warm gradient orbs - fixed position so they don't scroll with content */}
       <motion.div
-        className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full opacity-30"
+        className="fixed top-0 right-0 w-[400px] h-[400px] sm:w-[600px] sm:h-[600px] rounded-full opacity-30 pointer-events-none z-0"
         style={{
           background: 'radial-gradient(circle, rgba(251,191,36,0.08) 0%, transparent 70%)',
           filter: 'blur(60px)',
@@ -240,7 +413,7 @@ const DreamCreationLive = ({ onComplete, onError }) => {
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.div
-        className="absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full opacity-20"
+        className="fixed bottom-0 left-0 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] rounded-full opacity-20 pointer-events-none z-0"
         style={{
           background: 'radial-gradient(circle, rgba(217,119,6,0.06) 0%, transparent 70%)',
           filter: 'blur(80px)',
@@ -249,7 +422,8 @@ const DreamCreationLive = ({ onComplete, onError }) => {
         transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
       />
 
-      <div className="max-w-lg w-full relative z-10">
+      {/* Main content container */}
+      <div className="max-w-lg w-full relative z-10 flex-shrink-0">
 
         {/* Header with subtle glow */}
         <motion.div
@@ -336,9 +510,9 @@ const DreamCreationLive = ({ onComplete, onError }) => {
               )}
             </AnimatePresence>
 
-            {/* Timeline Badge */}
+            {/* Timeline Badge - only show if user specified a timeline */}
             <AnimatePresence>
-              {revealedSections.timeline && (
+              {revealedSections.timeline && previewData.timeline && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -371,9 +545,9 @@ const DreamCreationLive = ({ onComplete, onError }) => {
               )}
             </AnimatePresence>
 
-            {/* Shared Priorities */}
+            {/* Context Items */}
             <AnimatePresence>
-              {revealedSections.priorities > 0 && (
+              {revealedSections.priorities > 0 && previewData.contextItems.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -381,10 +555,10 @@ const DreamCreationLive = ({ onComplete, onError }) => {
                   className="pt-5 border-t border-stone-100"
                 >
                   <p className="text-stone-400 text-xs uppercase tracking-wider mb-4">
-                    What we're building
+                    Your dream
                   </p>
                   <div className="space-y-2.5">
-                    {previewData.priorities.slice(0, revealedSections.priorities).map((priority, idx) => (
+                    {previewData.contextItems.slice(0, revealedSections.priorities).map((item, idx) => (
                       <motion.div
                         key={idx}
                         initial={{ opacity: 0, x: -10 }}
@@ -397,7 +571,7 @@ const DreamCreationLive = ({ onComplete, onError }) => {
                         className="flex items-center gap-3"
                       >
                         <span className="text-amber-500 text-xs">✓</span>
-                        <span className="text-stone-700 text-sm">{priority}</span>
+                        <span className="text-stone-700 text-sm">{item}</span>
                       </motion.div>
                     ))}
                   </div>
@@ -530,12 +704,18 @@ const DreamCreationLive = ({ onComplete, onError }) => {
 
       </div>
 
-      {/* Brand mark */}
+      {/* Brand mark - part of document flow for mobile scrolling */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 2, duration: 1 }}
-        className="absolute bottom-6 text-stone-300 text-xs tracking-widest uppercase"
+        className="mt-8 sm:mt-12 text-stone-300 text-xs tracking-widest uppercase text-center relative z-10"
+        style={{
+          // Use CSS safe-area-inset for proper bottom padding on all devices
+          // - iOS with home indicator: adds ~34px
+          // - iOS without / Android / Desktop: adds 0
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))'
+        }}
       >
         Twogether Forward
       </motion.p>

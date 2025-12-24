@@ -527,6 +527,240 @@ export async function converseWithLuna(messages, context = {}) {
 }
 
 /**
+ * Streaming version of converseWithLuna
+ * Provides real-time text streaming while maintaining full tool-calling support
+ *
+ * @param {Array} messages - Conversation history in Claude format
+ * @param {Object} context - User context (accumulated data)
+ * @param {Object} callbacks - Streaming callbacks { onChunk, onComplete, onError }
+ * @returns {Promise<Object>} Response with message and updated context
+ */
+export async function converseWithLunaStreaming(messages, context = {}, callbacks = {}) {
+  const { onChunk, onComplete, onError } = callbacks;
+  let accumulatedText = '';
+  let currentContext = { ...context };
+
+  // Timeout protection - 60 seconds max per streaming iteration
+  const STREAM_TIMEOUT = 60000;
+
+  /**
+   * Process a single streaming iteration
+   * May be called recursively if Claude uses tools
+   */
+  async function streamIteration(msgs) {
+    return new Promise(async (resolve, reject) => {
+      let timeoutId = null;
+
+      // Set up timeout
+      timeoutId = setTimeout(() => {
+        console.error('⏱️ Luna streaming timeout - forcing completion');
+        reject(new Error('Streaming timeout - response took too long'));
+      }, STREAM_TIMEOUT);
+
+      try {
+        console.log('🌊 Luna streaming iteration', { messageCount: msgs.length });
+
+        const response = await fetch(`${BACKEND_URL}/api/claude-stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: msgs,
+            systemPrompt: LUNA_SYSTEM_PROMPT,
+            tools: LUNA_TOOLS,
+            maxTokens: 2048,
+            temperature: 1.0
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Stream error: ${response.status} - ${errorText}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let iterationText = '';
+        let toolCalls = [];
+        let fullAssistantContent = []; // Track full content for tool result continuation
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          let currentEvent = '';
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (currentEvent === 'text' && data.text) {
+                  // Stream text chunk immediately
+                  iterationText += data.text;
+                  accumulatedText += data.text;
+                  if (onChunk) {
+                    onChunk(data.text, accumulatedText);
+                  }
+                  // Add to full content for potential tool continuation
+                  const lastBlock = fullAssistantContent[fullAssistantContent.length - 1];
+                  if (lastBlock && lastBlock.type === 'text') {
+                    lastBlock.text += data.text;
+                  } else {
+                    fullAssistantContent.push({ type: 'text', text: data.text });
+                  }
+                } else if (currentEvent === 'tool_use' && data.tool) {
+                  // Collect tool call for later execution
+                  console.log(`🔧 Stream received tool call: ${data.tool.name}`);
+                  toolCalls.push({
+                    type: 'tool_use',
+                    id: data.tool.id,
+                    name: data.tool.name,
+                    input: data.tool.input
+                  });
+                  fullAssistantContent.push({
+                    type: 'tool_use',
+                    id: data.tool.id,
+                    name: data.tool.name,
+                    input: data.tool.input
+                  });
+                } else if (currentEvent === 'error') {
+                  throw new Error(data.error || 'Stream error');
+                }
+              } catch (parseError) {
+                // Skip non-JSON lines
+                if (line.slice(6).trim() && !line.includes('[DONE]')) {
+                  console.debug('Skipping non-JSON SSE data');
+                }
+              }
+            }
+          }
+        }
+
+        // Stream iteration complete - check if we need to handle tool calls
+        if (toolCalls.length > 0) {
+          console.log(`🔨 Executing ${toolCalls.length} tool(s) from stream`);
+
+          // Store conversation messages in context for deep dive generation
+          currentContext.conversationMessages = msgs;
+
+          try {
+            // Execute all tools and collect results
+            const toolResults = [];
+
+            for (const toolUse of toolCalls) {
+              console.log(`🔨 Executing streamed tool: ${toolUse.name}`);
+
+              const toolResult = await executeToolCall(toolUse.name, toolUse.input, currentContext);
+              updateContextFromToolResult(currentContext, toolResult);
+
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolUse.id,
+                content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult)
+              });
+
+              console.log(`✅ Streamed tool ${toolUse.name} completed`);
+            }
+
+            // Continue conversation with tool results
+            const continueMessages = [
+              ...msgs,
+              { role: 'assistant', content: fullAssistantContent },
+              { role: 'user', content: toolResults }
+            ];
+
+            console.log(`🔄 Continuing stream with ${toolResults.length} tool result(s)`);
+
+            // Recursive call for next iteration
+            const result = await streamIteration(continueMessages);
+            if (timeoutId) clearTimeout(timeoutId);
+            resolve(result);
+
+          } catch (toolError) {
+            console.error(`❌ Tool execution error in stream:`, toolError);
+
+            // Send error results back to Claude
+            const errorResults = toolCalls.map(toolUse => ({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: JSON.stringify({ success: false, error: toolError.message }),
+              is_error: true
+            }));
+
+            const continueMessages = [
+              ...msgs,
+              { role: 'assistant', content: fullAssistantContent },
+              { role: 'user', content: errorResults }
+            ];
+
+            // Let Claude handle the error gracefully
+            const result = await streamIteration(continueMessages);
+            if (timeoutId) clearTimeout(timeoutId);
+            resolve(result);
+          }
+        } else {
+          // No tool calls - iteration complete
+          if (timeoutId) clearTimeout(timeoutId);
+          resolve({
+            iterationText,
+            hasToolCalls: false
+          });
+        }
+
+      } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId);
+        console.error('❌ Stream iteration error:', error);
+        reject(error);
+      }
+    });
+  }
+
+  // Main execution
+  try {
+    await streamIteration(messages);
+
+    const result = {
+      message: accumulatedText,
+      context: currentContext,
+      isComplete: isRoadmapComplete(currentContext)
+    };
+
+    if (onComplete) {
+      onComplete(result);
+    }
+
+    return result;
+
+  } catch (error) {
+    console.error('❌ Luna streaming error:', error);
+
+    if (onError) {
+      onError(error);
+    }
+
+    // Graceful fallback - return error message
+    const fallbackResult = {
+      message: "I'm having a moment of trouble connecting. Could you tell me again what you're hoping to accomplish?",
+      context: currentContext,
+      error: error.message,
+      isComplete: false
+    };
+
+    return fallbackResult;
+  }
+}
+
+/**
  * Handle tool/function calling from Claude
  * Executes the requested function and continues conversation
  */
@@ -918,6 +1152,9 @@ async function handleGenerateMilestone(input, context) {
   emitProgressEvent(CreationEvent.MILESTONE_GENERATING, {
     title: input.title || input.goal_type || 'Your Dream',
     goalType: input.goal_type,
+    timelineMonths: input.timeline_months || null,
+    budget: input.budget || null,
+    location: input.location || null,
   });
 
   // CRITICAL: Check if we already created a milestone for this goal
@@ -998,6 +1235,18 @@ async function handleGenerateMilestone(input, context) {
       color: milestone.color,
       estimatedCost: milestone.estimatedCost,
       duration: milestone.duration,
+      timeline_months: milestone.timeline_months,
+      total_timeline_months: milestone.total_timeline_months || input.timeline_months || null,
+      timeline_specified: milestone.timeline_specified ?? (input.timeline_months != null),
+    },
+    // Include user context for display
+    userContext: {
+      partner1: context.partner1,
+      partner2: context.partner2,
+      location: input.location || context.location,
+      budget: input.budget,
+      timelineMonths: input.timeline_months || null,
+      timelineSpecified: input.timeline_months != null,
     },
   });
 
@@ -1463,6 +1712,9 @@ async function handleFinalizeRoadmap(input, context) {
           roadmapData: {
             title: input.roadmap_title,
             milestones: context.milestones,
+            partner1: context.partner1 || '',
+            partner2: context.partner2 || '',
+            location: context.location || '',
           },
         });
 
@@ -1620,8 +1872,12 @@ async function handleFinalizeRoadmap(input, context) {
       tasksCount: totalTasksSaved,
       roadmapData: {
         id: savedRoadmap.id,
+        savedRoadmapId: savedRoadmap.id,
         title: input.roadmap_title,
         milestones: context.milestones || context.generatedMilestones,
+        partner1: context.partner1 || '',
+        partner2: context.partner2 || '',
+        location: context.location || '',
       },
     });
 
@@ -1770,6 +2026,120 @@ export function isRoadmapComplete(context) {
   return context.roadmapComplete === true &&
          context.milestones &&
          context.milestones.length > 0;
+}
+
+/**
+ * Force-complete a stalled dream creation
+ *
+ * When Luna stops mid-creation (after generate_milestone but before finalize),
+ * this function completes the remaining steps using the existing milestone data.
+ *
+ * @param {Object} milestone - The milestone data from currentMilestone
+ * @param {Object} userContext - User context (partner names, location, etc.)
+ * @returns {Promise<Object>} The completed roadmap data
+ */
+export async function forceCompleteCreation(milestone, userContext = {}) {
+  console.log('🔄 Force-completing stalled creation with existing milestone:', milestone?.title);
+
+  if (!milestone || !milestone.id) {
+    throw new Error('No milestone data available for force-complete');
+  }
+
+  try {
+    // Step 1: Emit deep dive generating event
+    emitProgressEvent(CreationEvent.DEEP_DIVE_GENERATING, {
+      milestoneId: milestone.id,
+      goalType: milestone.category || 'custom',
+    });
+
+    // Step 2: Generate deep dive using existing milestone data
+    const { generateDeepDive } = await import('./deepDiveGenerator');
+
+    const deepDiveInput = {
+      milestone_id: milestone.id,
+      goal_type: milestone.category || 'custom',
+      budget: milestone.estimatedCost || milestone.budget || 0,
+      timeline_months: milestone.timeline_months || milestone.timelineMonths || 6,
+      location: userContext.location || milestone.location || '',
+    };
+
+    const deepDiveData = generateDeepDive({
+      ...deepDiveInput,
+      context: userContext
+    });
+
+    // Attach deep dive to milestone
+    milestone.deep_dive_data = deepDiveData;
+
+    // Step 3: Emit deep dive generated event
+    emitProgressEvent(CreationEvent.DEEP_DIVE_GENERATED, {
+      milestoneId: milestone.id,
+      deepDive: {
+        phaseCount: deepDiveData.roadmapPhases?.length || 0,
+        hasInsights: false,
+        hasTips: !!deepDiveData.expertTips,
+      },
+    });
+
+    // Step 4: Emit finalizing event
+    emitProgressEvent(CreationEvent.FINALIZING, {
+      milestonesCount: 1,
+      roadmapTitle: milestone.title,
+    });
+
+    // Step 5: Build context for finalize
+    const context = {
+      partner1: userContext.partner1 || 'Partner 1',
+      partner2: userContext.partner2 || 'Partner 2',
+      location: userContext.location || '',
+      milestones: [milestone],
+      generatedMilestones: [milestone],
+    };
+
+    // Step 6: Call finalize handler
+    const finalizeInput = {
+      roadmap_title: milestone.title,
+      summary: milestone.description || 'Your personalized roadmap',
+      total_cost: milestone.estimatedCost || 0,
+      total_timeline_months: milestone.timeline_months || milestone.timelineMonths || 6,
+    };
+
+    const result = await handleFinalizeRoadmapDirect(finalizeInput, context);
+
+    if (result.success) {
+      console.log('✅ Force-complete successful:', result);
+      return {
+        success: true,
+        roadmapData: {
+          id: result.roadmap_id,
+          title: result.roadmap_title,
+          milestones: context.milestones,
+          partner1: context.partner1,
+          partner2: context.partner2,
+          location: context.location,
+          savedRoadmapId: result.roadmap_id,
+        }
+      };
+    } else {
+      throw new Error(result.message || 'Force-complete failed');
+    }
+
+  } catch (error) {
+    console.error('❌ Force-complete failed:', error);
+    emitProgressEvent(CreationEvent.CREATION_FAILED, {
+      error: error.message,
+      recoverable: false,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Direct finalize handler for force-complete (bypasses tool call flow)
+ */
+async function handleFinalizeRoadmapDirect(input, context) {
+  // Reuse the existing handleFinalizeRoadmap logic
+  return await handleFinalizeRoadmap(input, context);
 }
 
 /**

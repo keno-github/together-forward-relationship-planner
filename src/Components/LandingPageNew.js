@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Brain, Sparkles, Target, CheckCircle, ArrowRight, User, LogOut, MoreVertical, LayoutDashboard, UserCircle, Settings, Send, HeartHandshake, MapPin, MessageCircle, Bell, Home, Sunrise, Crown } from 'lucide-react';
+import VoiceInputButton from './VoiceInputButton';
 import { getUserRoadmaps } from '../services/supabaseService';
 import { useAuth } from '../context/AuthContext';
 import faviconDark from '../assets/favicon-dark.png';
-import { converseWithLuna, isRoadmapComplete, getRoadmapData } from '../services/lunaService';
+import { converseWithLunaStreaming, isRoadmapComplete, getRoadmapData } from '../services/lunaService';
 import { callClaudeStreaming } from '../services/claudeAPI';
 import Auth from './Auth';
 import GoalSelectionHub from './GoalSelectionHub';
@@ -32,6 +33,9 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
   const [lunaContext, setLunaContext] = useState({});
   const chatContainerRef = useRef(null);
 
+  // Voice input state
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+
   // Dream creation overlay state
   const [showCreationOverlay, setShowCreationOverlay] = useState(false);
   const [pendingRoadmapData, setPendingRoadmapData] = useState(null);
@@ -50,24 +54,43 @@ const LandingPageNew = ({ onComplete, onBack = null, onGoToDashboard = null, onG
     return () => setGlobalProgressUpdater(null);
   }, [creationProgress.updateProgress]);
 
-  // Subscribe to creation events for immediate navigation
+  // Subscribe to creation events - show transition before navigating
   useEffect(() => {
     const unsubscribe = creationProgress.subscribe((event) => {
-      // Navigate to live preview IMMEDIATELY when milestone generation starts
+      // When milestone generation starts, show transition message first
       if (event.type === CreationEvent.MILESTONE_GENERATING && !hasNavigatedToLiveRef.current) {
-        console.log('🚀 MILESTONE_GENERATING detected - navigating to live preview!');
+        console.log('🌟 MILESTONE_GENERATING detected - showing transition...');
         hasNavigatedToLiveRef.current = true;
-        setStage('creatingLive');
-        setIsLunaTyping(false); // Hide typing indicator immediately
+
+        // Add Luna's farewell message to the conversation
+        const dreamTitle = event.data?.title || 'your dream';
+        const farewellMessage = {
+          role: 'assistant',
+          content: `**Perfect.** I have everything I need.\n\nI'm now creating your personalized roadmap for **"${dreamTitle}"**. This will just take a moment...\n\n*Handing you over to the creation studio...*`,
+          isTransition: true
+        };
+
+        setConversation(prev => [...prev, farewellMessage]);
+        setStreamingContent('');
+        setIsLunaTyping(false);
+
+        // Show transition stage briefly, then navigate to live preview
+        setStage('transitioning');
+
+        // After 2 seconds, switch to creation screen
+        setTimeout(() => {
+          console.log('🚀 Transition complete - navigating to live preview!');
+          setStage('creatingLive');
+        }, 2000);
       }
     });
 
     return unsubscribe;
   }, [creationProgress.subscribe]);
 
-  // Reset navigation ref when stage changes away from creatingLive
+  // Reset navigation ref when stage changes away from creation flow
   useEffect(() => {
-    if (stage !== 'creatingLive') {
+    if (stage !== 'creatingLive' && stage !== 'transitioning') {
       hasNavigatedToLiveRef.current = false;
     }
   }, [stage]);
@@ -238,14 +261,29 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
     setStreamingContent('');
 
     try {
-      // For subsequent messages, use the full Luna service (supports tool calling)
-      // But we'll add streaming display while waiting
+      // Use streaming Luna service - text appears as it's generated
       const claudeMessages = newConversation.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
 
-      const result = await converseWithLuna(claudeMessages, lunaContext);
+      const result = await converseWithLunaStreaming(claudeMessages, lunaContext, {
+        // Called for each text chunk - update UI in real-time
+        onChunk: (chunk, fullText) => {
+          setStreamingContent(fullText);
+        },
+        // Called when streaming completes
+        onComplete: (completeResult) => {
+          console.log('✅ Luna streaming complete');
+        },
+        // Called on error
+        onError: (error) => {
+          console.error('❌ Luna streaming error:', error);
+        }
+      });
+
+      // Streaming complete - finalize the message
+      setStreamingContent('');
       setConversation([...newConversation, { role: 'assistant', content: result.message }]);
       setLunaContext(result.context);
 
@@ -258,12 +296,12 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
       }
     } catch (error) {
       console.error('❌ Error in Luna conversation:', error);
+      setStreamingContent('');
       setConversation([...newConversation, {
         role: 'assistant',
         content: "I'm having a moment of trouble connecting. Could you tell me again what you're hoping to accomplish?"
       }]);
     }
-    setStreamingContent('');
     setIsLunaTyping(false);
   };
 
@@ -289,6 +327,16 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
       });
     }
   };
+
+  // Handle voice transcript - populate input field with spoken text
+  const handleVoiceTranscript = useCallback((text) => {
+    setUserInput(text);
+  }, []);
+
+  // Handle voice listening state change
+  const handleVoiceListeningChange = useCallback((listening) => {
+    setIsVoiceListening(listening);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-stone-900 font-sans selection:bg-orange-100 selection:text-orange-900">
@@ -1004,16 +1052,35 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
 
                 {/* Input Area */}
                 <div className="border-t border-stone-200 p-4 bg-stone-50">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={userInput}
-                      onChange={(e) => setUserInput(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleLunaSendMessage()}
-                      placeholder="Type your message..."
-                      className="flex-1 bg-white border border-stone-200 rounded-full px-4 py-3 outline-none focus:ring-2 focus:ring-stone-900 text-stone-900"
-                      disabled={isLunaTyping}
-                    />
+                  <div className="flex gap-2 items-center">
+                    {/* Text Input with Voice Indicator */}
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={userInput}
+                        onChange={(e) => setUserInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleLunaSendMessage()}
+                        placeholder={isVoiceListening ? 'Listening...' : 'Type or speak your message...'}
+                        className={`w-full bg-white border rounded-full px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-stone-900 text-stone-900 transition-all ${
+                          isVoiceListening
+                            ? 'border-red-300 ring-2 ring-red-100'
+                            : 'border-stone-200'
+                        }`}
+                        disabled={isLunaTyping}
+                      />
+                      {/* Inline Voice Button */}
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                        <VoiceInputButton
+                          onTranscript={handleVoiceTranscript}
+                          onListeningChange={handleVoiceListeningChange}
+                          disabled={isLunaTyping}
+                          size="sm"
+                          showTooltip={true}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Send Button */}
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
@@ -1024,7 +1091,94 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
                       <Send className="w-5 h-5" />
                     </motion.button>
                   </div>
+
+                  {/* Voice Input Hint (shown on first use) */}
+                  {isVoiceListening && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-xs text-stone-500 mt-2 text-center"
+                    >
+                      Speak naturally. Tap the microphone again when done.
+                    </motion.p>
+                  )}
                 </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* TRANSITION STAGE - Luna hands off to creation */}
+        {stage === 'transitioning' && (
+          <motion.div
+            key="transitioning"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="min-h-screen flex items-center justify-center px-4 py-20 bg-gradient-to-br from-[#FDFCF8] via-stone-50 to-orange-50/30"
+          >
+            <div className="max-w-lg mx-auto text-center">
+              {/* Luna Avatar with pulse animation */}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5 }}
+                className="relative mb-8"
+              >
+                <motion.div
+                  animate={{
+                    scale: [1, 1.1, 1],
+                    opacity: [0.5, 0.8, 0.5]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="absolute inset-0 w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-stone-300 to-stone-400"
+                  style={{ filter: 'blur(20px)' }}
+                />
+                <div className="relative w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-stone-700 to-stone-900 flex items-center justify-center shadow-xl">
+                  <Brain className="w-12 h-12 text-white" />
+                </div>
+              </motion.div>
+
+              {/* Farewell message */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <h2 className="text-2xl md:text-3xl font-serif font-bold text-stone-900 mb-4">
+                  Creating Your Dream
+                </h2>
+                <p className="text-lg text-stone-600 mb-8">
+                  Luna is preparing your personalized roadmap...
+                </p>
+              </motion.div>
+
+              {/* Animated dots */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="flex justify-center gap-2"
+              >
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    animate={{
+                      y: [0, -8, 0],
+                      opacity: [0.5, 1, 0.5]
+                    }}
+                    transition={{
+                      duration: 0.8,
+                      repeat: Infinity,
+                      delay: i * 0.15
+                    }}
+                    className="w-3 h-3 rounded-full bg-stone-400"
+                  />
+                ))}
               </motion.div>
             </div>
           </motion.div>
@@ -1042,6 +1196,13 @@ Keep it conversational and under 100 words. Use **bold** for emphasis on key phr
             <DreamCreationLive
               onComplete={handleLiveCreationComplete}
               onError={handleLiveCreationError}
+              onRetry={() => {
+                // Navigate back to Luna chat so user can try again
+                console.log('🔄 Retry requested - navigating back to Luna chat');
+                creationProgress.reset();
+                hasNavigatedToLiveRef.current = false;
+                setStage('lunaConversation');
+              }}
             />
           </motion.div>
         )}

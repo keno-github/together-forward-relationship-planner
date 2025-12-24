@@ -92,6 +92,9 @@ export const CreationProgressProvider = ({ children }) => {
   // Final roadmap data (after creation)
   const [roadmapData, setRoadmapData] = useState(null);
 
+  // User context from creation (partner names, timeline, budget, location)
+  const [userContext, setUserContext] = useState(null);
+
   // Event subscribers (for real-time updates)
   const subscribersRef = useRef(new Set());
 
@@ -153,7 +156,13 @@ export const CreationProgressProvider = ({ children }) => {
         setProgress(PROGRESS_WEIGHTS.MILESTONE_GENERATING);
         setCurrentPhase('milestone_generating');
         setPhaseMessage(`Creating your goal: "${data.title || 'Your Dream'}"...`);
-        setCurrentMilestone({ title: data.title, status: 'generating' });
+        setCurrentMilestone({
+          title: data.title,
+          status: 'generating',
+          timelineMonths: data.timelineMonths,
+          budget: data.budget,
+          location: data.location,
+        });
         break;
 
       case CreationEvent.MILESTONE_GENERATED:
@@ -163,6 +172,10 @@ export const CreationProgressProvider = ({ children }) => {
         if (data.milestone) {
           setMilestones((prev) => [...prev, { ...data.milestone, status: 'ready' }]);
           setCurrentMilestone({ ...data.milestone, status: 'ready' });
+        }
+        // Capture user context for display
+        if (data.userContext) {
+          setUserContext(data.userContext);
         }
         break;
 
@@ -254,6 +267,7 @@ export const CreationProgressProvider = ({ children }) => {
     setError(null);
     setRetryCount(0);
     setRoadmapData(null);
+    setUserContext(null);
     creationContextRef.current = null;
   }, []);
 
@@ -272,6 +286,7 @@ export const CreationProgressProvider = ({ children }) => {
     error,
     roadmapData,
     retryCount,
+    userContext,
 
     // Computed
     isCreating: state === CreationState.CREATING || state === CreationState.INITIALIZING || state === CreationState.FINALIZING,

@@ -197,9 +197,15 @@ const GoalOverviewDashboard = ({
               >
                 {milestone.title}
               </h1>
-              <p className="text-sm md:text-base" style={{ color: '#6b635b' }}>
-                {userContext?.partner1} & {userContext?.partner2}'s journey together
-              </p>
+              {(userContext?.partner1 || userContext?.partner2) && (
+                <p className="text-sm md:text-base" style={{ color: '#6b635b' }}>
+                  {userContext?.partner1 && userContext?.partner2
+                    ? `${userContext.partner1} & ${userContext.partner2}'s journey together`
+                    : userContext?.partner1
+                    ? `${userContext.partner1}'s journey`
+                    : `${userContext.partner2}'s journey`}
+                </p>
+              )}
             </div>
           </div>
 

@@ -91,6 +91,15 @@ export const generateRoadmap = async (userContext, goalType, goalDescription = n
     generationMethod = 'template';
   }
 
+  // Extract total timeline months from user context
+  // Parse from text like "18 months" - returns null if not specified
+  const parseTimelineMonths = (timelineText) => {
+    if (!timelineText) return null;
+    const match = timelineText.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+  const totalTimelineMonths = parseTimelineMonths(timeline?.text);
+
   // Generate each milestone with context
   const milestones = milestoneSequence.map((milestoneType, index) => {
     // Create a human-readable title from milestone type
@@ -98,15 +107,26 @@ export const generateRoadmap = async (userContext, goalType, goalDescription = n
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
 
+    // Calculate timeline per milestone if user provided a timeline
+    // If no timeline specified, use null to indicate "not specified"
+    const milestonesCount = milestoneSequence.length;
+    const milestoneTimeline = totalTimelineMonths
+      ? Math.max(1, Math.round(totalTimelineMonths / milestonesCount))
+      : null;
+
     const milestone = generateMilestone({
       goal_type: goalType,
       title,
-      timeline_months: 1,
+      timeline_months: milestoneTimeline || 1, // Generator needs a number, but we track null separately
       budget: budget?.amount || 10000,
       location: location?.text || 'US',
       preferences: preferences || [],
       context: { order: index }
     });
+
+    // Store total timeline for display - null if user didn't specify
+    milestone.total_timeline_months = totalTimelineMonths;
+    milestone.timeline_specified = totalTimelineMonths !== null;
 
     // Add dependencies
     milestone.depends_on = index > 0 ? [milestoneSequence[index - 1]] : [];
