@@ -1,40 +1,21 @@
 /**
- * useVoiceInput - Staff Engineer Level Voice Input Hook
+ * useVoiceInput - Robust Voice Input Hook
  *
  * PURPOSE:
  * Provides speech-to-text functionality using the Web Speech API.
- * Designed for seamless integration with chat interfaces.
+ * Designed for natural conversation with tolerance for pauses.
  *
- * ARCHITECTURE:
- * - Uses native Web Speech API (SpeechRecognition)
- * - Progressive enhancement: works without voice, enhanced with it
- * - Graceful degradation: falls back cleanly on unsupported browsers
- * - Real-time transcription with interim results
+ * ROBUSTNESS FEATURES:
+ * - Continuous listening mode (doesn't stop on first pause)
+ * - Auto-restart on unexpected stops (keeps listening until user clicks stop)
+ * - Silence buffer (waits 6 seconds of silence before considering done)
+ * - Graceful handling of 'no-speech' errors (restarts instead of stopping)
  *
  * BROWSER SUPPORT:
  * - Chrome: Full support (webkitSpeechRecognition)
  * - Edge: Full support
  * - Safari: Partial support (14.1+)
  * - Firefox: Not supported (graceful fallback)
- *
- * USAGE:
- * ```jsx
- * const {
- *   isListening,
- *   transcript,
- *   interimTranscript,
- *   error,
- *   isSupported,
- *   startListening,
- *   stopListening,
- *   resetTranscript
- * } = useVoiceInput({
- *   continuous: false,
- *   onResult: (text) => setInput(text),
- *   onEnd: () => console.log('Recording stopped'),
- *   language: 'en-US'
- * });
- * ```
  *
  * @module useVoiceInput
  */
@@ -45,7 +26,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // SPEECH RECOGNITION SETUP
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Get the SpeechRecognition constructor (with vendor prefixes)
 const SpeechRecognition =
   typeof window !== 'undefined'
     ? window.SpeechRecognition || window.webkitSpeechRecognition
@@ -65,7 +45,6 @@ export const VoiceInputError = {
   UNKNOWN: 'UNKNOWN',
 };
 
-// Human-readable error messages
 const ERROR_MESSAGES = {
   [VoiceInputError.NOT_SUPPORTED]: 'Voice input is not supported in this browser. Try Chrome or Edge.',
   [VoiceInputError.PERMISSION_DENIED]: 'Microphone access was denied. Please allow microphone access to use voice input.',
@@ -84,25 +63,29 @@ const ERROR_MESSAGES = {
  * Voice input hook using Web Speech API
  *
  * @param {Object} options Configuration options
- * @param {boolean} options.continuous Keep listening after user stops speaking
- * @param {boolean} options.interimResults Show results while user is speaking
+ * @param {boolean} options.continuous Keep listening through pauses (default: true)
+ * @param {boolean} options.interimResults Show results while speaking (default: true)
+ * @param {boolean} options.autoRestart Restart on unexpected stops (default: true)
  * @param {string} options.language Language code (default: 'en-US')
+ * @param {number} options.silenceTimeout Ms of silence before stopping (default: 6000)
+ * @param {number} options.maxDuration Maximum recording duration in ms (default: 120000)
  * @param {function} options.onResult Callback when final result is received
  * @param {function} options.onInterim Callback for interim results
  * @param {function} options.onEnd Callback when recognition ends
  * @param {function} options.onError Callback when error occurs
- * @param {number} options.maxDuration Maximum recording duration in ms (default: 60000)
  */
 export function useVoiceInput(options = {}) {
   const {
-    continuous = false,
+    continuous = true, // Keep listening through pauses
     interimResults = true,
+    autoRestart = true, // Restart if recognition stops unexpectedly
     language = 'en-US',
+    silenceTimeout = 6000, // 6 seconds of silence before stopping (generous for thought-gathering)
+    maxDuration = 120000, // 2 minutes max
     onResult,
     onInterim,
     onEnd,
     onError,
-    maxDuration = 60000, // 60 seconds max
   } = options;
 
   // State
@@ -110,14 +93,18 @@ export function useVoiceInput(options = {}) {
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState(null);
-  const [permissionState, setPermissionState] = useState('prompt'); // 'prompt', 'granted', 'denied'
+  const [permissionState, setPermissionState] = useState('prompt');
 
   // Refs
   const recognitionRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const maxDurationTimeoutRef = useRef(null);
+  const silenceTimeoutRef = useRef(null);
   const isStoppingRef = useRef(false);
+  const shouldRestartRef = useRef(false);
+  const lastSpeechTimeRef = useRef(Date.now());
+  const restartAttemptsRef = useRef(0);
+  const maxRestartAttempts = 5;
 
-  // Check if speech recognition is supported
   const isSupported = !!SpeechRecognition;
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -125,7 +112,6 @@ export function useVoiceInput(options = {}) {
   // ═══════════════════════════════════════════════════════════════════════
 
   useEffect(() => {
-    // Check microphone permission status
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions
         .query({ name: 'microphone' })
@@ -134,22 +120,55 @@ export function useVoiceInput(options = {}) {
           result.onchange = () => setPermissionState(result.state);
         })
         .catch(() => {
-          // Permission query not supported, assume prompt
           setPermissionState('prompt');
         });
     }
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════
+  // SILENCE DETECTION
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const resetSilenceTimer = useCallback(() => {
+    lastSpeechTimeRef.current = Date.now();
+
+    // Clear existing silence timeout
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+  }, []);
+
+  const startSilenceTimer = useCallback(() => {
+    // Don't start if we're stopping or not listening
+    if (isStoppingRef.current || !shouldRestartRef.current) return;
+
+    // Clear existing
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+    }
+
+    // Set new silence timeout
+    silenceTimeoutRef.current = setTimeout(() => {
+      const silenceDuration = Date.now() - lastSpeechTimeRef.current;
+      console.log(`🎤 Silence detected for ${silenceDuration}ms, stopping...`);
+
+      // User has been silent long enough, stop listening
+      shouldRestartRef.current = false;
+      stopListening();
+    }, silenceTimeout);
+  }, [silenceTimeout]);
+
+  // ═══════════════════════════════════════════════════════════════════════
   // RECOGNITION SETUP
   // ═══════════════════════════════════════════════════════════════════════
 
-  const setupRecognition = useCallback(() => {
+  const createRecognition = useCallback(() => {
     if (!isSupported) return null;
 
     const recognition = new SpeechRecognition();
 
-    // Configuration
+    // Configuration for robust listening
     recognition.continuous = continuous;
     recognition.interimResults = interimResults;
     recognition.lang = language;
@@ -161,9 +180,14 @@ export function useVoiceInput(options = {}) {
       setIsListening(true);
       setError(null);
       isStoppingRef.current = false;
+      restartAttemptsRef.current = 0;
+      resetSilenceTimer();
     };
 
     recognition.onresult = (event) => {
+      // Reset silence timer - user is speaking
+      resetSilenceTimer();
+
       let finalTranscript = '';
       let currentInterim = '';
 
@@ -180,6 +204,9 @@ export function useVoiceInput(options = {}) {
         setTranscript((prev) => prev + finalTranscript);
         setInterimTranscript('');
         onResult?.(finalTranscript);
+
+        // Start silence timer after receiving final result
+        startSilenceTimer();
       }
 
       if (currentInterim) {
@@ -188,8 +215,35 @@ export function useVoiceInput(options = {}) {
       }
     };
 
+    recognition.onspeechstart = () => {
+      console.log('🎤 Speech detected');
+      resetSilenceTimer();
+    };
+
+    recognition.onspeechend = () => {
+      console.log('🎤 Speech ended, waiting for more...');
+      // Don't stop immediately - start silence timer
+      startSilenceTimer();
+    };
+
     recognition.onerror = (event) => {
-      console.error('🎤 Voice recognition error:', event.error);
+      console.warn('🎤 Voice recognition error:', event.error);
+
+      // Handle 'no-speech' gracefully - just restart
+      if (event.error === 'no-speech') {
+        console.log('🎤 No speech detected, continuing to listen...');
+        // Don't show error, just restart if we should
+        if (shouldRestartRef.current && autoRestart && restartAttemptsRef.current < maxRestartAttempts) {
+          restartAttemptsRef.current++;
+          return; // onend will handle restart
+        }
+        return;
+      }
+
+      // Handle 'aborted' silently if we initiated it
+      if (event.error === 'aborted' && isStoppingRef.current) {
+        return;
+      }
 
       let errorType;
       switch (event.error) {
@@ -197,12 +251,11 @@ export function useVoiceInput(options = {}) {
         case 'permission-denied':
           errorType = VoiceInputError.PERMISSION_DENIED;
           setPermissionState('denied');
-          break;
-        case 'no-speech':
-          errorType = VoiceInputError.NO_SPEECH;
+          shouldRestartRef.current = false; // Don't restart on permission error
           break;
         case 'audio-capture':
           errorType = VoiceInputError.AUDIO_CAPTURE;
+          shouldRestartRef.current = false;
           break;
         case 'network':
           errorType = VoiceInputError.NETWORK;
@@ -226,30 +279,57 @@ export function useVoiceInput(options = {}) {
 
     recognition.onend = () => {
       console.log('🎤 Voice recognition ended');
+
+      // Clear timeouts
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
+
+      // Should we restart?
+      if (shouldRestartRef.current && autoRestart && !isStoppingRef.current) {
+        if (restartAttemptsRef.current < maxRestartAttempts) {
+          console.log(`🎤 Auto-restarting... (attempt ${restartAttemptsRef.current + 1}/${maxRestartAttempts})`);
+          restartAttemptsRef.current++;
+
+          // Small delay before restart to avoid rapid cycling
+          setTimeout(() => {
+            if (shouldRestartRef.current && !isStoppingRef.current) {
+              try {
+                recognition.start();
+              } catch (err) {
+                console.warn('🎤 Restart failed:', err);
+                setIsListening(false);
+                onEnd?.();
+              }
+            }
+          }, 100);
+          return;
+        } else {
+          console.log('🎤 Max restart attempts reached');
+        }
+      }
+
       setIsListening(false);
       setInterimTranscript('');
 
-      // Clear timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-
-      // Only call onEnd if we're not in the middle of stopping
       if (!isStoppingRef.current) {
         onEnd?.();
       }
     };
 
     return recognition;
-  }, [isSupported, continuous, interimResults, language, onResult, onInterim, onEnd, onError]);
+  }, [
+    isSupported, continuous, interimResults, language,
+    onResult, onInterim, onEnd, onError, autoRestart,
+    resetSilenceTimer, startSilenceTimer
+  ]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // START LISTENING
   // ═══════════════════════════════════════════════════════════════════════
 
   const startListening = useCallback(async () => {
-    // Check support
     if (!isSupported) {
       const errorInfo = {
         type: VoiceInputError.NOT_SUPPORTED,
@@ -262,26 +342,32 @@ export function useVoiceInput(options = {}) {
 
     // Stop any existing recognition
     if (recognitionRef.current) {
-      recognitionRef.current.abort();
+      try {
+        recognitionRef.current.abort();
+      } catch (e) {
+        // Ignore
+      }
     }
 
     // Reset state
     setTranscript('');
     setInterimTranscript('');
     setError(null);
+    isStoppingRef.current = false;
+    shouldRestartRef.current = true;
+    restartAttemptsRef.current = 0;
 
     // Create new recognition instance
-    const recognition = setupRecognition();
+    const recognition = createRecognition();
     if (!recognition) return false;
 
     recognitionRef.current = recognition;
 
     try {
-      // Start recognition
       recognition.start();
 
       // Set max duration timeout
-      timeoutRef.current = setTimeout(() => {
+      maxDurationTimeoutRef.current = setTimeout(() => {
         console.log('🎤 Max duration reached, stopping...');
         stopListening();
       }, maxDuration);
@@ -299,25 +385,31 @@ export function useVoiceInput(options = {}) {
       onError?.(errorInfo);
       return false;
     }
-  }, [isSupported, setupRecognition, maxDuration, onError]);
+  }, [isSupported, createRecognition, maxDuration, onError]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // STOP LISTENING
   // ═══════════════════════════════════════════════════════════════════════
 
   const stopListening = useCallback(() => {
+    console.log('🎤 Stop listening called');
     isStoppingRef.current = true;
+    shouldRestartRef.current = false;
 
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+    // Clear all timeouts
+    if (maxDurationTimeoutRef.current) {
+      clearTimeout(maxDurationTimeoutRef.current);
+      maxDurationTimeoutRef.current = null;
+    }
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
     }
 
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
       } catch (err) {
-        // Ignore errors when stopping
         console.debug('🎤 Stop error (safe to ignore):', err);
       }
     }
@@ -342,11 +434,19 @@ export function useVoiceInput(options = {}) {
 
   useEffect(() => {
     return () => {
+      shouldRestartRef.current = false;
       if (recognitionRef.current) {
-        recognitionRef.current.abort();
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          // Ignore
+        }
       }
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      if (maxDurationTimeoutRef.current) {
+        clearTimeout(maxDurationTimeoutRef.current);
+      }
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
       }
     };
   }, []);
